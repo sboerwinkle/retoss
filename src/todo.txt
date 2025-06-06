@@ -1,0 +1,235 @@
+TODO:
+/ Revert platform spawning change so it's less bad
+- Rehabilitate shipping.gam (not in git yet)
+/ Add "icon" for remaining lobby levels (arena.sav, one other?)
+/ Allow /teamselect blocks that don't set color (if value is out of mask, maybe?)
+/ Things that are being pushed by things that are being pushed aren't resolved first
+/ Server exiting cancels input thread but doesn't exit app
+/ Complete switch to Scheme ref-counting
+	/ References seem to be resolved, maybe
+	/ Next step is actually doing our own allocation and reclaiming
+		Is this really, truly done?? Wow
+/ Switch to C-land
+	/ Scheme is all torn out now, even if it no longer compiles quite...
+	/ Get it to run again
+/ Movement shouldn't be so wacky - friction should be along a vector towards the destination.
+	This would still maintain the "squares come out of spinning and shooting" thing
+/ Better color options for players I guess
+/ Turn off TCP scheduling heuristic for more real-time communication
+/ Name display (maybe just show chat msg over head)
+	Abandoned in favor of individual colors b/c I'm lazy
+	Later, actually implemented!
+/ Predictive state
+	/ State cloning operation
+! Need to switch the handler-serialization scheme to use compile-time enums instead of string lookup
+	Necessary for proper serialization
+	/ Jokes on me, turns out you can count without using enums lol
+	/ Joke's on me again, at some point I did change to enums lol
+/ Velbox (R-trees to handle collisions)
+/ Flags explode on contact <3
+! User platforms expire?
+	! fade to grey near end of life
+- Particles on death
+	This would be nice for user platforms, but it's actually kinda weird.
+	We can't really make them "next tick" since the parent object won't exist
+	We could add them in the middle of the tick, but we'd need to properly initialize `old` which could be hard
+	Maybe the thing to do is add them to some list to be added at the end of this tick,
+		so they aren't used in collisions but they still appear where they are expected to
+	The only tricky bit becomes that the parent velbox will probably be removed by that point
+		Best solution I can see to this is to just keep it around (until the deads are cleaned)
+		and just add a check to ignore dead things in collisions.
+		Kinda rough but oh well?
+/ User platforms less prone to jank
+	! Magic expanding pellet magic
+	/ Should also refund player resources if they have to abort
+/ Automatic state sync on join
+/ Some way to use tools
+/ State serizalization
+	/ Save to file
+	/ Send over wire
+	/ dynamic joining
+/ "Finish" edit tooling
+	/ Bulk selection in area
+	/ Flips / rotations on selected items
+	/ resizing existing things
+		! stretching an edge to a desired point
+			This operation can fail since object widths are always even!
+	/ Documentation for all this edit stuff dear god
+/ Friction as a concept native to the engine?
+/ Rework handler registrar again so module load order isn't so closely tied to the handler's ID
+	Probably a big header with enums is the way to go here, so handlers have an ID rather than a name
+	Could still associate the ID with a name of course
+/ more circuit components
+	/ delay (timer)
+	/ randomizer
+/ Magic steppy legs
+	These "work" but I think they could be dumber and also more functional
+	/ Rework leggs
+/ friction configurable
+/ Make Escort Cube
+/ factory
+- soccer 2.0
+/ edit thumbtacks disappear in-flight if you clear their buffer
+/ no_draw_fp should be independently editable, like weightlessness
+/ weightlessness should accept an optional 1/0 arg, to override default toggle behavior
+/ Seats should let you set a view distance when active
+/ Figure out how the heck vehicles are going to work
+	I'd like to make "controls" (except for the clicky bits) go away
+		But that makes, like, aiming a vehicle be a whole hassle
+		who knows honestly
+	So it would need to be more... hands-on somehow
+	This would also require a complete rework of how weapons were going to function... hm
+		Unless they also only read A/B signals?
+		With decor for targeting?
+/ Better tools
+	I'm thinking tools come in 3 sizes:
+		2-H (two handed) tools are like the tools we have now. You can hold one, and it can read either mouse button.
+		Pri (primary) tools can only read LMB. You can only hold one, and never with a 2-handed tool.
+		Aux tools will be weird.
+			They can be in either "hand", and can read either LMB or RMB depending on which hand they're in.
+			You can hold two, or one in additon to a Pri tool.
+			(None with a 2-handed tool)
+			Aux tools will need to display in the HUD differently depending on which hand they're in
+	Shift doesn't drop the active tool anymore; shfit+(mouse button) drops the tool in that hand.
+		If there's nothing in that hand, any Aux tool in the other hand gets swapped there
+			(Aux tools being the only ambidexterous tools)
+		In the event you pick up a Primary tool while holding only an LMB Aux tool,
+			the Aux tool must be swapped to RMB to make space.
+			This should be the only situation where tools change hands automatically.
+	Purpose:
+		More flexible "builds", but still not a full inventory system
+		"better" tools can compensate by being Pri or 2-H
+		Complex tools can still use 2 inputs, if they need to, by being 2-H
+	Not sure how exactly to track this, when they're both just held objects, but I'll find a way
+		Maybe Aux tools just always dedicate their first slider to this.
+- config file
+	- Regular key binds (WASD Space Shift)
+	- Some edit keybinds, like save/load?
+	- mouseDragSize
+	- maybe configuration for scroll wheel handling, if you've got one of those fancy smooth scroll wheels?
+	- left-handed mode for mouse button inputs
+	- left-handed mode for Aux tool HUD display
+	/ default color, *maybe*
+		Haha did this first actually (plus name, host, port)
+/ raytrace for camera positioning uses interpolated positions
+/ Eye box positioning uses velocity setting, not teleportation, so it interpolates
+/ Fix graphical lag, or whatever that is
+- See if a dedicated allocator besides `malloc` makes a measurable difference?
+/ Nametags
+/ Document /name command
+/ Unsafe memory access when deserializing wires
+/ Stop being so stingy with frame data (don't enforce equal lag, so everybody gets less lag on average)
+/ Document /adjust
+- HOLD_SINGLE is defunct, remove it
+
+- CTF scoring plz
+
+/ Editing HUD shows number of items in blue/red buffer, as dots above/below crosshair
+- Optional max score for scoreboard
+
+- Optimizations
+	- Can some parts of velbox be multi-threaded? Thinking divide the pool of aunts to check among multiple threads.
+	- For the cost of one more frame of latency, we can double how long we have to foward-simulate
+		Not sure if this should be activated dynamically on the client side,
+		or if we should make the decision server-side for "fairness"
+
+/ Mario-Party-like race concept
+	- Touching each checkpoint sets it as the spawn area
+		chk -> latch -> (latch, previous latch, suppressor (XNOR), knife(2) -> previous suppressor)
+		suppressor -> all spawners in this zone
+	- Each stage has 4x6(?) grid of boxes, which *may* contain a platform
+	- Difficult narrow path is always available, so there's less constraints on the random gen
+	- Checkpoints raise the upcoming platforms, on a timer
+		chk -> chk -> inv -> (timer -> raise, timer2(3) -> chk)
+	- Exit TP is lower, so you can't be swept into it
+	- Victory zone has clear floor, so you can watch their misfortune
+	- Accel Wall of Doom reaches to the bottom of the Victory floor, so there's no escape for mortals
+	- Successive stages might be lowered slightly (starting with the checkpoint), so it's easier to see from behind
+
+. Modular procedural levels!
+- Move proc gen to C, so it's less awful
+- step climbing? Or some other trick to deal with the resulting lips??
+- Big Crane
+	- Doors (crane hand base) go limp when signaled
+
+Okay, we're well on our way!
+We've got
+a probably-working physics engine
+some basic Allegro thrown in
+
+
+-Mess around / basic level design
+-Enemies, which entail the following objects:
+	optons
+		This was a dumb earlier idea, shooting out blocks to see stuff is pointlessly expensive.
+		Better just to raytrace to potential targets every so often, since we have raytracing stuff now
+	bullets
+	guns?
+	A slightly different build function for enemies, so they release optons and respond appropriately
+-More level design
+-Menu level, which entails another object:
+	level warp blocks
+-What's this, more level design?
+
+
+
+At this point things have gotten extremely vague, and it's really just a wishlist that can be implemented in any order:
+
+Crafting stations
+Cabinets (for storage!)
+/ Proper collision detection with libVelbox (Or maybe just a nice B-tree?)
+Flying transport
+Gunship
+Missilecopter
+Construction walker
+Destruction walker
+Battle platform walker
+Powered exoskeleton
+Plasma turret
+explosives
+/ buttons
+missiles
+Nicer particles: blood, guts, gears, dirt, shrapnel
+Laz gun
+Chaingun
+Shotgun
+Grenade launcher
+Sticky launcher
+Metal crate launcher
+Flamethrower
+Missile launcher
+Knives
+Swords
+weapon mods
+Mover blocks
+destructible terrain blocks
+Apple trees
+More enemy types
+pouncer enemies
+Crawlers
+Clams
+Missile Clams
+Sound fx
+controller support
+multiplayer support
+Planets (freefall launch system)
+Swarming, muliplying insects
+Modular Maimbots
+Dialog (monolog really)
+Allies
+Autoturret
+Sticky Autoturrets
+Glass
+Patrol patterns for enemies
+Earthworms
+Jetpack
+Tentacle beasts (Dwell in caverns?)
+Tentacle eggs
+Level editor
+Portals
+Boosters
+Building materials (break on heavy impact)
+Kudzu
+Basic construction powers - think King Arthur's gold-style gameplay
+Stations with 'divert power' mechanics
+Station battles
