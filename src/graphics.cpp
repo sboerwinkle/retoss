@@ -5,13 +5,31 @@
 #include <string.h>
 
 #include "util.h"
+#include "quaternion.h"
+#include "matrix.h"
 
 #include "graphics.h"
+
+#define MOTTLE_TEX_RESOLUTION 64
+
+static void populateCubeVertexData();
 
 int displayWidth = 0;
 int displayHeight = 0;
 
 static char startupFailed = 0;
+static GLuint main_prog;
+static GLuint stipple_prog;
+// static GLuint flat_prog; // Will need this later, but don't feel like reworking shader rn
+
+static GLuint buffer_id;
+static GLuint vaos[2];
+
+static GLint u_main_modelview;
+static GLint u_main_rot;
+static GLint u_main_texscale;
+static GLint u_main_texoffset;
+static GLint u_main_tint;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -86,13 +104,219 @@ static GLuint mkShader(GLenum type, const char* path) {
 }
 
 void initGraphics() {
-	// Tore out all the code that could possibly set this flag haha
+	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
+	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
+	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "shaders/color.frag");
+	GLuint fragShaderStipple = mkShader(GL_FRAGMENT_SHADER, "shaders/stipple.frag");
+
+	main_prog = glCreateProgram();
+	glAttachShader(main_prog, vertexShader);
+	glAttachShader(main_prog, fragShader);
+	glLinkProgram(main_prog);
+	cerr("Post link");
+
+	stipple_prog = glCreateProgram();
+	glAttachShader(stipple_prog, vertexShader);
+	glAttachShader(stipple_prog, fragShaderStipple);
+	glLinkProgram(stipple_prog);
+	cerr("Post link");
+
+	/*
+	flat_prog = glCreateProgram();
+	glAttachShader(flat_prog, vertexShader2d);
+	glAttachShader(flat_prog, fragShader);
+	glLinkProgram(flat_prog);
+	cerr("Post link");
+	*/
+
+	// These will be the same attrib locations as stipple_prog, since they use the same vertex shader
+	GLint a_pos_id = attrib(main_prog, "a_pos");
+	GLint a_norm_id = attrib(main_prog, "a_norm");
+	GLint a_tex_st_id = attrib(main_prog, "a_tex_st");
+
+	// Uniforms
+	u_main_modelview = glGetUniformLocation(main_prog, "u_modelview");
+	u_main_rot = glGetUniformLocation(main_prog, "u_rot");
+	u_main_texscale = glGetUniformLocation(main_prog, "u_texscale");
+	u_main_texoffset = glGetUniformLocation(main_prog, "u_texoffset");
+	u_main_tint = glGetUniformLocation(main_prog, "u_tint");
+
+	// Previously I checked that some uniforms are in the same spots across programs here,
+	// and log + set startupFailed=1 if not.
+
+	// Rinse and repeat for other programs. Maybe the major grouping should be "type of thing" and not "program"?
+
+	printGLProgErrors(main_prog, "main");
+	printGLProgErrors(stipple_prog, "stipple");
+	//printGLProgErrors(flat_prog, "flat");
+
 	if (startupFailed) {
 		puts("Aborting due to one or more GL startup issues");
 		exit(1);
 	}
 
-	glEnable(GL_CULL_FACE);
+	//glEnable(GL_CULL_FACE); // TODO turn back on plz haha
+
+	// VAO config. vaos[1] is for the flat_prog if we ever get that going
+	// vaos[0]
+	glBindVertexArray(vaos[0]);
+	glEnableVertexAttribArray(a_pos_id);
+	glEnableVertexAttribArray(a_norm_id);
+	glEnableVertexAttribArray(a_tex_st_id);
+	glGenBuffers(1, &buffer_id);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer_id);
+	populateCubeVertexData();
+	// Position data is first
+	glVertexAttribPointer(a_pos_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) 0);
+	// Followed by normal data
+	glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
+	// Followed by tex coord data
+	glVertexAttribPointer(a_tex_st_id, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 6));
+	cerr("End of vao 0 prep");
+
+	/*
+	// vaos[1]
+	glBindVertexArray(vaos[1]);
+	glEnableVertexAttribArray(a_flat_loc_id);
+	initFont();
+	glVertexAttribPointer(a_flat_loc_id, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*) 0);
+	cerr("End of vao 1 prep");
+	*/
+
+	// Generate a random texture for mottling
+	uint8_t tex_noise_data[MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION];
+	uint32_t rstate = 59423;
+	for(int idx = 0; idx < MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION; idx++){
+		/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+		rstate ^= rstate << 13;
+		rstate ^= rstate >> 17;
+		rstate ^= rstate << 5;
+		tex_noise_data[idx] = rstate & 0xFF;
+	}
+	GLuint tex_noise;
+	glGenTextures(1, &tex_noise);
+	glBindTexture(GL_TEXTURE_2D, tex_noise);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
+	//  1. You are on a large, flat plane moving around.
+	//    How crisp is it? How visible is the mipmap and sampling seam? How much does the sampling seam move as you move the camera only?
+	//  2. There is a large object moving in the distance.
+	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, MOTTLE_TEX_RESOLUTION, MOTTLE_TEX_RESOLUTION, 0, GL_RED, GL_UNSIGNED_BYTE, tex_noise_data);
+	// We do naive 'generateMipmap', but we should possibly consider forcing some of the extreme mipmap levels to be exactly neutral (rather than assuming it will filter to that)
+	glGenerateMipmap(GL_TEXTURE_2D);
 
 	cerr("End of graphics setup");
+}
+
+void setupFrame() {
+	glUseProgram(main_prog);
+	glBindVertexArray(vaos[0]);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// This matters more when we're switching between this and flat_prog.
+	// No harm in explicitly re-enabling it each frame though.
+	glEnable(GL_DEPTH_TEST);
+
+	float quat[4] = {1,0,0,0};
+	/*
+	quat_rotY(quat, NULL, yaw);
+	quat_rotX(quat, NULL, pitch);
+	quat_norm(quat);
+	*/
+
+	float rotation_mat[16];
+	float mat_a[16];
+	GLfloat modelview_data[16], rot_data[9];
+	mat4FromQuat(rotation_mat, quat);
+	mat3FromQuat(rot_data, quat);
+	//mat4Transf(rotation_mat, 0, 0, 0);
+	float fovThingIdk = 1/0.7;
+	perspective(
+		mat_a,
+		fovThingIdk*displayHeight/displayWidth,
+		fovThingIdk,
+		0.1 // zNear
+	);
+	mat4Multf(modelview_data, mat_a, rotation_mat);
+
+	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, modelview_data);
+	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
+
+	// Cube drawing stuff. Plenty to do here, like figure in model rotation.
+	glUniform1f(u_main_texscale, 1);
+	glUniform2f(u_main_texoffset, 0, 0);
+	glUniform3f(u_main_tint, 1, 0.2, 0);
+	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+
+	//cerr("frame");
+}
+
+// At some point this may be a bit more dynamic if we have other
+// geometry "primitives" we want to render
+static void populateCubeVertexData() {
+	GLfloat boxData[36*8];
+        GLfloat L = -1;
+        GLfloat R =  1;
+        GLfloat F = -1;
+        GLfloat B =  1;
+        GLfloat U =  1;
+        GLfloat D = -1;
+        int counter = 0;
+#define vtx(x, y, z, nx, ny, nz, s, t) \
+        boxData[counter++] = x; \
+        boxData[counter++] = y; \
+        boxData[counter++] = z; \
+        boxData[counter++] = nx; \
+        boxData[counter++] = ny; \
+        boxData[counter++] = nz; \
+        boxData[counter++] = s; \
+        boxData[counter++] = t; \
+// END vtx
+	// up
+	vtx(L, B, U, 0, 0, U, 0, 0);
+	vtx(R, B, U, 0, 0, U, 1, 0);
+	vtx(L, F, U, 0, 0, U, 0, 1);
+	vtx(R, F, U, 0, 0, U, 1, 1);
+	vtx(L, F, U, 0, 0, U, 0, 1);
+	vtx(R, B, U, 0, 0, U, 1, 0);
+	// front
+	vtx(L, F, U, 0, F, 0, 0, 0);
+	vtx(R, F, U, 0, F, 0, 1, 0);
+	vtx(L, F, D, 0, F, 0, 0, 1);
+	vtx(R, F, D, 0, F, 0, 1, 1);
+	vtx(L, F, D, 0, F, 0, 0, 1);
+	vtx(R, F, U, 0, F, 0, 1, 0);
+	// right
+	vtx(R, F, U, R, 0, 0, 0, 0);
+	vtx(R, B, U, R, 0, 0, 1, 0);
+	vtx(R, F, D, R, 0, 0, 0, 1);
+	vtx(R, B, D, R, 0, 0, 1, 1);
+	vtx(R, F, D, R, 0, 0, 0, 1);
+	vtx(R, B, U, R, 0, 0, 1, 0);
+	// left
+	vtx(L, B, U, L, 0, 0, 0, 0);
+	vtx(L, F, U, L, 0, 0, 1, 0);
+	vtx(L, B, D, L, 0, 0, 0, 1);
+	vtx(L, F, D, L, 0, 0, 1, 1);
+	vtx(L, B, D, L, 0, 0, 0, 1);
+	vtx(L, B, U, L, 0, 0, 1, 0);
+	// back
+	vtx(R, B, U, 0, B, 0, 0, 0);
+	vtx(L, B, U, 0, B, 0, 1, 0);
+	vtx(R, B, D, 0, B, 0, 0, 1);
+	vtx(L, B, D, 0, B, 0, 1, 1);
+	vtx(R, B, D, 0, B, 0, 0, 1);
+	vtx(L, B, U, 0, B, 0, 1, 0);
+	// down
+	vtx(L, F, D, 0, 0, D, 0, 0);
+	vtx(R, F, D, 0, 0, D, 1, 0);
+	vtx(L, B, D, 0, 0, D, 0, 1);
+	vtx(R, B, D, 0, 0, D, 1, 1);
+	vtx(L, B, D, 0, 0, D, 0, 1);
+	vtx(R, F, D, 0, 0, D, 1, 0);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(boxData), boxData, GL_STATIC_DRAW);
 }

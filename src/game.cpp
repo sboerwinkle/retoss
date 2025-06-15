@@ -102,4 +102,5 @@ void doCleanup(gamestate *gs) {
 //// graphics stuff! ////
 
 void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) {
+	setupFrame();
 }
