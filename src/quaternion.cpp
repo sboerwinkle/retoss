@@ -18,10 +18,10 @@ void quat_norm(quat t){
 	t[2]/=len;
 	t[3]/=len;
 }
-void quat_rotateBy(quat ret, quat by){
+void quat_rotateBy(quat x, quat rot){
 	quat t;
-	quat_mult(t, ret, by);
-	memcpy(ret, t, sizeof(t));
+	quat_mult(t, x, rot);
+	memcpy(x, t, sizeof(t));
 }
 
 // These are all busted, need to re-evaluate what I'm expecting to do with `strt`.

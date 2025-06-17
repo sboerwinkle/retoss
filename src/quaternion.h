@@ -14,11 +14,12 @@
 // TODO going to rework this some day to be int32_t...
 typedef float quat[4];
 
-extern void quat_norm(float* t);
+extern void quat_norm(quat t);
+extern void quat_rotateBy(quat x, quat rot);
 /* Need to re-evaluate what to do with `strt`
-extern void quat_rotX(float* ret, float* strt, float r);
-extern void quat_rotY(float* ret, float* strt, float r);
-extern void quat_rotZ(float* ret, float* strt, float r);
+extern void quat_rotX(quat ret, quat strt, float r);
+extern void quat_rotY(quat ret, quat strt, float r);
+extern void quat_rotZ(quat ret, quat strt, float r);
 */
-extern void quat_mult(float* ret, float* a, float* b);
-extern void quat_print(float* t);
+extern void quat_mult(quat ret, quat a, quat b);
+extern void quat_print(quat t);

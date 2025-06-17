@@ -1,5 +1,6 @@
 #include <GLFW/glfw3.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "util.h"
 #include "queue.h"
@@ -9,6 +10,12 @@
 
 #include "game.h"
 #include "game_callbacks.h"
+
+quat tmpGameRotation = {1, 0, 0, 0};
+
+// TODO once I'm actually doing input sharing maybe I have to worry about this more
+int mouseX, mouseY;
+char mouseDown;
 
 void game_init() {
 	initGraphics();
@@ -29,8 +36,31 @@ void resetPlayer(gamestate *gs, int i) {}
 
 void handleKey(int key, int action) {}
 
-void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {}
-void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {}
+void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
+	int x = xpos;
+	int y = ypos;
+	if (mouseDown) {
+		float dx = x - mouseX;
+		float dy = y - mouseY;
+		float dist = sqrt(dx*dx + dy*dy);
+		float radians = dist * 0.002;
+		// Because of quaternion math, this represents a rotation of `radians*2`.
+		// We cap it at under a half rotation, after which I'm not sure my
+		// quaternions keep behaving haha
+		if (radians > 1.5) radians = 1.5;
+		float s = sin(radians);
+		// Positive X -> mouse to the right -> rotate about +Z
+		// Positive Y -> mouse down -> rotate around +X
+		quat r = {cos(radians), s*dy/dist, 0, s*dx/dist};
+		quat_rotateBy(tmpGameRotation, r);
+		quat_norm(tmpGameRotation);
+	}
+	mouseX = x;
+	mouseY = y;
+}
+void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
+	if (button == 0) mouseDown = (action == GLFW_PRESS);
+}
 void scroll_callback(GLFWwindow *window, double x, double y) {}
 void window_focus_callback(GLFWwindow *window, int focused) {}
 void copyInputs() {}

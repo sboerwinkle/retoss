@@ -7,6 +7,7 @@
 #include "util.h"
 #include "quaternion.h"
 #include "matrix.h"
+#include "game.h"
 
 #include "graphics.h"
 
@@ -155,7 +156,7 @@ void initGraphics() {
 		exit(1);
 	}
 
-	//glEnable(GL_CULL_FACE); // TODO turn back on plz haha
+	glEnable(GL_CULL_FACE);
 
 	// VAO config. vaos[1] is for the flat_prog if we ever get that going
 	// vaos[0]
@@ -191,7 +192,7 @@ void initGraphics() {
 		rstate ^= rstate << 13;
 		rstate ^= rstate >> 17;
 		rstate ^= rstate << 5;
-		tex_noise_data[idx] = rstate & 0xFF;
+		tex_noise_data[idx] = (rstate & 0x1F) + 0xE0;
 	}
 	GLuint tex_noise;
 	glGenTextures(1, &tex_noise);
@@ -220,27 +221,35 @@ void setupFrame() {
 	// No harm in explicitly re-enabling it each frame though.
 	glEnable(GL_DEPTH_TEST);
 
-	float quat[4] = {1,0,0,0};
-	/*
-	quat_rotY(quat, NULL, yaw);
-	quat_rotX(quat, NULL, pitch);
-	quat_norm(quat);
-	*/
+	// This will represent the rotation the world goes through
+	// to sit it in front of the camera, more accurately.
+	quat cameraRotation = {1,0,0,0};
 
-	float rotation_mat[16];
-	float mat_a[16];
+	// TODO stuff with actual position haha
+
 	GLfloat modelview_data[16], rot_data[9];
-	mat4FromQuat(rotation_mat, quat);
-	mat3FromQuat(rot_data, quat);
-	//mat4Transf(rotation_mat, 0, 0, 0);
+
+	quat thingRotation;
+	memcpy(thingRotation, tmpGameRotation, sizeof(thingRotation));
+	// This is intentionally before `cameraRotation` is applied,
+	// lighting doesn't rotate with the camera.
+	mat3FromQuat(rot_data, thingRotation);
+
+	quat modelCamRotation;
+	float modelCam_mat[16];
+	quat_mult(modelCamRotation, thingRotation, cameraRotation);
+	mat4FromQuat(modelCam_mat, modelCamRotation);
+	//mat4Transf(modelCam_mat, 0, 0, 0); // TODO as stated above, actual position is not done haha
+
+	float persp_mat[16];
 	float fovThingIdk = 1/0.7;
 	perspective(
-		mat_a,
+		persp_mat,
 		fovThingIdk*displayHeight/displayWidth,
 		fovThingIdk,
 		0.1 // zNear
 	);
-	mat4Multf(modelview_data, mat_a, rotation_mat);
+	mat4Multf(modelview_data, persp_mat, modelCam_mat);
 
 	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, modelview_data);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
@@ -278,45 +287,45 @@ static void populateCubeVertexData() {
 // END vtx
 	// up
 	vtx(L, B, U, 0, 0, U, 0, 0);
-	vtx(R, B, U, 0, 0, U, 1, 0);
 	vtx(L, F, U, 0, 0, U, 0, 1);
+	vtx(R, B, U, 0, 0, U, 1, 0);
 	vtx(R, F, U, 0, 0, U, 1, 1);
-	vtx(L, F, U, 0, 0, U, 0, 1);
 	vtx(R, B, U, 0, 0, U, 1, 0);
+	vtx(L, F, U, 0, 0, U, 0, 1);
 	// front
 	vtx(L, F, U, 0, F, 0, 0, 0);
-	vtx(R, F, U, 0, F, 0, 1, 0);
 	vtx(L, F, D, 0, F, 0, 0, 1);
+	vtx(R, F, U, 0, F, 0, 1, 0);
 	vtx(R, F, D, 0, F, 0, 1, 1);
-	vtx(L, F, D, 0, F, 0, 0, 1);
 	vtx(R, F, U, 0, F, 0, 1, 0);
+	vtx(L, F, D, 0, F, 0, 0, 1);
 	// right
 	vtx(R, F, U, R, 0, 0, 0, 0);
-	vtx(R, B, U, R, 0, 0, 1, 0);
 	vtx(R, F, D, R, 0, 0, 0, 1);
+	vtx(R, B, U, R, 0, 0, 1, 0);
 	vtx(R, B, D, R, 0, 0, 1, 1);
-	vtx(R, F, D, R, 0, 0, 0, 1);
 	vtx(R, B, U, R, 0, 0, 1, 0);
+	vtx(R, F, D, R, 0, 0, 0, 1);
 	// left
 	vtx(L, B, U, L, 0, 0, 0, 0);
+	vtx(L, B, D, L, 0, 0, 0, 1);
+	vtx(L, F, U, L, 0, 0, 1, 0);
+	vtx(L, F, D, L, 0, 0, 1, 1);
 	vtx(L, F, U, L, 0, 0, 1, 0);
 	vtx(L, B, D, L, 0, 0, 0, 1);
-	vtx(L, F, D, L, 0, 0, 1, 1);
-	vtx(L, B, D, L, 0, 0, 0, 1);
-	vtx(L, B, U, L, 0, 0, 1, 0);
 	// back
 	vtx(R, B, U, 0, B, 0, 0, 0);
-	vtx(L, B, U, 0, B, 0, 1, 0);
 	vtx(R, B, D, 0, B, 0, 0, 1);
+	vtx(L, B, U, 0, B, 0, 1, 0);
 	vtx(L, B, D, 0, B, 0, 1, 1);
-	vtx(R, B, D, 0, B, 0, 0, 1);
 	vtx(L, B, U, 0, B, 0, 1, 0);
+	vtx(R, B, D, 0, B, 0, 0, 1);
 	// down
 	vtx(L, F, D, 0, 0, D, 0, 0);
-	vtx(R, F, D, 0, 0, D, 1, 0);
 	vtx(L, B, D, 0, 0, D, 0, 1);
+	vtx(R, F, D, 0, 0, D, 1, 0);
 	vtx(R, B, D, 0, 0, D, 1, 1);
-	vtx(L, B, D, 0, 0, D, 0, 1);
 	vtx(R, F, D, 0, 0, D, 1, 0);
+	vtx(L, B, D, 0, 0, D, 0, 1);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(boxData), boxData, GL_STATIC_DRAW);
 }

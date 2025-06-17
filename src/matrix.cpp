@@ -21,30 +21,30 @@ void mat4Multf(float* res, float* m1, float* m2){
 
 void mat3FromQuat(float* M, quat rot){
 	M[0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
-	M[1] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
-	M[2] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
+	M[1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
+	M[2] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
 
-	M[3] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
-	M[4] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
-	M[5] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
+	M[3] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
+	M[4] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
+	M[5] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
 
-	M[6] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
-	M[7] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
-	M[8] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
+	M[6] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
+	M[7] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
+	M[8] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
 }
 
 void mat4FromQuat(float* M, quat rot){
-	M[0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
-	M[1] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
-	M[2] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
-	M[3] = 0;
-	M[4] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
-	M[5] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
-	M[6] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
-	M[7] = 0;
-	M[8] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
-	M[9] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
-	M[10] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
+	M[ 0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
+	M[ 1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
+	M[ 2] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
+	M[ 3] = 0;
+	M[ 4] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
+	M[ 5] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
+	M[ 6] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
+	M[ 7] = 0;
+	M[ 8] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
+	M[ 9] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
+	M[10] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
 	M[11] = 0;
 	M[12] = 0;
 	M[13] = 0;
