@@ -1,4 +1,3 @@
-
 extern int displayWidth;
 extern int displayHeight;
 

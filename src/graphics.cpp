@@ -8,6 +8,8 @@
 #include "quaternion.h"
 #include "matrix.h"
 #include "game.h"
+#include "png.h"
+#include "watch_gfx.h"
 
 #include "graphics.h"
 
@@ -104,6 +106,28 @@ static GLuint mkShader(GLenum type, const char* path) {
 	return shader;
 }
 
+static void loadTexture(char postChdir) {
+	char *imageData;
+	int width, height;
+	// TODO `postChdir` is such a hack, need to get my shit together
+	png_read(&imageData, &width, &height, postChdir ? "../assets/tex.png" : "assets/tex.png");
+	if (!imageData || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
+		puts("Not loading texture");
+	} else {
+		// We're going to assume the correct texture is bound!
+		// That's the nice thing about only using one texture.
+		glTexImage2D(
+			GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8,
+			MOTTLE_TEX_RESOLUTION, MOTTLE_TEX_RESOLUTION,
+			0,
+			GL_RGBA, GL_UNSIGNED_BYTE, imageData
+		);
+		// Apparently you can set manual mipmaps, but we don't care about that much
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	free(imageData);
+}
+
 void initGraphics() {
 	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
 	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
@@ -184,16 +208,22 @@ void initGraphics() {
 	cerr("End of vao 1 prep");
 	*/
 
-	// Generate a random texture for mottling
+	// TODO Currently texture work is a frankenstein of the
+	// random mottling texture and some "png from file" work
+	// I'm doing. Eventually we may want both? Or at least
+	// clean this up some.
+
+	/*
 	uint8_t tex_noise_data[MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION];
 	uint32_t rstate = 59423;
 	for(int idx = 0; idx < MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION; idx++){
-		/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+		// Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
 		rstate ^= rstate << 13;
 		rstate ^= rstate >> 17;
 		rstate ^= rstate << 5;
 		tex_noise_data[idx] = (rstate & 0x1F) + 0xE0;
 	}
+	*/
 	GLuint tex_noise;
 	glGenTextures(1, &tex_noise);
 	glBindTexture(GL_TEXTURE_2D, tex_noise);
@@ -206,14 +236,22 @@ void initGraphics() {
 	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, MOTTLE_TEX_RESOLUTION, MOTTLE_TEX_RESOLUTION, 0, GL_RED, GL_UNSIGNED_BYTE, tex_noise_data);
-	// We do naive 'generateMipmap', but we should possibly consider forcing some of the extreme mipmap levels to be exactly neutral (rather than assuming it will filter to that)
-	glGenerateMipmap(GL_TEXTURE_2D);
+
+	loadTexture(0);
 
 	cerr("End of graphics setup");
 }
 
+static void checkReload() {
+	// TODO document what's going on here
+	if (!texReloadFlag.load(std::memory_order::acquire)) return;
+	// TODO actually use texReloadPath
+	loadTexture(1);
+	texReloadFlag.store(0, std::memory_order::release);
+}
+
 void setupFrame() {
+	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

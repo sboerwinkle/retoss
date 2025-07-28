@@ -17,9 +17,11 @@
 #include "config.h"
 #include "game.h"
 #include "graphics.h"
+#include "mypoll.h"
 #include "net.h"
 #include "net2.h"
 #include "serialize.h"
+#include "watch.h"
 #include "file.h"
 
 #include "main.h"
@@ -240,11 +242,11 @@ static void handleSharedInputs(int outboundFrame) {
 	list<char> *out = &outboundData.add();
 	if (out->max > 1000) out->setMax(100); // Todo maybe bring this in line with the limits in net2.cpp, just for consistency
 
-	lock(sharedInputsMutex);
+	mtx_lock(sharedInputsMutex);
 
 	serializeControls(outboundFrame, out);
 
-	unlock(sharedInputsMutex);
+	mtx_unlock(sharedInputsMutex);
 
 	sendData(out->items, out->num);
 }
@@ -253,13 +255,13 @@ static void ensurePrefsSent() {
 	if (prefsSent) return;
 	prefsSent = 1;
 
-	lock(sharedInputsMutex);
+	mtx_lock(sharedInputsMutex);
 	prefsToCmds(&outboundTextQueue);
-	unlock(sharedInputsMutex);
+	mtx_unlock(sharedInputsMutex);
 }
 
 void shareInputs() {
-	lock(sharedInputsMutex);
+	mtx_lock(sharedInputsMutex);
 
 	copyInputs();
 	if (textSendInd) {
@@ -267,7 +269,7 @@ void shareInputs() {
 		strcpy(outboundTextQueue.add().items, textBuffer);
 	}
 
-	unlock(sharedInputsMutex);
+	mtx_unlock(sharedInputsMutex);
 }
 
 static void processLoopbackCommand() {
@@ -402,7 +404,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 	int32_t outboundFrame = *(int32_t*)startFramePtr;
 
 	list<list<char>> playerDatas;
-	lock(netMutex);
+	mtx_lock(netMutex);
 	// `playerDatas` holds our current guesses for each player's inputs.
 	// It is a list of "weak references" to lists, just in that it isn't
 	// reponsible for freeing any of them. It will assume they're valid,
@@ -410,7 +412,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 	// at least one finalized frame. The first finalized frame is set up
 	// with some dummy values for just this purpose, during net2_init().
 	playerDatas.init(frameData.peek(0));
-	unlock(netMutex);
+	mtx_unlock(netMutex);
 
 	long destNanos = nowNanos() - STEP_NANOS*3; // Start out a bit behind
 
@@ -440,7 +442,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 
 		clock_gettime(CLOCK_MONOTONIC_RAW, &t2);
 
-		lock(netMutex);
+		mtx_lock(netMutex);
 		// Do one more step of simulation on the phantom state and send to render thread.
 		// We won't have to re-simulate every frame, so if we waited until after incorporating
 		// the latest data we'd have extra variability in when frames get to the render thread.
@@ -471,7 +473,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			// but waiting for the lock could be a bit inconsistent,
 			// so this is marginally better I think
 			long now = nowNanos();
-			lock(renderMutex);
+			mtx_lock(renderMutex);
 			if (renderData.dropoff) {
 				disposeMe = renderData.dropoff;
 				renderData.dropoff = NULL;
@@ -480,7 +482,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			}
 			renderData.pickup = phantomState;
 			renderData.nanos = now;
-			unlock(renderMutex);
+			mtx_unlock(renderMutex);
 
 			if (disposeMe) {
 				doCleanup(disposeMe);
@@ -538,7 +540,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 				puts("Game thread: Server is way behind, going to sleep until we hear something");
 				asleep = 1;
 				while (globalRunning && finalizedFrames <= 1) {
-					wait(netCond, netMutex);
+					mtx_wait(netCond, netMutex);
 				}
 				asleep = 0;
 				puts("Game thread: Waking up");
@@ -556,7 +558,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			destNanos += STEP_NANOS;
 		}
 
-		unlock(netMutex);
+		mtx_unlock(netMutex);
 
 		clock_gettime(CLOCK_MONOTONIC_RAW, &t4);
 		{
@@ -642,15 +644,15 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 	// Usually I avoid locking mutexes directly in callbacks,
 	// since they could be called a lot,
 	// but this one's quite rare
-	lock(renderMutex);
+	mtx_lock(renderMutex);
 	screenSize.width = width;
 	screenSize.height = height;
 	screenSize.changed = 1;
-	unlock(renderMutex);
+	mtx_unlock(renderMutex);
 }
 
 static void checkRenderData() {
-	lock(renderMutex);
+	mtx_lock(renderMutex);
 	if (renderData.pickup) {
 		renderData.dropoff = renderedState;
 		renderedState = renderData.pickup;
@@ -658,7 +660,7 @@ static void checkRenderData() {
 		renderStartNanos = renderData.nanos;
 	}
 	updateResolution();
-	unlock(renderMutex);
+	mtx_unlock(renderMutex);
 }
 
 static void* renderThreadFunc(void *_arg) {
@@ -860,7 +862,9 @@ int main(int argc, char **argv) {
 	config_setHost(host);
 	config_setPort(port);
 
-	net2_init(numPlayers);
+	net2_init(numPlayers, startFrame);
+	watch_init();
+	mypoll_init(); // Uses fd's from "net" and "watch", so has to wait for them to init
 
 	// init phantomState
 	newPhantom(rootState);
@@ -884,7 +888,7 @@ int main(int argc, char **argv) {
 
 	//Main loop
 	pthread_t gameThread;
-	pthread_t netThread;
+	pthread_t pollThread;
 	pthread_t renderThread;
 	{
 		int ret = pthread_create(&gameThread, NULL, gameThreadFunc, &startFrame);
@@ -892,9 +896,9 @@ int main(int argc, char **argv) {
 			printf("pthread_create returned %d for gameThread\n", ret);
 			return 1;
 		}
-		ret = pthread_create(&netThread, NULL, netThreadFunc, &startFrame);
+		ret = pthread_create(&pollThread, NULL, mypoll_threadFunc, &startFrame);
 		if (ret) {
-			printf("pthread_create returned %d for netThread\n", ret);
+			printf("pthread_create returned %d for pollThread\n", ret);
 			pthread_cancel(gameThread); // No idea if this works, this is a failure case anyway
 			return 1;
 		}
@@ -902,7 +906,7 @@ int main(int argc, char **argv) {
 		if (ret) {
 			printf("pthread_create returned %d for renderThread\n", ret);
 			pthread_cancel(gameThread); // No idea if this works, this is a failure case anyway
-			pthread_cancel(netThread);
+			pthread_cancel(pollThread);
 			return 1;
 		}
 	}
@@ -913,18 +917,18 @@ int main(int argc, char **argv) {
 	// (if the inputThread isn't the main thread we'd want to set the GLFW "should exit" flag and push an empty event through)
 	globalRunning = 0;
 	// Game thread could potentially be waiting on this condition
-	lock(netMutex);
-	signal(netCond);
-	unlock(netMutex);
+	mtx_lock(netMutex);
+	mtx_signal(netCond);
+	mtx_unlock(netMutex);
 
 	puts("Writing config file...");
 	config_write();
 	puts("Done.");
 	puts("Beginning cleanup.");
-	closeSocket();
-	cleanupThread(netThread, "network");
+	cleanupThread(pollThread, "poll");
 	cleanupThread(gameThread, "game");
 	cleanupThread(renderThread, "render");
+	closeSocket();
 	puts("Cleaning up game objects...");
 	doCleanup(rootState);
 	free(rootState);
@@ -937,6 +941,8 @@ int main(int argc, char **argv) {
 	}
 	puts("Done.");
 	puts("Cleaning up simple interal components...");
+	mypoll_destroy();
+	watch_destroy();
 	net2_destroy();
 	game_destroy2(); // Mirror to game_init2
 	config_destroy();
