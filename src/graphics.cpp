@@ -16,16 +16,18 @@
 #define MOTTLE_TEX_RESOLUTION 64
 
 static void populateCubeVertexData();
+static void populateSpriteVertexData();
 
 int displayWidth = 0;
 int displayHeight = 0;
 
 static char startupFailed = 0;
 static GLuint main_prog;
+static GLuint sprite_prog;
 static GLuint stipple_prog;
 // static GLuint flat_prog; // Will need this later, but don't feel like reworking shader rn
 
-static GLuint buffer_id;
+static GLuint buffer_id, spr_buffer_id;
 static GLuint vaos[2];
 
 static GLint u_main_modelview;
@@ -33,6 +35,12 @@ static GLint u_main_rot;
 static GLint u_main_texscale;
 static GLint u_main_texoffset;
 static GLint u_main_tint;
+
+static GLint u_spr_offset;
+static GLint u_spr_size;
+static GLint u_spr_scale;
+static GLint u_spr_tex_offset;
+static GLint u_spr_tex_scale;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -130,6 +138,7 @@ static void loadTexture(char postChdir) {
 
 void initGraphics() {
 	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
+	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "shaders/sprite.vert");
 	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
 	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "shaders/color.frag");
 	GLuint fragShaderStipple = mkShader(GL_FRAGMENT_SHADER, "shaders/stipple.frag");
@@ -138,6 +147,12 @@ void initGraphics() {
 	glAttachShader(main_prog, vertexShader);
 	glAttachShader(main_prog, fragShader);
 	glLinkProgram(main_prog);
+	cerr("Post link");
+
+	sprite_prog = glCreateProgram();
+	glAttachShader(sprite_prog, spriteShader);
+	glAttachShader(sprite_prog, fragShader);
+	glLinkProgram(sprite_prog);
 	cerr("Post link");
 
 	stipple_prog = glCreateProgram();
@@ -156,8 +171,10 @@ void initGraphics() {
 
 	// These will be the same attrib locations as stipple_prog, since they use the same vertex shader
 	GLint a_pos_id = attrib(main_prog, "a_pos");
-	GLint a_norm_id = attrib(main_prog, "a_norm");
+	//GLint a_norm_id = attrib(main_prog, "a_norm"); // Temporarily out of commission haha
 	GLint a_tex_st_id = attrib(main_prog, "a_tex_st");
+	// sprite_prog attribs
+	GLint a_spr_loc = attrib(sprite_prog, "a_loc");
 
 	// Uniforms
 	u_main_modelview = glGetUniformLocation(main_prog, "u_modelview");
@@ -165,11 +182,15 @@ void initGraphics() {
 	u_main_texscale = glGetUniformLocation(main_prog, "u_texscale");
 	u_main_texoffset = glGetUniformLocation(main_prog, "u_texoffset");
 	u_main_tint = glGetUniformLocation(main_prog, "u_tint");
+	// sprite_prog uniforms
+	u_spr_offset = glGetUniformLocation(sprite_prog, "u_offset");
+	u_spr_size = glGetUniformLocation(sprite_prog, "u_size");
+	u_spr_scale = glGetUniformLocation(sprite_prog, "u_scale");
+	u_spr_tex_offset = glGetUniformLocation(sprite_prog, "u_tex_offset");
+	u_spr_tex_scale = glGetUniformLocation(sprite_prog, "u_tex_scale");
 
 	// Previously I checked that some uniforms are in the same spots across programs here,
 	// and log + set startupFailed=1 if not.
-
-	// Rinse and repeat for other programs. Maybe the major grouping should be "type of thing" and not "program"?
 
 	printGLProgErrors(main_prog, "main");
 	printGLProgErrors(stipple_prog, "stipple");
@@ -181,12 +202,15 @@ void initGraphics() {
 	}
 
 	glEnable(GL_CULL_FACE);
+	glGenVertexArrays(2, vaos);
+	GLuint tex_noise;
+	glGenTextures(1, &tex_noise);
 
-	// VAO config. vaos[1] is for the flat_prog if we ever get that going
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
+	glBindTexture(GL_TEXTURE_2D, tex_noise);
 	glEnableVertexAttribArray(a_pos_id);
-	glEnableVertexAttribArray(a_norm_id);
+	//glEnableVertexAttribArray(a_norm_id);
 	glEnableVertexAttribArray(a_tex_st_id);
 	glGenBuffers(1, &buffer_id);
 	glBindBuffer(GL_ARRAY_BUFFER, buffer_id);
@@ -194,10 +218,19 @@ void initGraphics() {
 	// Position data is first
 	glVertexAttribPointer(a_pos_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) 0);
 	// Followed by normal data
-	glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
+	//glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
 	// Followed by tex coord data
 	glVertexAttribPointer(a_tex_st_id, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 6));
 	cerr("End of vao 0 prep");
+	// vaos[1]
+	glBindVertexArray(vaos[1]);
+	glBindTexture(GL_TEXTURE_2D, tex_noise); // Do we need to bind this once per VAO? I'm guessing so, need to check.
+	glEnableVertexAttribArray(a_spr_loc);
+	glGenBuffers(1, &spr_buffer_id);
+	glBindBuffer(GL_ARRAY_BUFFER, spr_buffer_id);
+	populateSpriteVertexData();
+	glVertexAttribPointer(a_spr_loc, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (void*) 0);
+	cerr("End of vao 1 prep");
 
 	/*
 	// vaos[1]
@@ -224,9 +257,6 @@ void initGraphics() {
 		tex_noise_data[idx] = (rstate & 0x1F) + 0xE0;
 	}
 	*/
-	GLuint tex_noise;
-	glGenTextures(1, &tex_noise);
-	glBindTexture(GL_TEXTURE_2D, tex_noise);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
@@ -252,12 +282,14 @@ static void checkReload() {
 
 void setupFrame() {
 	checkReload();
-	glUseProgram(main_prog);
-	glBindVertexArray(vaos[0]);
+	glUseProgram(sprite_prog);
+	glBindVertexArray(vaos[1]);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	// This matters more when we're switching between this and flat_prog.
-	// No harm in explicitly re-enabling it each frame though.
-	glEnable(GL_DEPTH_TEST);
+	// We don't actually have to re-set this each frame,
+	// but it isn't part of VAO state so it matters if you're flipping between those.
+	glDisable(GL_DEPTH_TEST);
+
+	/* Rotation stuff, how tedious. Don't need this in 2D mode!
 
 	// This will represent the rotation the world goes through
 	// to sit it in front of the camera, more accurately.
@@ -298,6 +330,24 @@ void setupFrame() {
 	glUniform3f(u_main_tint, 1, 0.2, 0);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, 0, 36);
+
+	*/
+	float scale = 1.0/256;
+	float scaleX = scale*displayHeight/displayWidth;
+	glUniform2f(u_spr_scale, scaleX, scale);
+	glUniform2f(u_spr_tex_scale, 1.0/MOTTLE_TEX_RESOLUTION, -1.0/MOTTLE_TEX_RESOLUTION);
+	glUniform2f(u_spr_tex_offset, 32, 32);
+	glUniform2f(u_spr_size, 32, 32);
+
+	// Draw a bunch of the same sprite
+	glUniform2f(u_spr_offset, 0, 0);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	glUniform2f(u_spr_offset, 64, 0);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	glUniform2f(u_spr_offset, 64, 64);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	glUniform2f(u_spr_offset, 0, -256+32);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 
 	//cerr("frame");
 }
@@ -366,4 +416,26 @@ static void populateCubeVertexData() {
 	vtx(R, F, D, 0, 0, D, 1, 0);
 	vtx(L, B, D, 0, 0, D, 0, 1);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(boxData), boxData, GL_STATIC_DRAW);
+#undef vtx
+}
+
+static void populateSpriteVertexData() {
+	GLfloat data[12];
+        GLfloat L = -1;
+        GLfloat R =  1;
+        GLfloat U = -1;
+        GLfloat D =  1;
+        int counter = 0;
+#define vtx(x, y) \
+        data[counter++] = x; \
+        data[counter++] = y; \
+// END vtx
+	vtx(L,U);
+	vtx(R,U);
+	vtx(L,D);
+	vtx(L,D);
+	vtx(R,U);
+	vtx(R,D);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
+#undef vtx
 }

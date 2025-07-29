@@ -12,6 +12,8 @@ layout(location=5) uniform vec3 u_tint;
 // However, it is nice to have them explicit, as I do re-use attribute locations between programs that share
 // this vertex shader.
 layout(location=0) in vec3 a_pos;
+// I've got a (temporary) problem where this is getting optimized out
+// because I'm coloring tris based entirely on the texture right now, not `v_color`.
 layout(location=1) in vec3 a_norm;
 layout(location=2) in vec2 a_tex_st;
 
