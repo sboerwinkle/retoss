@@ -23,8 +23,6 @@ MAX_CLIENTS = 32
 CLIENT_POOL = MAX_CLIENTS
 # max sustained rate of new clients. Unit is clients/sec
 CLIENT_POOL_RECOVERY_PER_SEC = 0.2
-# how big can a single 'message' be from a client (how much data can be associated with one game frame). Unit is bytes
-MAX_MESSAGE_SIZE = 2 * (1024 * 1024)
 # Most commands that can be queued up by a client at any time
 MAX_CMD_COUNT = 16
 # max built-up leeway before kicking a client for over-usage. Unit is bytes
@@ -87,13 +85,18 @@ class ClientNetHandler(asyncio.Protocol):
         self.usagesince = time.monotonic()
         self.missed_frames = 0
 
+        self.size_bytes = None
+        self.requested_frame = 0
+        self.payload_bytes = None
+
         self.offsets_used = [False] * (MAX_AHEAD + 1)
         self.offsets_offset = 0
 
         self.cmds = []
-        self.cmd_usage = 0
         self.cmds_remaining = 0
-        self.determine_cmd_phase()
+
+        self.reqd_bytes = 1
+        self.next_phase = self.phase_size
 
     def connection_made(self, transport):
         self.transport = transport
@@ -155,36 +158,14 @@ class ClientNetHandler(asyncio.Protocol):
     def phase_body(self):
         if self.check_usage(PROC_ADJ):
             return
-        self.missed_frames = 0
-        size_bytes = self.recvd[0:1]
+        self.size_bytes = self.recvd[0:1]
         frame_bytes = self.recvd[1:5]
-        payload_bytes = self.recvd[5:self.reqd_bytes]
+        self.payload_bytes = self.recvd[5:self.reqd_bytes]
         self.recvd = self.recvd[self.reqd_bytes:]
 
-        frame = int.from_bytes(frame_bytes, 'big')
-        if frame >= FRAME_ID_MAX:
+        self.requested_frame = int.from_bytes(frame_bytes, 'big')
+        if self.requested_frame >= FRAME_ID_MAX:
             raise Exception(f"Bad frame number {frame}, invalid network communication")
-        # Because frame numbers wrap, we do some math to get an offset with +/- FRAME_ID_MAX//2.
-        # `delt == 0` corresponds to getting data for the frame that's about to go out.
-        delt = (frame - self.host.frame + FRAME_ID_MAX//2) % FRAME_ID_MAX - FRAME_ID_MAX//2
-
-        if delt < 0:
-            print(f"client {self.ix} delivered packet {-delt} frames late")
-            # If they're late, write it in for the upcoming frame instead.
-            # This will be later than they intended, but at least it's not lost.
-            frame_bytes = self.host.frame.to_bytes(4, 'big')
-            delt = 0
-        elif delt > MAX_AHEAD:
-            print(f"client {self.ix} delivered packet {delt} frames early, when the max allowed is {MAX_AHEAD}")
-            # Existence of this limit takes the guesswork out of how long it takes a new client to sync,
-            # and keeps clients from having to hang on to arbitrarily many frames of data
-            frame_bytes = ((self.host.frame + MAX_AHEAD) % FRAME_ID_MAX).to_bytes(4, 'big')
-            delt = MAX_AHEAD
-
-        offset_index = (self.offsets_offset + delt) % (MAX_AHEAD + 1)
-        if not self.offsets_used[offset_index]:
-            self.offsets_used[offset_index] = True
-            self.complete_messages.append(size_bytes+frame_bytes+payload_bytes)
 
         self.reqd_bytes = 1
         self.next_phase = self.phase_cmd_count
@@ -200,16 +181,6 @@ class ClientNetHandler(asyncio.Protocol):
         if self.check_usage(PROC_ADJ):
             return
 
-        self.cmd_usage += self.reqd_bytes
-        if self.cmd_usage > MAX_MESSAGE_SIZE:
-            print(f"Closed client {self.ix} for trying to broadcast too large a message")
-            self.live = False
-            self.transport.close()
-        elif len(self.cmds) >= MAX_CMD_COUNT:
-            print(f"Closed client {self.ix} for trying to queue too many commands")
-            self.live = False
-            self.transport.close()
-
     def phase_cmd(self):
         self.cmds.append(self.recvd[:self.reqd_bytes])
         self.recvd = self.recvd[self.reqd_bytes:]
@@ -223,6 +194,56 @@ class ClientNetHandler(asyncio.Protocol):
         else:
             self.reqd_bytes = 1
             self.next_phase = self.phase_size
+            self.record_complete_frame()
+
+    def record_complete_frame(self):
+        # Determine which frame we're actually going to send it for.
+        frame = self.requested_frame
+        # Because frame numbers wrap, we do some math to get an offset with +/- FRAME_ID_MAX//2.
+        # `delt == 0` corresponds to getting data for the frame that's about to go out.
+        delt = (frame - self.host.frame + FRAME_ID_MAX//2) % FRAME_ID_MAX - FRAME_ID_MAX//2
+
+        if delt < 0:
+            print(f"client {self.ix} delivered packet {-delt} frames late")
+            # If they're late, write it in for the upcoming frame instead.
+            # This will be later than they intended, but at least it's not lost.
+            frame = self.host.frame
+            delt = 0
+        elif delt > MAX_AHEAD:
+            print(f"client {self.ix} delivered packet {delt} frames early, when the max allowed is {MAX_AHEAD}")
+            # Existence of this limit takes the guesswork out of how long it takes a new client to sync,
+            # and keeps clients from having to hang on to arbitrarily many frames of data
+            frame = (self.host.frame + MAX_AHEAD) % FRAME_ID_MAX
+            delt = MAX_AHEAD
+
+        frame_bytes = frame.to_bytes(4, 'big')
+        offset_index = (self.offsets_offset + delt) % (MAX_AHEAD + 1)
+        if not self.offsets_used[offset_index]:
+            self.offsets_used[offset_index] = True
+            message_bytes = self.size_bytes+frame_bytes+self.payload_bytes
+            # The one-item list represents a message with 0 associated commands.
+            # We will add commands in a sec (if we have any)
+            self.complete_messages.append([message_bytes])
+
+        # Clients always describe frames in order.
+        # Even after restricting `delt`, the sequence of adjusted frames
+        # never goes _backwards_, so if our `offsets_used` slot was taken
+        # we know that the most recent complete_message must be the one
+        # that took it.
+        latest_message = self.complete_messages[-1]
+        # Also I'm pretty sure the most recent complete_message must still be here
+        # (not already sent out, in which case complete_messages would be empty)!
+        # The trick is that `complete_messages` being cleared coincides with
+        # `host.frame` advancing, which foils any attempts to construct a situation
+        # where the destination `frame` is already completed and also sent.
+
+        if len(latest_message) + len(self.cmds) > MAX_CMD_COUNT+1:
+            print(f"Closed client {self.ix} for trying to queue too many commands")
+            self.live = False
+            self.transport.close()
+            return
+        latest_message += self.cmds
+        self.cmds.clear()
 
     def connection_lost(self, exc):
         global active_host
@@ -294,21 +315,14 @@ async def loop(host):
                 continue
             anyConnectedClient = True
             items = c.complete_messages
-            msg += bytes([len(items)])
-            if len(items):
-                # First item gets special processing,
-                # so we manually extract the iterable.
-                # Is this even helpful? Maybe not.
-                it = items.__iter__()
-                msg += it.__next__()
-                # Add all pending commands here, then clear the pending list
-                msg += bytes((len(c.cmds),)) # add one byte w/ number of cmds
-                msg += b''.join(c.cmds)
-                c.cmds.clear()
-                c.cmd_usage = 0
-                # Any other messages sent at this time have no attached commands.
-                for i in it:
-                    msg += i + b'\0';
+            numItems = len(items)
+            msg += bytes((numItems,)) # Add byte w/ number of messages
+            if numItems:
+                self.missed_frames = 0
+                for item in items:
+                    msg += item[0] # Main message for some frame (this one, or a future one)
+                    msg += bytes((len(item)-1,)) # Byte w/ number of commands
+                    msg += b''.join(item[1:]) # all commands
                 items.clear()
             else:
                 c.missed_frames += 1
