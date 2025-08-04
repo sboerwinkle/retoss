@@ -1,0 +1,16 @@
+*.o
+*.so
+
+vgcore*
+game
+
+# May need to revisit this, holdover stuff from Bittoss
+savegame
+*.gam
+*.itm
+*.bkp
+data/tmp*
+!**/itm/*.itm
+
+# VIM files
+*.swp

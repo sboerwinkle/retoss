@@ -7,11 +7,10 @@
 
 #include "main.h"
 #include "graphics.h"
+#include "gamestate.h"
 
 #include "game.h"
 #include "game_callbacks.h"
-
-quat tmpGameRotation = {1, 0, 0, 0};
 
 // TODO once I'm actually doing input sharing maybe I have to worry about this more
 int mouseX, mouseY;
@@ -32,8 +31,6 @@ gamestate* game_init2() {
 void game_destroy2() {}
 void game_destroy() {}
 
-void resetPlayer(gamestate *gs, int i) {}
-
 void handleKey(int key, int action) {}
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
@@ -51,9 +48,12 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 		float s = sin(radians);
 		// Positive X -> mouse to the right -> rotate about +Z
 		// Positive Y -> mouse down -> rotate around +X
+
+		/*
 		quat r = {cos(radians), s*dy/dist, 0, s*dx/dist};
 		quat_rotateBy(tmpGameRotation, r);
 		quat_norm(tmpGameRotation);
+		*/
 	}
 	mouseX = x;
 	mouseY = y;
@@ -88,6 +88,7 @@ char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char i
 
 char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) {
 	if (isCmd(str, "/state")) {
+		/* TODO cleanup
 		int32_t s;
 		char const *input = str+6;
 		if (getNum(&input, &s)) {
@@ -96,6 +97,7 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		} else if (isReal && isMe) {
 			printf("State is %d\n", gs->nonsense);
 		}
+		*/
 		return 1;
 	} else {
 		if (isReal) puts(str);
@@ -105,28 +107,6 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 
 void prefsToCmds(queue<strbuf> *cmds) {
 	// No prefs that need to be sent for now
-}
-
-//// game stuff I guess? ////
-
-void runTick (gamestate *gs) {}
-
-gamestate* dup(gamestate *orig) {
-	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
-	ret->nonsense = orig->nonsense;
-	ret->players.init(orig->players);
-	return ret;
-}
-
-void prepareGamestateForLoad(gamestate *gs, char isSync) {
-	// Usually this would be resetting a bunch of stuff!
-	// But there's no stuff really.
-	// No player state, and currently game state is
-	// overwritten by `serialize.cpp` w/ no issues
-}
-
-void doCleanup(gamestate *gs) {
-	gs->players.destroy();
 }
 
 //// graphics stuff! ////

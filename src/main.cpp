@@ -20,11 +20,11 @@
 #include "mypoll.h"
 #include "net.h"
 #include "net2.h"
-#include "serialize.h"
 #include "watch.h"
 #include "file.h"
 
 #include "main.h"
+#include "gamestate.h"
 #include "game_callbacks.h"
 
 char globalRunning = 1;
@@ -104,18 +104,6 @@ static long nowNanos() {
 	timespec now;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
 	return BILLION * (now.tv_sec - startSec) + now.tv_nsec;
-}
-
-// TODO Not totally sure if this stays? Something like it probably will
-static void resetPlayers(gamestate *gs) {
-	range(i, gs->players.num) resetPlayer(gs, i);
-}
-
-// TODO may have to be reworked or moved out of this file?
-static void setupPlayers(gamestate *gs, int numPlayers) {
-	gs->players.setMaxUp(numPlayers);
-	gs->players.num = numPlayers;
-	resetPlayers(gs);
 }
 
 static void saveGame(const char *name) {
@@ -310,7 +298,9 @@ static void processCmd(gamestate *gs, player *p, char const *data, int chars, ch
 
 		prepareGamestateForLoad(rootState, isSync);
 
-		list<const char> const fakeList = {.items=data+1, .num = chars-1, .max = chars-1};
+		// Casting away the `const` here is probably bad.
+		// Whatever, I'm throwing away safety for readability in the serialization code
+		list<char> fakeList = {.items=(char*)(data+1), .num = chars-1, .max = chars-1};
 
 		deserialize(rootState, &fakeList, isSync);
 		return;
@@ -485,7 +475,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			mtx_unlock(renderMutex);
 
 			if (disposeMe) {
-				doCleanup(disposeMe);
+				cleanup(disposeMe);
 				free(disposeMe);
 			}
 		}
@@ -930,13 +920,13 @@ int main(int argc, char **argv) {
 	cleanupThread(renderThread, "render");
 	closeSocket();
 	puts("Cleaning up game objects...");
-	doCleanup(rootState);
+	cleanup(rootState);
 	free(rootState);
-	doCleanup(phantomState);
+	cleanup(phantomState);
 	free(phantomState);
 	if (renderData.pickup) renderData.dropoff = renderData.pickup;
 	if (renderData.dropoff) {
-		doCleanup(renderData.dropoff);
+		cleanup(renderData.dropoff);
 		free(renderData.dropoff);
 	}
 	puts("Done.");

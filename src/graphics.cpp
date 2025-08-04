@@ -269,6 +269,8 @@ void initGraphics() {
 
 	loadTexture(0);
 
+	glClearColor(0.5, 0.5, 0.5, 1);
+
 	cerr("End of graphics setup");
 }
 
