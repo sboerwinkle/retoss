@@ -20,6 +20,7 @@ static void populateSpriteVertexData();
 
 int displayWidth = 0;
 int displayHeight = 0;
+float scaleX, scaleY;
 
 static char startupFailed = 0;
 static GLuint main_prog;
@@ -118,15 +119,15 @@ static void loadTexture(char postChdir) {
 	char *imageData;
 	int width, height;
 	// TODO `postChdir` is such a hack, need to get my shit together
-	png_read(&imageData, &width, &height, postChdir ? "../assets/tex.png" : "assets/tex.png");
-	if (!imageData || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
+	png_read(&imageData, &width, &height, postChdir ? "../assets/dirt.png" : "assets/dirt.png");
+	if (!imageData) { //  || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
 		puts("Not loading texture");
 	} else {
 		// We're going to assume the correct texture is bound!
 		// That's the nice thing about only using one texture.
 		glTexImage2D(
-			GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8,
-			MOTTLE_TEX_RESOLUTION, MOTTLE_TEX_RESOLUTION,
+			GL_TEXTURE_2D, 0, GL_RGBA8,
+			width, height,
 			0,
 			GL_RGBA, GL_UNSIGNED_BYTE, imageData
 		);
@@ -269,7 +270,7 @@ void initGraphics() {
 
 	loadTexture(0);
 
-	glClearColor(0.5, 0.5, 0.5, 1);
+	glClearColor(0.8, 0.8, 0.8, 1);
 
 	cerr("End of graphics setup");
 }
@@ -334,24 +335,29 @@ void setupFrame() {
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
 	*/
-	float scale = 1.0/256;
-	float scaleX = scale*displayHeight/displayWidth;
-	glUniform2f(u_spr_scale, scaleX, scale);
-	glUniform2f(u_spr_tex_scale, 1.0/MOTTLE_TEX_RESOLUTION, -1.0/MOTTLE_TEX_RESOLUTION);
-	glUniform2f(u_spr_tex_offset, 32, 32);
-	glUniform2f(u_spr_size, 32, 32);
 
-	// Draw a bunch of the same sprite
-	glUniform2f(u_spr_offset, 0, 0);
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
-	glUniform2f(u_spr_offset, 64, 0);
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
-	glUniform2f(u_spr_offset, 64, 64);
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
-	glUniform2f(u_spr_offset, 0, -256+32);
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	// This one depends on the size of the texture.
+	// Might consider shrinking this a few percent to fix issues at borders,
+	// but I'd have to think about a bunch of stuff.
+	glUniform2f(u_spr_tex_scale, 1.0/32, -1.0/32);
+	scaleY = 1.0/256*exp(zoomLvl*0.2);
+	scaleX = scaleY*displayHeight/displayWidth;
+	glUniform2f(u_spr_scale, scaleX, scaleY);
+	// For now all our rendered sprites are the same size, so we can set this in advance.
+	glUniform2f(u_spr_size, 8, 8);
 
 	//cerr("frame");
+}
+
+void drawSprite(int cameraX, int cameraY, int sprite) {
+	// Coordinates on the spritesheet (which is currently only 2 16x16 sprites lol)
+	glUniform2f(u_spr_tex_offset, 16*sprite-8, 16+8);
+	glUniform2f(
+		u_spr_offset,
+		cameraX,
+		cameraY
+	);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 }
 
 // At some point this may be a bit more dynamic if we have other
