@@ -318,7 +318,7 @@ async def loop(host):
             numItems = len(items)
             msg += bytes((numItems,)) # Add byte w/ number of messages
             if numItems:
-                self.missed_frames = 0
+                c.missed_frames = 0
                 for item in items:
                     msg += item[0] # Main message for some frame (this one, or a future one)
                     msg += bytes((len(item)-1,)) # Byte w/ number of commands
