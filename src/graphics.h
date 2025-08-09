@@ -8,4 +8,4 @@ extern void setDisplaySize(int width, int height);
 
 extern void setupFrame();
 
-extern void drawSprite(int cameraX, int cameraY, int sprite);
+extern void drawSprite(int cameraX, int cameraY, int sprX, int sprY);

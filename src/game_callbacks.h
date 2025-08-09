@@ -26,4 +26,4 @@ extern void prefsToCmds(queue<strbuf> *cmds);
 
 //// graphics stuff! ////
 
-extern void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos);
+extern void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos);

@@ -3,9 +3,12 @@
 #include <stdint.h>
 
 #include "bloc.h"
+#include "queue.h"
 
 #define TEXT_BUF_LEN 200
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
+
+extern queue<strbuf> outboundTextQueue;
 
 #define mtx_lock(mtx) if (int __ret = pthread_mutex_lock(&mtx)) printf("Mutex lock failed with code %d\n", __ret)
 #define mtx_unlock(mtx) if (int __ret = pthread_mutex_unlock(&mtx)) printf("Mutex unlock failed with code %d\n", __ret)

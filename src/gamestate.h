@@ -24,18 +24,23 @@ struct mapChunk {
 // Strong PIG
 struct player {
 	int32_t x, y;
+	char facing;
 	char move;
-	unsigned char fallTimer;
-	unsigned char moveTimer;
+	unsigned char cooldown;
 };
 
 struct gamestate {
+	int cycle;
 	list<player> players;
 	mapChunk *board[boardAreaChunks];
 };
 
 extern void resetPlayer(gamestate *gs, int i);
 extern void setupPlayers(gamestate *gs, int numPlayers);
+
+extern void actionBuild(gamestate *gs, player *p);
+extern void actionDig(gamestate *gs, player *p);
+extern void actionBomb(gamestate *gs, player *p);
 
 extern void runTick(gamestate *gs);
 extern gamestate* dup(gamestate *orig);

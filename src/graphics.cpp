@@ -271,6 +271,11 @@ void initGraphics() {
 	loadTexture(0);
 
 	glClearColor(0.8, 0.8, 0.8, 1);
+	glEnable(GL_BLEND);
+	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
+	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	cerr("End of graphics setup");
 }
@@ -339,7 +344,7 @@ void setupFrame() {
 	// This one depends on the size of the texture.
 	// Might consider shrinking this a few percent to fix issues at borders,
 	// but I'd have to think about a bunch of stuff.
-	glUniform2f(u_spr_tex_scale, 1.0/32, -1.0/32);
+	glUniform2f(u_spr_tex_scale, 1.0/64, -1.0/64);
 	scaleY = 1.0/256*exp(zoomLvl*0.2);
 	scaleX = scaleY*displayHeight/displayWidth;
 	glUniform2f(u_spr_scale, scaleX, scaleY);
@@ -349,9 +354,9 @@ void setupFrame() {
 	//cerr("frame");
 }
 
-void drawSprite(int cameraX, int cameraY, int sprite) {
+void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
 	// Coordinates on the spritesheet (which is currently only 2 16x16 sprites lol)
-	glUniform2f(u_spr_tex_offset, 16*sprite-8, 16+8);
+	glUniform2f(u_spr_tex_offset, 12+20*sprX, 12+20*sprY);
 	glUniform2f(
 		u_spr_offset,
 		cameraX,

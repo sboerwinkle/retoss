@@ -6,14 +6,11 @@
 static void decr(mapChunk *mc);
 static mapChunk* dup(mapChunk* mc);
 static void setSpace(gamestate *gs, int x, int y, char value);
-
-void runTick(gamestate *gs) {
-	// TODO all the fun logic actually
-}
+static char getSpace(gamestate *gs, int x, int y);
 
 void resetPlayer(gamestate *gs, int i) {
 	int32_t pos = boardSizeSpaces/2;
-	gs->players[i] = {.x=pos, .y=pos};
+	gs->players[i] = {.x=pos, .y=pos, .facing=1};
 	setSpace(gs, pos, pos, 0);
 }
 
@@ -21,6 +18,62 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 	gs->players.setMaxUp(numPlayers);
 	gs->players.num = numPlayers;
 	range(i, gs->players.num) resetPlayer(gs, i);
+}
+
+void runTick(gamestate *gs) {
+	range(i, gs->players.num) {
+		player &p = gs->players[i];
+		if (p.cooldown) {
+			p.cooldown--;
+			continue;
+		}
+		// If there's a free space beneath us,
+		if (!getSpace(gs, p.x, p.y - 1)) {
+			// If player asked to go down, or doesn't have a ledge to stand on,
+			if (p.move == 2 || !getSpace(gs, p.x + p.facing, p.y - 1)) {
+				// player goes down.
+				p.y--;
+				p.cooldown = 4; // cooldown of 4 => 1 move every 5 frames => 3Hz
+				continue;
+			}
+		}
+		if (p.move != 1 && p.move != -1) continue;
+		p.facing = p.move;
+		if (!getSpace(gs, p.x + p.move, p.y)) {
+			p.x += p.move;
+			p.cooldown = 4;
+		} else if (!getSpace(gs, p.x, p.y + 1)) {
+			p.y += 1;
+			p.cooldown = 4;
+		}
+	}
+}
+
+static char isGrounded(gamestate *gs, player *p) {
+	return getSpace(gs, p->x, p->y - 1) || getSpace(gs, p->x + p->facing, p->y - 1);
+}
+
+void actionBuild(gamestate *gs, player *p) {
+	if (!isGrounded(gs, p)) return;
+	// Don't want to mess with tracking a random seed right now,
+	// or adding a new tile for player buildings,
+	// so they just make the first dirt tile always.
+	setSpace(gs, p->x - 1, p->y, 1);
+	setSpace(gs, p->x + 1, p->y, 1);
+}
+
+void actionDig(gamestate *gs, player *p) {
+	if (!isGrounded(gs, p)) return;
+	setSpace(gs, p->x + p->facing, p->y, 0);
+}
+
+void actionBomb(gamestate *gs, player *p) {
+	if (!isGrounded(gs, p)) return;
+	range(i, 3) {
+		range(j, 3) {
+			setSpace(gs, p->x-1+i, p->y-1+j, 0);
+		}
+	}
 }
 
 // I'm thinking `isSync` may be unused forever, but we can leave it for now (forever)
@@ -35,7 +88,8 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	range(i, boardAreaChunks) {
 		gs->board[i] = dup(emptyChunk);
 	}
-	gs->players.init(numPlayers);
+	gs->players.init();
+	// Setup any data that might carry over (right now, just player count)
 	setupPlayers(gs, numPlayers);
 }
 
@@ -82,18 +136,38 @@ static mapChunk* dup(mapChunk* mc) {
 	return mc;
 }
 
-// May not be `static` in the future, idk
-static void setSpace(gamestate *gs, int x, int y, char value) {
-	if (x < 0 || x >= boardSizeSpaces || y < 0 || y >= boardSizeSpaces) return;
+static char coords(int x, int y, int *chunk, int *space) {
+	if (x < 0 || x >= boardSizeSpaces || y < 0 || y >= boardSizeSpaces) return 1;
 	int c_x = x / chunkSizeSpaces;
 	int c_y = y / chunkSizeSpaces;
 	int s_x = x % chunkSizeSpaces;
 	int s_y = y % chunkSizeSpaces;
-	int c_coord = c_y * boardSizeChunks + c_x;
-	int s_coord = s_y * chunkSizeSpaces + s_x;
+	*chunk = c_y * boardSizeChunks + c_x;
+	*space = s_y * chunkSizeSpaces + s_x;
+	return 0;
+}
+
+// May not be `static` in the future, idk
+static void setSpace(gamestate *gs, int x, int y, char value) {
+	int c_coord, s_coord;
+	if (coords(x, y, &c_coord, &s_coord)) return;
+
+	if (value) {
+		range(i, gs->players.num) {
+			player &p = gs->players[i];
+			if (p.x == x && p.y == y) return;
+		}
+	}
 
 	mkWritable(gs->board + c_coord);
 	gs->board[c_coord]->data[s_coord] = value;
+}
+
+static char getSpace(gamestate *gs, int x, int y) {
+	int c_coord, s_coord;
+	if (coords(x, y, &c_coord, &s_coord)) return 1;
+
+	return gs->board[c_coord]->data[s_coord];
 }
 
 
@@ -188,7 +262,7 @@ static void transBoard(list<char> *data, gamestate *gs) {
 	}
 	range(i, boardAreaChunks) {
 		// Compression? What's that?????
-		transBlock(data, gs->board[i]->data, chunkSizeSpaces);
+		transBlock(data, gs->board[i]->data, chunkAreaSpaces);
 	}
 }
 
@@ -196,8 +270,8 @@ static void transPlayer(list<char> *data, player *p) {
 	trans32(data, &p->x);
 	trans32(data, &p->y);
 	trans8(data, &p->move);
-	trans8(data, &p->fallTimer);
-	trans8(data, &p->moveTimer);
+	trans8(data, &p->facing);
+	trans8(data, &p->cooldown);
 }
 
 /* Unused

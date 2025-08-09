@@ -36,7 +36,7 @@ static int myPlayer;
 // engine. Probably all games need it.
 char textBuffer[TEXT_BUF_LEN];
 char textSendInd = 0;
-static queue<strbuf> outboundTextQueue;
+queue<strbuf> outboundTextQueue;
 
 struct {
 	int width, height;
@@ -668,7 +668,9 @@ static void* renderThreadFunc(void *_arg) {
 		float interpRatio = (float)(time0 - renderStartNanos) / STEP_NANOS;
 		if (interpRatio > 1.1) interpRatio = 1.1; // Ideally it would be somewhere in (0, 1]
 
-		draw(renderedState, interpRatio, drawingNanos, totalNanos);
+		// Computation of `p` should be safe, even the initial `renderedState`
+		// is populated after we know the number of players in the game.
+		draw(renderedState, myPlayer, interpRatio, drawingNanos, totalNanos);
 		long time1 = nowNanos();
 
 		glfwSwapBuffers(display);
