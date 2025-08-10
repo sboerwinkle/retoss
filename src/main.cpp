@@ -48,9 +48,9 @@ struct {
 static struct {
 	gamestate *pickup, *dropoff;
 	long nanos;
-} renderData = {0};
-pthread_mutex_t renderMutex = PTHREAD_MUTEX_INITIALIZER;
-gamestate *renderedState;
+} renderData = {};
+static pthread_mutex_t renderMutex = PTHREAD_MUTEX_INITIALIZER;
+static gamestate *renderedState = NULL;
 long renderStartNanos = 0;
 char manualGlFinish = 1;
 
@@ -62,7 +62,7 @@ static char loopbackCommandBuffer[TEXT_BUF_LEN];
 // Mostly, nobody outside this file should use `rootState`,
 // but it's helpful to have for debug prints somtimes.
 gamestate *rootState;
-static gamestate *phantomState;
+static gamestate *phantomState = NULL;
 
 static GLFWwindow *display;
 
@@ -683,6 +683,7 @@ static void* renderThreadFunc(void *_arg) {
 		totalNanos = time2-time0;
 		time0 = time2;
 	}
+	glfwMakeContextCurrent(NULL);
 	return NULL;
 }
 
@@ -926,6 +927,8 @@ int main(int argc, char **argv) {
 	free(rootState);
 	cleanup(phantomState);
 	free(phantomState);
+	cleanup(renderedState);
+	free(renderedState);
 	if (renderData.pickup) renderData.dropoff = renderData.pickup;
 	if (renderData.dropoff) {
 		cleanup(renderData.dropoff);
@@ -945,8 +948,16 @@ int main(int argc, char **argv) {
 	game_destroy(); // Mirror to game_init
 	puts("Done.");
 	puts("Cleaning up GLFW...");
+	// Necessary so glfwTerminate gets all the loose ends
+	glfwMakeContextCurrent(display);
 	glfwTerminate();
 	puts("Done.");
 	puts("All done!");
+
+	// Someone online said this might clear up some of the dl_open memory leaks.
+	// Possibly it did, but I still had plenty of others, so I'm leaving it
+	// commented out. Even if there is some other thread somehow, we want to quit.
+	//pthread_exit(NULL);
+
 	return 0;
 }

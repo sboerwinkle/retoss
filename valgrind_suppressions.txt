@@ -1,8 +1,29 @@
 # Valgrind will read this file if you give it --suppressions=valgrind_suppressions.txt
 
 {
-	I_might_need_to_see_about_cleaning_up_my_graphics_context_more_thoroughly
+	yikes_x11_stuff
 	Memcheck:Leak
 	...
-	obj:*/lib/*/iris_dri.so
+	obj:*/lib/*/libX11.so.*
+}
+
+{
+	This was before I started doing DL stuff, not sure who is responsible.
+	Memcheck:Leak
+	...
+	fun:_dl_open
+}
+
+{
+	As above.
+	Memcheck:Leak
+	...
+	fun:_dl_close
+}
+
+{
+	As above x2.
+	Memcheck:Leak
+	...
+	fun:_dl_init
 }
