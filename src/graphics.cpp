@@ -4,6 +4,8 @@
 #include <GLES3/gl3.h>
 #include <string.h>
 
+#include "list.h"
+#include "file.h"
 #include "util.h"
 #include "quaternion.h"
 #include "matrix.h"
@@ -86,40 +88,28 @@ void setDisplaySize(int width, int height){
 	glViewport(0, 0, displayWidth, displayHeight);
 }
 
-static char* readFileContents(const char* path){
-	FILE* fp = fopen(path, "r");
-	if(!fp){
-		printf("Failed to open file: %s\n", path);
-		return NULL;
-	}
-	fseek(fp, 0, SEEK_END);
-	long fsize = ftell(fp);
-	rewind(fp);  /* same as rewind(f); */
-	char *ret = (char*) malloc(fsize + 1);
-	long numRead = fread(ret, 1, fsize, fp);
-	if (numRead != fsize) {
-		fprintf(stderr, "File allegedly has size %ld, but only read %ld bytes\n", fsize, numRead);
-	}
-	fclose(fp);
-	ret[fsize] = 0;
-	return ret;
-}
-
 static GLuint mkShader(GLenum type, const char* path) {
 	GLuint shader = glCreateShader(type);
-	char* src = readFileContents(path);
-	glShaderSource(shader, 1, &src, NULL);
-	free(src);
+
+	list<char> contents;
+	contents.init();
+	readSystemFile(path, &contents);
+	// Convert `int` to `GLint` (but they're probably the same size anyway...)
+	GLint num = contents.num;
+	// The '&'s here are because GL wants a couple arrays (of strings, and of lengths).
+	// However, we specify only 1 element, so our "arrays" are just pointers to things.
+	glShaderSource(shader, 1, &contents.items, &num);
+	contents.destroy();
+
 	glCompileShader(shader);
 	printGLShaderErrors(shader, path);
 	return shader;
 }
 
-static void loadTexture(char postChdir) {
+static void loadTexture() {
 	char *imageData;
 	int width, height;
-	// TODO `postChdir` is such a hack, need to get my shit together
-	png_read(&imageData, &width, &height, postChdir ? "../assets/dirt.png" : "assets/dirt.png");
+	png_read(&imageData, &width, &height, "assets/dirt.png");
 	if (!imageData) { //  || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
 		puts("Not loading texture");
 	} else {
@@ -268,7 +258,7 @@ void initGraphics() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
-	loadTexture(0);
+	loadTexture();
 
 	glClearColor(0.8, 0.8, 0.8, 1);
 	glEnable(GL_BLEND);
@@ -284,7 +274,7 @@ static void checkReload() {
 	// TODO document what's going on here
 	if (!texReloadFlag.load(std::memory_order::acquire)) return;
 	// TODO actually use texReloadPath
-	loadTexture(1);
+	loadTexture();
 	texReloadFlag.store(0, std::memory_order::release);
 }
 

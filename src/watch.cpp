@@ -102,26 +102,22 @@ void watch_init() {
 		exit(1);
 	}
 
-	/*
+	/* This will probably be "src" or something, IDK yet where exactly I'm going to watch!
 	watchDesc_dl = inotify_add_watch(watch_fd, "../dl_srm", IN_CLOSE_WRITE);
-	if (wd == -1) {
+	if (watchDesc_dl == -1) {
 		perror("inotify_add_watch for dl");
 		close(watch_fd);
 		exit(1);
 	}
 	*/
 
-	// Keep in mind working directory is `data/` by this point
-	// Todo: This is such a hassle, maybe rework that so we just prepend "data/" to user-specified paths
-	//       rather than mess with working directory. It's bitten me so much on so many tiny little things.
-	watchDesc_gfx = inotify_add_watch(watch_fd, "../assets", IN_CLOSE_WRITE);
+	watchDesc_gfx = inotify_add_watch(watch_fd, "assets", IN_CLOSE_WRITE);
 	if (watchDesc_gfx == -1) {
 		perror("inotify_add_watch for gfx");
 		close(watch_fd);
 		exit(1);
 	}
 
-	// For now we discard `wd`, but we might want it if we watch more stuff.
 }
 
 void watch_destroy() {

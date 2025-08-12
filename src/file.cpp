@@ -3,20 +3,24 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "list.h"
 #include "file.h"
 
+static int data_fd = -1;
+
 void file_init() {
-	// All operations will be out of the `data/` directory from here on
-	if (chdir("data")) {
-		fprintf(stderr, "Failed to set working directory to ./data - `chdir` gave error %s (%s)\n", strerrorname_np(errno), strerror(errno));
+	data_fd = open("data", O_PATH | O_DIRECTORY);
+
+	if (data_fd == -1) {
+		fprintf(stderr, "Failed to get file descriptor for ./data - `open` gave error %s (%s)\n", strerrorname_np(errno), strerror(errno));
 		exit(1);
 	}
-	puts("Set working directory to 'data/'");
 }
 
 void file_destroy() {
+	close(data_fd);
 }
 
 static const char* resolvePath(const char* path) {
@@ -45,18 +49,7 @@ static const char* resolvePath(const char* path) {
 	return path;
 }
 
-char writeFile(const char *name, const list<char> *data) {
-	name = resolvePath(name);
-	if (!name) return 1;
-	return writeFileArbitraryPath(name, data);
-}
-
-char writeFileArbitraryPath(const char *name, const list<char> *data) {
-	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
-	if (fd == -1) {
-		fprintf(stderr, "ERROR writing file '%s': `open` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-		return 1;
-	}
+static char writeFileInternal(int fd, const char *name, const list<char> *data) {
 	int ret = write(fd, data->items, data->num);
 	if (ret != data->num) {
 		fprintf(stderr, "ERROR writing file '%s': `write` returned %d when %d was expected.\n", name, ret, data->num);
@@ -70,25 +63,76 @@ char writeFileArbitraryPath(const char *name, const list<char> *data) {
 	return 0;
 }
 
+char writeFile(const char *name, const list<char> *data) {
+	name = resolvePath(name);
+	if (!name) return 1;
+
+	int fd = openat(data_fd, name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
+	if (fd == -1) {
+		fprintf(stderr, "ERROR writing file '%s': `openat` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		return 1;
+	}
+
+	return writeFileInternal(fd, name, data);
+}
+
+// Really the only thing that should be using this is probably `config.cpp`.
+// Most things you want to write, you want in the "data/" directory, which
+// you should use `writeFile` for.
+char writeSystemFile(const char *name, const list<char> *data) {
+	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
+	if (fd == -1) {
+		fprintf(stderr, "ERROR writing file '%s': `open` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		return 1;
+	}
+
+	return writeFileInternal(fd, name, data);
+}
+
+static char readFileInternal(int fd, char const *name, list<char> *out) {
+	off_t sz = lseek(fd, 0, SEEK_END);
+	if (sz == -1) {
+		fprintf(stderr, "ERROR from `lseek`: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+		close(fd);
+		return 1;
+	}
+	lseek(fd, 0, SEEK_SET);
+	out->setMaxUp(out->num + sz);
+	ssize_t actual = read(fd, out->items + out->num, sz);
+	if (actual != sz) {
+		if (actual == -1) {
+			fprintf(stderr, "ERROR reading file '%s': `read` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		} else {
+			fprintf(stderr, "ERROR reading file '%s': allegedly has size %ld, but only read %ld bytes\n", name, sz, actual);
+		}
+	} else {
+		out->num += actual;
+	}
+	close(fd);
+	return actual != sz;
+}
+
 char readFile(const char *name, list<char> *out) {
 	name = resolvePath(name);
 	if (!name) return 1;
 
+	int fd = openat(data_fd, name, O_RDONLY);
+	if (fd == -1) {
+		fprintf(stderr, "ERROR reading file '%s': `openat` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		return 1;
+	}
+
+	return readFileInternal(fd, name, out);
+}
+
+// Like `readFile`, but not restricted to the "data/" directory.
+// For shaders and stuff, not game-logic I/O.
+char readSystemFile(const char *name, list<char> *out) {
 	int fd = open(name, O_RDONLY);
 	if (fd == -1) {
 		fprintf(stderr, "ERROR reading file '%s': `open` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
 		return 1;
 	}
-	int ret;
-	do {
-		out->setMaxUp(out->num + 1000);
-		ret = read(fd, out->items + out->num, 1000);
-		if (ret == -1) {
-			fprintf(stderr, "ERROR reading file '%s': `read` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-			break;
-		}
-		out->num += ret;
-	} while (ret);
-	close(fd);
-	return ret == -1;
+
+	return readFileInternal(fd, name, out);
 }

@@ -788,7 +788,7 @@ int main(int argc, char **argv) {
 	outboundData.init();
 	syncData.init();
 	file_init();
-	config_init(); // "config" should be after "file"
+	config_init(); // Previously "config" depended on "file", but it does not anymore.
 
 	// More config stuff; we need a viable state by this point.
 	// Compared to `game_init()`, we don't have the GL context any more,

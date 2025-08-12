@@ -83,8 +83,8 @@ void config_init() {
 			printf("HOME='%s'\n", home);
 			snprintf(configDir, BUF_LEN, "%s/.config/" CONFIG_NAME, home);
 		} else {
-			puts("HOME not set either, config files will be stored one level above `data/`.");
-			strcpy(configDir, "..");
+			puts("HOME not set either, config files will be stored in the working directory.");
+			strcpy(configDir, ".");
 		}
 	}
 	snprintf(configFile, 200, "%s/config.json", configDir);
@@ -160,6 +160,6 @@ void config_write() {
 	buffer.add('\n');
 	root.destroy();
 
-	writeFileArbitraryPath(configFile, &buffer);
+	writeSystemFile(configFile, &buffer);
 	buffer.destroy();
 }
