@@ -23,14 +23,14 @@ void file_destroy() {
 	close(data_fd);
 }
 
-static const char* resolvePath(const char* path) {
+static char verifyPath(const char* path) {
 	if (*path == '/') {
 		fprintf(stderr, "ERROR - path '%s' is absolute, but must be relative.\n", path);
-		return NULL;
+		return 0;
 	}
 	if (strstr(path, "..")) {
 		fprintf(stderr, "ERROR - path '%s' may not contain the sequence '..'\n", path);
-		return NULL;
+		return 0;
 	}
 	// File contents are sometimes sent over the network (for /load), which is a
 	// potential security issue. This was addressed by making commands that accept
@@ -46,10 +46,23 @@ static const char* resolvePath(const char* path) {
 	// ("weird" in this context means symlinks or hard links to places you don't want
 	//  arbirary reads/writes to.)
 	// See also `man 7 path_resolution`.
-	return path;
+	return 1;
 }
 
-static char writeFileInternal(int fd, const char *name, const list<char> *data) {
+static char writeFileInternal(int relativeTo, const char *name, const list<char> *data) {
+	int fd = openat(relativeTo, name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
+	if (fd == -1) {
+		fprintf(
+			stderr,
+			"ERROR writing %s file '%s': `openat` gave error %s (%s)\n",
+			relativeTo == AT_FDCWD ? "core" : "user",
+			name,
+			strerrorname_np(errno),
+			strerror(errno)
+		);
+		return 1;
+	}
+
 	int ret = write(fd, data->items, data->num);
 	if (ret != data->num) {
 		fprintf(stderr, "ERROR writing file '%s': `write` returned %d when %d was expected.\n", name, ret, data->num);
@@ -64,32 +77,32 @@ static char writeFileInternal(int fd, const char *name, const list<char> *data) 
 }
 
 char writeFile(const char *name, const list<char> *data) {
-	name = resolvePath(name);
-	if (!name) return 1;
+	if (!verifyPath(name)) return 1;
 
-	int fd = openat(data_fd, name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
-	if (fd == -1) {
-		fprintf(stderr, "ERROR writing file '%s': `openat` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-		return 1;
-	}
-
-	return writeFileInternal(fd, name, data);
+	return writeFileInternal(data_fd, name, data);
 }
 
 // Really the only thing that should be using this is probably `config.cpp`.
 // Most things you want to write, you want in the "data/" directory, which
 // you should use `writeFile` for.
 char writeSystemFile(const char *name, const list<char> *data) {
-	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
+	return writeFileInternal(AT_FDCWD, name, data);
+}
+
+static char readFileInternal(int relativeTo, char const *name, list<char> *out) {
+	int fd = openat(relativeTo, name, O_RDONLY);
 	if (fd == -1) {
-		fprintf(stderr, "ERROR writing file '%s': `open` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		fprintf(
+			stderr,
+			"ERROR reading %s file '%s': `openat` gave error %s (%s)\n",
+			relativeTo == AT_FDCWD ? "core" : "user",
+			name,
+			strerrorname_np(errno),
+			strerror(errno)
+		);
 		return 1;
 	}
 
-	return writeFileInternal(fd, name, data);
-}
-
-static char readFileInternal(int fd, char const *name, list<char> *out) {
 	off_t sz = lseek(fd, 0, SEEK_END);
 	if (sz == -1) {
 		fprintf(stderr, "ERROR from `lseek`: %s (%s)\n", strerrorname_np(errno), strerror(errno));
@@ -113,26 +126,13 @@ static char readFileInternal(int fd, char const *name, list<char> *out) {
 }
 
 char readFile(const char *name, list<char> *out) {
-	name = resolvePath(name);
-	if (!name) return 1;
+	if (!verifyPath(name)) return 1;
 
-	int fd = openat(data_fd, name, O_RDONLY);
-	if (fd == -1) {
-		fprintf(stderr, "ERROR reading file '%s': `openat` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-		return 1;
-	}
-
-	return readFileInternal(fd, name, out);
+	return readFileInternal(data_fd, name, out);
 }
 
 // Like `readFile`, but not restricted to the "data/" directory.
 // For shaders and stuff, not game-logic I/O.
 char readSystemFile(const char *name, list<char> *out) {
-	int fd = open(name, O_RDONLY);
-	if (fd == -1) {
-		fprintf(stderr, "ERROR reading file '%s': `open` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-		return 1;
-	}
-
-	return readFileInternal(fd, name, out);
+	return readFileInternal(AT_FDCWD, name, out);
 }
