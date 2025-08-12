@@ -797,36 +797,34 @@ int main(int argc, char **argv) {
 	rootState = game_init2();
 	puts("more custom complete.");
 
-	char const *host, *hostSrc, *port, *portSrc;
+	char const *host, *hostSrc, *port = NULL, *portSrc;
 	if (argc > 3) {
 		printf("At most 2 args expected, got %d\n", argc-1);
 		return 1;
 	}
-	char const *configHost = config_getHost(), *configPort = config_getPort();
 	if (argc > 1) {
 		host = argv[1];
 		hostSrc = "program argument";
 		if (argc > 2) {
 			port = argv[2];
 			portSrc = "program argument";
-		} else {
-			port = "15000";
-			portSrc = "default";
 		}
 	} else {
-		char okay = 1;
+		char const *configHost = config_getHost(), *configPort = config_getPort();
 		if (!*configHost) {
-			puts("Without arguments, config must include a host, but none was found!");
-			okay = 0;
+			puts("You must specify a host to connect to, as none was found in the config!");
+			return 1;
 		}
-		if (!*configPort) {
-			puts("Without arguments, config must include a port, but none was found!");
-			okay = 0;
-		}
-		if (!okay) return 1;
 		host = configHost;
-		port = configPort;
-		hostSrc = portSrc = "from config";
+		hostSrc = "from config";
+		if (*configPort) {
+			port = configPort;
+			portSrc = "from config";
+		}
+	}
+	if (!port) {
+		port = "15000";
+		portSrc = "default";
 	}
 
 	// Other general game setup, including networking

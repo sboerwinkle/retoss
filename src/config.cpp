@@ -73,13 +73,13 @@ void config_init() {
 	host[0] = port[0] = '\0';
 
 	char const *xdg_config_home = getenv("XDG_CONFIG_HOME");
-	if (xdg_config_home) {
+	if (xdg_config_home && *xdg_config_home) {
 		printf("XDG_CONFIG_HOME='%s'\n", xdg_config_home);
 		snprintf(configDir, BUF_LEN, "%s/" CONFIG_NAME, xdg_config_home);
 	} else {
 		puts("XDG_CONFIG_HOME not set, checking HOME.");
 		char const *home = getenv("HOME");
-		if (home) {
+		if (home && *home) {
 			printf("HOME='%s'\n", home);
 			snprintf(configDir, BUF_LEN, "%s/.config/" CONFIG_NAME, home);
 		} else {
