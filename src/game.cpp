@@ -9,7 +9,6 @@
 #include "main.h"
 #include "graphics.h"
 #include "gamestate.h"
-#include "random.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -40,18 +39,8 @@ gamestate* game_init2() {
 	uint32_t seed = now.tv_sec;
 
 	gamestate *tmp = (gamestate*)malloc(sizeof(gamestate));
-	range(i, boardAreaChunks) {
-		mapChunk *mc = (mapChunk*)malloc(sizeof(mapChunk));
-		tmp->board[i] = mc;
-		mc->refs = 1;
-		range(j, chunkAreaSpaces) {
-			uint32_t rand = splitmix32(&seed);
-			// This is kind of goofy, but I'm having a good time okay?
-			mc->data[j] = (rand % 4) % 3;
-		}
-	}
-
-	tmp->players.init();
+	init(tmp);
+	shuffle(tmp, seed);
 
 	return tmp;
 }

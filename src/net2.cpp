@@ -98,7 +98,7 @@ char net2_read() {
 
 			u8 size;
 			if (readData(&size, 1)) return 1;
-			// TODO Previously we had a check on the size here (required `size==6`).
+			// Todo Previously we had a check on the size here (required `size==6`).
 			//      Maybe need a basic sanity check? Or option for game.h to provide
 			//      a size, or like a custom size checking rule? Would be more work.
 

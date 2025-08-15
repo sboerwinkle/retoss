@@ -16,6 +16,7 @@
 #include "graphics.h"
 
 #define MOTTLE_TEX_RESOLUTION 64
+#define SPRITE_FILE "dirt.png"
 
 static void populateCubeVertexData();
 static void populateSpriteVertexData();
@@ -109,7 +110,7 @@ static GLuint mkShader(GLenum type, const char* path) {
 static void loadTexture() {
 	char *imageData;
 	int width, height;
-	png_read(&imageData, &width, &height, "assets/dirt.png");
+	png_read(&imageData, &width, &height, "assets/" SPRITE_FILE);
 	if (!imageData) { //  || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
 		puts("Not loading texture");
 	} else {
@@ -232,22 +233,6 @@ void initGraphics() {
 	cerr("End of vao 1 prep");
 	*/
 
-	// TODO Currently texture work is a frankenstein of the
-	// random mottling texture and some "png from file" work
-	// I'm doing. Eventually we may want both? Or at least
-	// clean this up some.
-
-	/*
-	uint8_t tex_noise_data[MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION];
-	uint32_t rstate = 59423;
-	for(int idx = 0; idx < MOTTLE_TEX_RESOLUTION*MOTTLE_TEX_RESOLUTION; idx++){
-		// Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
-		rstate ^= rstate << 13;
-		rstate ^= rstate >> 17;
-		rstate ^= rstate << 5;
-		tex_noise_data[idx] = (rstate & 0x1F) + 0xE0;
-	}
-	*/
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
@@ -271,10 +256,15 @@ void initGraphics() {
 }
 
 static void checkReload() {
-	// TODO document what's going on here
+	// I go into more detail about the use of std::memory_order in watch.cpp,
+	// but the short version is that we're getting some guarantees similar to
+	// a very simple semaphore.
 	if (!texReloadFlag.load(std::memory_order::acquire)) return;
-	// TODO actually use texReloadPath
-	loadTexture();
+	if (strcmp(texReloadPath, SPRITE_FILE)) {
+		printf("We don't care about '%s'\n", texReloadPath);
+	} else {
+		loadTexture();
+	}
 	texReloadFlag.store(0, std::memory_order::release);
 }
 

@@ -493,7 +493,20 @@ static void* gameThreadFunc(void *startFramePtr) {
 				// This part is rare.
 				if (syncNeeded && syncNeeded <= 2*MAX_AHEAD) {
 					syncNeeded++;
-					if (syncNeeded == MAX_AHEAD && isLoader && !*loopbackCommandBuffer) {
+					if (
+						(
+							// Loader waits until MAX_AHEAD frames
+							// so the new client isn't missing any
+							// data that people submitted early.
+							(syncNeeded == MAX_AHEAD && isLoader)
+							// If we reach 2*MAX_AHEAD, the loader
+							// is probably dead, and everyone just
+							// issues their own `/sync` and one of
+							// them comes out on top.
+							|| syncNeeded == 2*MAX_AHEAD
+						)
+						&& !*loopbackCommandBuffer
+					) {
 						strcpy(loopbackCommandBuffer, "/sync");
 					}
 				}

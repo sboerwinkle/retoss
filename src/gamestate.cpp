@@ -2,6 +2,7 @@
 
 #include "util.h"
 #include "gamestate.h"
+#include "random.h"
 
 static void decr(mapChunk *mc);
 static mapChunk* dup(mapChunk* mc);
@@ -81,14 +82,9 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	int numPlayers = gs->players.num;
 
 	cleanup(gs);
-
 	// Re-initialize with valid (but empty) data
-	mapChunk *emptyChunk = (mapChunk*)malloc(sizeof(mapChunk));
-	*emptyChunk = {}; // Zero the chunk out. Empty space, and zero references.
-	range(i, boardAreaChunks) {
-		gs->board[i] = dup(emptyChunk);
-	}
-	gs->players.init();
+	init(gs);
+
 	// Setup any data that might carry over (right now, just player count)
 	setupPlayers(gs, numPlayers);
 }
@@ -98,6 +94,15 @@ gamestate* dup(gamestate *orig) {
 	range(i, boardAreaChunks) ret->board[i] = dup(orig->board[i]);
 	ret->players.init(orig->players);
 	return ret;
+}
+
+void init(gamestate *gs) {
+	mapChunk *emptyChunk = (mapChunk*)malloc(sizeof(mapChunk));
+	*emptyChunk = {}; // Zero the chunk out. Empty space, and zero references.
+	range(i, boardAreaChunks) {
+		gs->board[i] = dup(emptyChunk);
+	}
+	gs->players.init();
 }
 
 void cleanup(gamestate *gs) {
@@ -134,6 +139,18 @@ static mapChunk* dup(mapChunk* mc) {
 	// Beautiful COW
 	mc->refs++;
 	return mc;
+}
+
+void shuffle(gamestate *gs, uint32_t seed) {
+	range(i, boardAreaChunks) {
+		mkWritable(&gs->board[i]);
+		mapChunk *mc = gs->board[i];
+		range(j, chunkAreaSpaces) {
+			uint32_t rand = splitmix32(&seed);
+			// This is kind of goofy, but I'm having a good time okay?
+			mc->data[j] = (rand % 4) % 3;
+		}
+	}
 }
 
 static char coords(int x, int y, int *chunk, int *space) {

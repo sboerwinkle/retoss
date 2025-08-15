@@ -45,7 +45,9 @@ extern void actionBomb(gamestate *gs, player *p);
 extern void runTick(gamestate *gs);
 extern gamestate* dup(gamestate *orig);
 extern void prepareGamestateForLoad(gamestate *gs, char isSync);
+extern void init(gamestate *gs);
 extern void cleanup(gamestate *gs);
+extern void shuffle(gamestate *gs, uint32_t seed);
 
 extern void write32(list<char> *data, int32_t v);
 extern void serialize(gamestate *gs, list<char> *data);
