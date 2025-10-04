@@ -20,6 +20,7 @@ static char isLeaf(box *b) {
 //      method which needs global lists is in use.
 static list<box*> *globalOptionsDest, *globalOptionsSrc;
 static list<box*> *lookDownSrc, *lookDownDest;
+static list<box*> refreshList;
 
 static inline void swap(list<box*> *&a, list<box*> *&b) {
 	list<box*> *tmp = a;
@@ -176,7 +177,7 @@ static list<box*> boxAllocs, freeBoxes;
 //        - we'll probably want to take a high-water mark before we clean up at the end,
 //          so we know what "suitably-sized" means in step 2.
 //        - on-demand chunks are probably wholesale freed, while the main chunk can be put in some pool for re-use
-// TODO make sure `layer` is always initialized
+// TODO make sure `depth` is always initialized
 box* velbox_alloc() {
 	if (freeBoxes.num == 0) {
 		box *newAlloc = new box[ALLOC_SIZE];
@@ -221,9 +222,9 @@ box* velbox_alloc() {
 // Todo: Might make this a table lookup.
 //       There aren't that many layers after all,
 //       and it saves a branch that way.
-static TIME getValidity(int layer) {
-	if (layer > VALID_FLOOR) return 1;
-	else return (VALID_WINDOW-1)*(VALID_FLOOR - layer) + VALID_WINDOW;
+static TIME getValidity(int depth) {
+	if (depth > VALID_FLOOR) return 1;
+	else return (VALID_WINDOW-1)*(VALID_FLOOR - depth) + VALID_WINDOW;
 }
 
 // TODO We have much stricter requirements about containment now, not just one frame.
@@ -232,9 +233,9 @@ static box* mkContainer(box *parent, box *n) {
 	box *ret = velbox_alloc();
 	ret->r = parent->r / SCALE;
 	ret->parent = parent;
-	ret->layer = parent->layer + 1;
+	ret->depth = parent->depth + 1;
 	ret->start = n->start;
-	ret->end = vb_now + getValidity(ret->layer);
+	ret->end = vb_now + getValidity(ret->depth);
 	range(d, DIMS) {
 		ret->pos[d] = n->pos[d];
 		ret->vel[d] = n->vel[d];
@@ -351,12 +352,15 @@ static void clearIntersects(box *b) {
 
 // TODO: Adding to a parent (or having kids during the `inUse` check) sets inUse
 
+void remove(box *b) {
+	clearIntersects(b);
+	freeBoxes.add(b);
+}
+
 // TODO: Can callers of this always pass the parent + childIndex? Would save a linear search
 void velbox_remove(box *o) {
-	clearIntersects(o);
-	box *parent = o->parent;
-	parent->kids.rm(o);
-	freeBoxes.add(o);
+	o->parent->kids.rm(o);
+	remove(o);
 }
 
 static box* mkParent(box *level, box *n, INT minParentR) {
@@ -373,7 +377,7 @@ static box* mkParent(box *level, box *n, INT minParentR) {
 static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 	const list<box*> *optionsSrc;
 	INT optionsR;
-	int optionsLayer;
+	int optionsDepth;
 	if (mergeBase->parent) {
 		lookDownSrc->num = 0;
 		list<sect> &sects = mergeBase->intersects;
@@ -382,14 +386,14 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 		}
 		optionsSrc = lookDownSrc;
 		optionsR = mergeBase->r[0];
-		optionsLayer = mergeBase->layer;
+		optionsDepth = mergeBase->depth;
 	} else if (mergeBase->kids.num) {
 		// I think we have a separate case for the root box so that we don't incorrectly
 		// rule it out for parentage (since its radius is kind of a lie)
 		optionsSrc = &mergeBase->kids;
 		// We are once again assuming no titanically large whales
 		optionsR = (*optionsSrc)[0]->r[0];
-		optionsLayer = (*optionsSrc)[0]->layer;
+		optionsDepth = (*optionsSrc)[0]->depth;
 	} else {
 		// This will (should) only happen for the first non-root box added
 		return NULL;
@@ -404,11 +408,11 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 		INT nextR = optionsR / SCALE;
 		TIME duration;
 		if (nextR < minParentR) {
-			// This is the final layer we'll be checking.
+			// This is the final depth we'll be checking.
 			// This time, we're checking to see if we can contain `n`,
 			// not a hypothetical ancestor box of `n`.
 			// This is (partly) because `n` can be larger (both `r` and `end`)
-			// than an appropriately-sized ancestor box at this layer.
+			// than an appropriately-sized ancestor box at this depth.
 			nextR = n->r;
 			duration = n->end - vb_now;
 			finalLayer = 1;
@@ -416,7 +420,7 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 			// We're assuming that `n` is freshly refreshed,
 			// which should be accurate. There's no reason to
 			// re-parent something before it's due for a refresh.
-			duration = getValidity(optionsLayer+1);
+			duration = getValidity(optionsDepth+1);
 		}
 		INT tolerance = optionsR - nextR;
 		range(i, optionsSrc->num) {
@@ -448,7 +452,7 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 		swap(lookDownSrc, lookDownDest);
 		optionsSrc = lookDownSrc;
 		optionsR = nextR;
-		optionsLayer++;
+		optionsDepth++;
 	} while(!finalLayer);
 
 	if (!result) return NULL;
@@ -459,7 +463,7 @@ static box* lookUp(box *b, box *n, INT minParentR, INT p1[DIMS]) {
 	for (; b->parent; b = b->parent) {
 		INT r = b->r;
 		r = r - r / SCALE;
-		duration = getValidity(b->layer+1);
+		duration = getValidity(b->depth+1);
 		list<sect> &intersects = b->intersects;
 		range(i, intersects.num) {
 			box *test = intersects[i].b;
@@ -536,102 +540,121 @@ void velbox_insert(box *guess, box *n) {
 
 // TODO Revisit. Preconditions about `end`? Postconditions about `kids` (esp. early exit)?
 static void reposition(box *b) {
+#ifdef DEBUG
+	if (!b->parent) puts("`reposition` precond 1 failed");
+	if (b->parent->kids.has(b)) puts("`reposition` precond 2 failed");
+#endif
+	clearIntersects(b);
 	box *p = b->parent;
 	if (contains(p, b)) return;
-	p->kids.rm(b);
 	insert(p, b); // the first arg here is just a starting point, we're not adding it right back to `p` lol
 }
 
 // For leafs only
 // TODO Revisit after `reposition` is settled. This is client-only, so we can adapt the interface as needed.
 void velbox_update(box *b) {
-	clearIntersects(b);
+	b->parent->kids.rm(b);
 	reposition(b);
 	setIntersects_leaf(b);
 }
 
-// HERE
+void velbox_refresh(box *root) {
+	// TODO we have anybody that might even care about this value?
+	// `root` validity doesn't really matter lol
+	root->end++;
+	vb_now = root->end;
 
-static void stepContainers(box *root) {
+	// The root never needs revalidation or intersect checking,
+	// which is convenient since we assume everybody we're refreshing
+	// is somebody's kid.
 	globalOptionsSrc->num = 0;
-	globalOptionsSrc->addAll(root->kids);
+	globalOptionsSrc->add(root);
 
-	while (globalOptionsSrc->num) {
+	// `depth` = depth of kids, which is why it starts at 1.
+	for (int depth = 1; globalOptionsSrc->num; depth++) {
+		// If a kid's validity hits `cutoff`, it's no longer good enough if
+		// one of *its* kids wants to refresh.
+		TIME cutoff = vb_now + getValidity(depth+1) - 1;
+		TIME newEnd = vb_now + getValidity(depth);
 		globalOptionsDest->num = 0;
+		// `refreshList` facilitates bulk-refreshing each level
+		refreshList.num = 0;
 		range(i, globalOptionsSrc->num) {
 			box *b = (*globalOptionsSrc)[i];
-			if (isLeaf(b)) continue;
-
-			b->validity--;
-
-			range(d, DIMS) {
-				INT tmp = b->p1[d];
-				b->p1[d] = b->p2[d];
-				// This feels wacky, but I think it's fine?
-				b->p2[d] = b->p2[d]*2 - tmp;
+			list<box*> &kids = b->kids;
+			globalOptionsDest->addAll(&k);
+			range(j, kids.num) {
+				box *k = kids[j];
+				if (isLeaf(k)) continue;
+				if (k->end == cutoff) {
+					refreshList.add(k);
+					kids.rmAt(j);
+					j--;
+#ifndef NODEBUG
+				} else if (k->end < cutoff) {
+					puts("box's `end` got too low somehow");
+#endif
+				}
 			}
-
-			if (!b->validity) clearIntersects(b);
-
-			globalOptionsDest->addAll(b->kids);
+			range(j, refreshList.num) {
+				box *k = refreshList[j];
+				k->end = newEnd;
+				reposition(k);
+				setIntersects_refresh(k);
+			}
 		}
+
 		swap(globalOptionsSrc, globalOptionsDest);
 	}
 }
 
-void velbox_refresh(box *root) {
-	// The first pass is just updating all non-fish positions and counting down the validity counter
-	// If validity hits 0, we clearIntersects.
-	stepContainers(root);
-
-	// The root never needs revalidation or intersect checking.
+void velbox_completeTick(box *root) {
 	globalOptionsSrc->num = 0;
-	globalOptionsSrc->addAll(root->kids);
-
-	while (globalOptionsSrc->num) {
-
-		// Set the intersects (we take some shortcuts in this version),
-		// and also populate the list for the next iteration
+	globalOptionsSrc->add(root);
+	while(globalOptionsSrc->num) {
 		globalOptionsDest->num = 0;
 		range(i, globalOptionsSrc->num) {
 			box *b = (*globalOptionsSrc)[i];
-			globalOptionsDest->addAll(b->kids);
-			if (b->validity) continue;
-#ifdef DEBUG
-			if (b->intersects.num) {
-				fputs("It should not have had intersects at this point\n", stderr);
-			}
-#endif
-			// TODO preconditions on "reposition" changed a bit,
-			//      need `end` pre-filled.
-			reposition(b);
-			setIntersects_refresh(b);
-			if (isLeaf(b)) {
-				int x = b->intersects.num;
-				for (int j = 1; j < x; j++) {
-					addWhale(b, &b->intersects[j].b->kids);
+			list<box*> &kids = b->kids;
+			globalOptionsDest->addAll(&kids);
+			range(j, kids.num) {
+				box *k = kids[j];
+				char del;
+				if (isLeaf(k)) {
+					del = (k->end == vb_now+1);
+				} else {
+					del = !(k->kids.num || k->inUse);
+					k->inUse = 0;
+				}
+				if (del) {
+					kids.rmAt(j);
+					j--;
+					remove(k);
 				}
 			}
 		}
-
 		swap(globalOptionsSrc, globalOptionsDest);
 	}
 }
 
 box* velbox_getRoot() {
 	box *ret = velbox_alloc();
-	// This serves as the max validity anything can have, since a box never exceeds its parent.
-	// Since most of the effort is put into transient gamestates that only last 5-8 frames depending
-	// on the configured server latency, extending the max validity past that is just going to add
-	// more potential intersects that are never going to come to pass.
-	ret->validity = VALID_MAX;
+	// I'm not sure if this matters lol
+	ret->start = 0;
+	// This is how we track `vb_now` across ticks, so it does actually matter
+	ret->end = 0;
+	// Not sure yet if this is imp't
+	vb_now = 0;
+
+	ret->parent = NULL;
+	ret->r = MAX/SCALE + 1;
+	ret->depth = 0;
+
 	// `kids` can just stay empty for now
 	ret->intersects.add({.b=ret, .i=0});
-	ret->parent = NULL;
 	range(d, DIMS) {
-		ret->r[d] = MAX/SCALE + 1;
 		// This *shouldn't* matter, but uninitialized data is never a *good* thing.
-		ret->p1[d] = ret->p2[d] = 0;
+		ret->pos[d] = ret->vel[d] = 0;
 	}
 	return ret;
 }
@@ -656,6 +679,7 @@ void velbox_init() {
 	lookDownSrc->init();
 	lookDownDest = new list<box*>();
 	lookDownDest->init();
+	refreshList.init();
 }
 
 void velbox_destroy() {
@@ -677,4 +701,5 @@ void velbox_destroy() {
 	delete lookDownSrc;
 	lookDownDest->destroy();
 	delete lookDownDest;
+	refreshList.destroy();
 }
