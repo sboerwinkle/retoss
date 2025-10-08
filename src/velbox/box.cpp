@@ -194,6 +194,10 @@ box* velbox_alloc() {
 	ret->kids.num = 0;
 	ret->inUse = 0;
 	ret->data = NULL;
+#ifndef NODEBUG
+	// Hm, usually I don't like my DEBUG defines to actually change behavior. Is this okay? Maybe...
+	ret->clone.ptr = NULL;
+#endif
 	// Shouldn't need to init `clone`, we've got a comfortable strong ref (parentage tree)
 	//   so we don't need to know when the first time we encounter it is (medium refs are garbage)
 	return ret;
@@ -245,7 +249,7 @@ static box* mkContainer(box *parent, box *n) {
 	return ret;
 }
 
-static box* getMergeBase(box *guess, box *n, INT minParentR, INT p1[DIMS]) {
+static box* getMergeBase(box *guess, INT minParentR, INT p1[DIMS]) {
 	// Leafs can have intersects at other levels, which makes them a bad merge base.
 	// Plus they can't be parents anyways.
 	if (isLeaf(guess)) guess = guess->parent;
@@ -490,7 +494,7 @@ static box* lookUp(box *b, box *n, INT minParentR, INT p1[DIMS]) {
 	return mkParent(b, n, minParentR);
 }
 
-// `n` should already have end (and start/pos/vel) set on the way in.
+// `n` only needs start/end/pos/vel/r. No other fields are needed by this or any downstream method.
 static box* findParent(box *guess, box *n) {
 	// It is IMPORTANT to note that `n` must be small enough to have at least one nested level
 	// below the apex. The apex is weird enough as it is, this condition reduces the number of
@@ -507,7 +511,7 @@ static box* findParent(box *guess, box *n) {
 		p1[d] = n->pos[d] + n->vel[d] * t1;
 	}
 
-	box *mergeBase = getMergeBase(guess, n, minParentR, p1);
+	box *mergeBase = getMergeBase(guess, minParentR, p1);
 
 	box *lookDownResult = tryLookDown(mergeBase, n, minParentR, p1);
 	if (lookDownResult) return lookDownResult;
@@ -523,18 +527,52 @@ static void insert(box *guess, box *n) {
 	// Don't add to `p->kids` yet. Part of the contract for "setIntersects" methods
 }
 
-// TODO Method for querying
+static void writeQueryResults(box *b, list<void*> *results) {
+	list<box*> const &kids = b->kids;
+	range(i, kids.num) {
+		box *k = kids[i];
+		if (isLeaf(k)) results->add(k->data);
+		else writeQueryResults(k, results);
+	}
+}
+
+// Returns the box that was actually used (suitable for the next `guess`).
+// Results are added to the end of `results`, though the user is expected
+// to do their own verification if each is eligible (i.e. may contain
+// false positives).
+box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results) {
+	box thing = {
+		.start = vb_now,
+		.end = vb_now+1,
+		.r = r
+	};
+	range(i, DIMS) {
+		thing.pos[i] = pos[i];
+		thing.vel[i] = vel[i];
+	}
+	// Verified that `findParent` (and downstream methods) do not need more
+	// than the fields provided above.
+	box *p = findParent(guess, &thing);
+	p->inUse = 1;
+	writeQueryResults(p, results);
+	return p;
+}
 
 // TODO Presumably the user has specified n->end, yeah? Or do we have to do that?
 //      We also need `start`, IDK if we should expect them to provide both or maybe we just add `vb_now`?
 void velbox_insert(box *guess, box *n) {
 	insert(guess, n);
+	// Don't actually need to set `inUse` in this case. Even if the leaf is only valid for this tick,
+	// it will be checked (and removed) after its parent, so the parent will still survive by virtue
+	// of having a child.
 #ifndef NODEBUG
 	if (n->intersects.num) {
 		fputs("Intersect assertion 3 failed\n", stderr);
 		exit(1);
 	}
 #endif
+	// Todo Not sure we need `depth` on leafs
+	n->depth = p->parent->depth+1;
 	setIntersects_leaf(n);
 }
 
@@ -665,6 +703,54 @@ void velbox_freeRoot(box *r) {
 		exit(1);
 	}
 	freeBoxes.add(r);
+}
+
+static box* dup(box *b) {
+	box *ret = velbox_alloc();
+	ret->r = b->r;
+	range(i, DIMS) {
+		ret->pos[i] = b->pos[i];
+		ret->vel[i] = b->vel[i];
+	}
+	ret->inUse = b->inUse;
+	ret->depth = b->depth;
+
+	// Haha this line won't compile yet, we'll need more typing
+	// Either way, it assumes any data pointers have already
+	// been dup'd.
+	// Todo maybe a silly optimization, but we could have some other magic "nothing" data ptr
+	//      which points to itself in clone.ptr, which saves us an unpredictable branch here...
+	if (b->data) ret->data = b->data->clone.ptr;
+
+	b->clone.ptr = ret;
+
+	int numKids = b->kids.num;
+	ret->kids.init(numKids+2); // Wow this is super arbitrary, incredible
+	ret->kids.num = numKids;
+	range(i, numKids) {
+		ret->kids[i] = dup(b->kids[i]);
+		ret->kids[i]->parent = ret;
+	}
+
+	ret->intersects.init(b->intersects.num+2);
+	ret->intersects.addAll(b->intersects); // We'll clean this up later.
+}
+
+static void dupIntersectCleanup(box *b) {
+	range(i, b->intersects.num) {
+		b->intersects[i].b = b->intersects[i].b->clone.ptr;
+	}
+	int numKids = b->kids.num;
+	range(i, numKids) {
+		dupIntersectCleanup(b->kids[i]);
+	}
+}
+
+box* velbox_dup(box *root) {
+	box *ret = dup(root);
+	ret->parent = NULL;
+	dupIntersectsCleanup(ret);
+	return ret;
 }
 
 void velbox_init() {
