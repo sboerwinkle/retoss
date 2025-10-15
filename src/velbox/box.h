@@ -1,3 +1,5 @@
+#include "../clonable.h"
+
 // If you want to define these using GCC args, that's fine -
 // an alternative is to "wrap" this file (and the .cpp file)
 // with files that just #define all this and then #include
@@ -55,7 +57,7 @@ struct sect {
 	int i;
 };
 
-struct box {
+struct box : clonable {
 	// Should not exceed INT_MAX/2 (so it can be safely added to itself)
 	// Note for non-fish boxes, this will always be the same for all axes
 	INT r;

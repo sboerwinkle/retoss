@@ -1,3 +1,4 @@
+#include "../serialize.h"
 
 // Don't forget to include the reified header wherever you plunk this down, please!
 
@@ -21,6 +22,7 @@ static char isLeaf(box *b) {
 static list<box*> *globalOptionsDest, *globalOptionsSrc;
 static list<box*> *lookDownSrc, *lookDownDest;
 static list<box*> refreshList;
+static list<box*> boxClones;
 
 static inline void swap(list<box*> *&a, list<box*> *&b) {
 	list<box*> *tmp = a;
@@ -144,9 +146,10 @@ static void setIntersects_leaf(box *n) {
 #ifdef DEBUG
 	if (n->intersects.num) { fputs("setIntersects_leaf, but already has intersects\n", stderr); exit(1); }
 #endif
-	// TODO I really need to decide what to do about this.
-	//      I know all boxes have themselves as their first intersect -
-	//      but I also know leafs don't list other leaves as intersects.
+	// Typically leafs don't list other leafs as intersects,
+	// so this is kind of a break in that. However, nobody really
+	// checks the intersects on a leaf (except during cleanup of that leaf),
+	// so it's probably fine.
 	n->intersects.add({.b=n, .i=0});
 
 	list<sect> &candidates = n->parent->intersects;
@@ -163,8 +166,6 @@ static void setIntersects_leaf(box *n) {
 	n->parent->kids.add(n);
 }
 
-// TODO something about `inUse`?
-
 #define ALLOC_SIZE 100
 static list<box*> boxAllocs, freeBoxes;
 
@@ -177,7 +178,6 @@ static list<box*> boxAllocs, freeBoxes;
 //        - we'll probably want to take a high-water mark before we clean up at the end,
 //          so we know what "suitably-sized" means in step 2.
 //        - on-demand chunks are probably wholesale freed, while the main chunk can be put in some pool for re-use
-// TODO make sure `depth` is always initialized
 box* velbox_alloc() {
 	if (freeBoxes.num == 0) {
 		box *newAlloc = new box[ALLOC_SIZE];
@@ -353,8 +353,6 @@ static void clearIntersects(box *b) {
 	}
 	intersects.num = 0;
 }
-
-// TODO: Adding to a parent (or having kids during the `inUse` check) sets inUse
 
 void remove(box *b) {
 	clearIntersects(b);
@@ -753,6 +751,55 @@ box* velbox_dup(box *root) {
 	return ret;
 }
 
+static void transBox(box *b) {
+	// TODO Reset all `start`s to 0 during serialization,
+	//      as a guard against time overflow.
+	//      Might get a little weird with the root, IDK.
+	// TODO Where do we handle alloc?
+	trans64(&b->r);
+	range(i, DIMS) trans64(&b->pos[i]);
+	range(i, DIMS) trans64(&b->vel[i]);
+	trans32(&b->start);
+	trans32(&b->end);
+	trans8(&b->inUse);
+	trans8(&b->depth);
+
+	transWeakRef(&b->data, &VELBOX_DATA_LIST);
+	
+	transStrongRef(b, &boxClones);
+
+	transItemCount(&b->kids);
+	rangeconst(i, b->kids.num) {
+		if (seriz_reading) b->kids[i] = velbox_alloc();
+		transBox(b->kids[i]);
+		if (seriz_reading) b->kids[i]->parent = b;
+	}
+}
+
+static void transBoxIntersects(box *b) {
+	transItemCount(&b->intersects);
+	rangeconst(i, b->intersects.num) {
+		trans32(&b->intersects[i].i);
+		transWeakRef(&b->intersects[i].b, &boxClones);
+	}
+	rangeconst(i, b->kids.num) {
+		transBoxIntersects(b->kids[i]);
+	}
+}
+
+void velbox_trans(box **root) {
+	transRefList(&boxClones);
+
+	// TODO: Write a total number of boxes upfront,
+	//       so we can alloc more intelligently
+
+	if (seriz_reading) *root = velbox_alloc();
+	transBox(*root);
+	if (seriz_reading) b->kids[i]->parent = NULL;
+
+	transBoxIntersects(root);
+}
+
 void velbox_init() {
 	boxAllocs.init();
 	freeBoxes.init();
@@ -766,6 +813,7 @@ void velbox_init() {
 	lookDownDest = new list<box*>();
 	lookDownDest->init();
 	refreshList.init();
+	boxClones.init();
 }
 
 void velbox_destroy() {
@@ -788,4 +836,5 @@ void velbox_destroy() {
 	lookDownDest->destroy();
 	delete lookDownDest;
 	refreshList.destroy();
+	boxClones.destroy();
 }

@@ -187,108 +187,48 @@ static char getSpace(gamestate *gs, int x, int y) {
 	return gs->board[c_coord]->data[s_coord];
 }
 
+// Seriz / Deser stuff
 
-/////
-// seriz / deser (serialization / deserialization)
-/////
-static const char* version_string = "rTs0";
-#define VERSION 0
-
-// Some global state to make stuff easier.
-// Could put this in an object and pass it around if I really needed to,
-// but seriz/deser will probably only ever be done on one thread.
-static char modeDeser = 0;
-static int deserIndex = 0;
-static int version = 0;
-
-static void write8(list<char> *data, char v) {
-	data->add(v);
-}
-
-static char read8(list<char> *data) {
-	int i = deserIndex;
-	if (i >= data->num) return 0;
-	deserIndex++;
-	return (*data)[i];
-}
-
-static void trans8(list<char> *data, char *x) {
-	if (modeDeser) *x = read8(data);
-	else write8(data, *x);
-}
-
-// We don't care about unsigned vs signed char.
-// Small method here prevents manually casting each such case.
-static void trans8(list<char> *data, unsigned char *x) {
-	trans8(data, (char*) x);
-}
-
-static void write32Raw(list<char> *data, int offset, int32_t v) {
-	*(int32_t*)(data->items + offset) = htonl(v);
-}
-
-// TODO put this in some other file?
-//      Maybe some of the more generic utility functions here
-//      go back to living in `serialize.cpp`?
-void write32(list<char> *data, int32_t v) {
-	int n = data->num;
-	data->setMaxUp(n + 4);
-	write32Raw(data, n, v);
-	data->num = n + 4;
-}
-
-static int32_t read32(list<char> *data) {
-	int i = deserIndex;
-	if (i + 4 > data->num) return 0;
-	deserIndex += 4;
-	return ntohl(*(int32_t*)(data->items + i));
-}
-
-static void trans32(list<char> *data, int32_t *x) {
-	if (modeDeser) *x = read32(data);
-	else write32(data, *x);
-}
-
-static void writeBlock(list<char> *data, char *mem, int len) {
+static void writeBlock(char *mem, int len) {
 	// Could probably rewrite this to use `data->addAll`,
 	// but right now that uses `setMax` instead of `setMaxUp` internally.
-	int n = data->num;
-	data->setMaxUp(n + len);
-	memcpy(data->items + n, mem, len);
-	data->num = n + len;
+	int n = seriz_data->num;
+	seriz_data->setMaxUp(n + len);
+	memcpy(seriz_data->items + n, mem, len);
+	seriz_data->num = n + len;
 }
 
-static void readBlock(list<char> *data, char *mem, int len) {
-	int i = deserIndex;
-	if (i + len > data->num) {
+static void readBlock(char *mem, int len) {
+	int i = seriz_index;
+	if (i + len > seriz_data->num) {
 		memset(mem, 0, len);
 		return;
 	}
-	memcpy(mem, data->items+i, len);
-	deserIndex += len;
+	memcpy(mem, seriz_data->items+i, len);
+	seriz_index += len;
 }
 
-static void transBlock(list<char> *data, char *mem, int len) {
-	if (modeDeser) readBlock(data, mem, len);
-	else writeBlock(data, mem, len);
+static void transBlock(char *mem, int len) {
+	if (seriz_data) readBlock(mem, len);
+	else writeBlock(mem, len);
 }
 
-static void transBoard(list<char> *data, gamestate *gs) {
-	if (modeDeser) {
+static void transBoard(gamestate *gs) {
+	if (seriz_reading) {
 		range(i, boardAreaChunks) mkWritable(gs->board + i);
 	}
 	range(i, boardAreaChunks) {
 		// Compression? What's that?????
-		transBlock(data, gs->board[i]->data, chunkAreaSpaces);
+		transBlock(gs->board[i]->data, chunkAreaSpaces);
 	}
 }
 
-static void transPlayer(list<char> *data, player *p) {
-	trans32(data, &p->x);
-	trans32(data, &p->y);
-	trans8(data, &p->move);
-	trans8(data, &p->facing);
-	trans8(data, &p->cooldown);
+static void transPlayer(player *p) {
+	trans32(&p->x);
+	trans32(&p->y);
+	trans8(&p->move);
+	trans8(&p->facing);
+	trans8(&p->cooldown);
 }
 
 /* Unused
@@ -320,62 +260,32 @@ static void readStr(const list<const char> *data, int *ix, char *dest, int limit
 }
 */
 
-static void writeHeader(list<char> *data) {
-	data->setMaxUp(data->num + 4);
-	memcpy(&(*data)[data->num], version_string, 4);
-	data->num += 4;
-}
-
 void serialize(gamestate *gs, list<char> *data) {
-	modeDeser = 0;
-	version = VERSION;
-	writeHeader(data);
-	transBoard(data, gs);
-	write8(data, gs->players.num);
+	seriz_data = data;
+	seriz_reading = 0;
+	seriz_version = seriz_latestVersion;
+
+	seriz_writeHeader();
+	transBoard(gs);
+	write8(gs->players.num);
 	range(i, gs->players.num) {
-		transPlayer(data, &gs->players[i]);
+		transPlayer(&gs->players[i]);
 	}
-}
-
-static int verifyHeader(list<char> *data) {
-	if (data->num < 4) {
-		fprintf(stderr, "Only got %d bytes of data, can't deserialize\n", data->num);
-		return -1;
-	}
-	// Only compare 3 bytes, not 4, since the last one we use as a version
-	if (strncmp(data->items, version_string, 3)) {
-		fprintf(
-			stderr,
-			"Beginning of serialized data should read \"%s\", actually reads \"%c%c%c%c\"\n",
-			version_string,
-			(*data)[0], (*data)[1], (*data)[2], (*data)[3]
-		);
-		return -1;
-	}
-	version = data->items[3] - '0';
-	if (version < 0 || version > VERSION) {
-		fprintf(
-			stderr,
-			"Version number should be between 0 and %d, but found %d\n",
-			VERSION, version
-		);
-		return -1;
-	}
-
-	return 0;
 }
 
 void deserialize(gamestate *gs, list<char> *data, char fullState) {
-	if (verifyHeader(data)) return;
-	modeDeser = 1;
-	deserIndex = 4; // 4 header bytes
+	seriz_data = data;
+	seriz_reading = 1;
+	// This will set seriz_version and seriz_index
+	// (if no error)
+	if (seriz_verifyHeader(data)) return;
 
-	transBoard(data, gs);
-	int players = read8(data);
+	transBoard(gs);
+	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.
 	if (gs->players.num < players) players = gs->players.num;
 	// If there are more  players in the game than the file, we rely on
 	// `prepareGamestateForLoad` to have consistently initialized them.
 	
-	range(i, players) transPlayer(data, &gs->players[i]);
+	range(i, players) transPlayer(&gs->players[i]);
 }
