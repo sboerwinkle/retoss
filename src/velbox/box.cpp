@@ -56,17 +56,16 @@ static char intersects(box *o, box *n) {
 	return 1;
 }
 
+// Assumes that `p` currently contains `b` ("currently" = vb_now),
+// and checks if it's still contained at the end of `b`.
 static char contains(box *p, box *b) {
-	TIME t_p = vb_now - p->start;
-	TIME t_b = vb_now - b->start;
-	TIME t2 = b->end - vb_now;
+	// These intentionally both use `b->end` as the ending time.
+	TIME t_p = b->end - p->start;
+	TIME t_b = b->end - b->start;
 	INT tolerance = p->r - b->r;
 	range(d, DIMS) {
-		INT d1 = p->pos[d] + p->vel[d] * t_p - b->pos[d] - b->vel[d] * t_b;
-		// TODO Actually can we get away with just checking `d2`?
-		//      Like if we know they were a valid parent/child, why bother rechecking "now"?
-		INT d2 = d1 + (p->vel[d] - b->vel[d]) * t2;
-		if (abs(d1) > tolerance || abs(d2) > tolerance) return 0;
+		INT x = p->pos[d] + p->vel[d] * t_p - b->pos[d] - b->vel[d] * t_b;
+		if (abs(x) > tolerance) return 0;
 	}
 	return 1;
 }
@@ -83,6 +82,7 @@ static void recordIntersect(box *a, box *b) {
 	b->intersects.add({.b=a, .i=aNum});
 }
 
+// Todo could maybe rewrite this with lookDownDest / lookDownSrc if I wanted?
 static void addWhale(box *n, list<box*> *children) {
 	list<box*> const &c = *children;
 
@@ -100,25 +100,15 @@ static void addWhale(box *n, list<box*> *children) {
 	}
 }
 
-// TODO For now we assume that leafs do have themselves as their first intersect.
-//      May need to revisit this later, depending.
-
-// TODO Assumption is that leafs do not "refresh"!
-//      They simple expire, and are re-added later.
-
-// TODO Assumption is `n->end` is set going into this,
-//      since that is necessary anyway for verifying parentage
-//      during branch refresh.
-
-// TODO Verify we never call this for the global root, since it never needs refreshing
-//      (and I can't "add it back to its parent")
+// This is only called for non-root, non-leaf boxes. They have `end` set.
 static void setIntersects_refresh(box *n) {
 #ifdef DEBUG
 	if (n->intersects.num) { fputs("Intersect assertion 2 failed\n", stderr); exit(1); }
 #endif
 	n->intersects.add({.b=n, .i=0});
 
-	list<sect> &candidates = n->parent->intersects;
+	// TODO Is compiler mad about const here? It should be.
+	list<sect> const &candidates = n->parent->intersects;
 	range(i, candidates.num) {
 		box *candidate = candidates[i].b;
 
@@ -169,7 +159,7 @@ static void setIntersects_leaf(box *n) {
 #define ALLOC_SIZE 100
 static list<box*> boxAllocs, freeBoxes;
 
-// TODO This is fine for now, but it really needs a re-work.
+// Todo This is fine for now, but it really needs a re-work.
 //      Now that we're keeping boxes as part of official state, we probably want them in contiguous memory.
 //      That will mean either taking some third-party allocator that we can do this stuff with,
 //      or doing it by hand:
@@ -231,8 +221,6 @@ static TIME getValidity(int depth) {
 	else return (VALID_WINDOW-1)*(VALID_FLOOR - depth) + VALID_WINDOW;
 }
 
-// TODO We have much stricter requirements about containment now, not just one frame.
-//      Make sure we're still good on this.
 static box* mkContainer(box *parent, box *n) {
 	box *ret = velbox_alloc();
 	ret->r = parent->r / SCALE;
@@ -296,24 +284,6 @@ static box* getMergeBase(box *guess, INT minParentR, INT p1[DIMS]) {
 	}
 }
 
-// TODO With things shuffled around some,
-//      need to make sure this (or equivalent) is actually called when we add a leaf.
-//      Also, can likely clean up `opts` if it's only called from one place.
-
-static void addLeaf(box *l, const list<box*> *opts) {
-	while (opts->num) {
-		lookDownDest->num = 0;
-		range(i, opts->num) {
-			box *b = (*opts)[i];
-			if (isLeaf(b) || !intersects(b, l)) continue;
-			recordIntersect(b, l);
-			lookDownDest->addAll(b->kids);
-		}
-		swap(lookDownSrc, lookDownDest);
-		opts = lookDownSrc;
-	}
-}
-
 static void clearIntersects(box *b) {
 	list<sect> &intersects = b->intersects;
 #ifdef DEBUG
@@ -359,7 +329,7 @@ void remove(box *b) {
 	freeBoxes.add(b);
 }
 
-// TODO: Can callers of this always pass the parent + childIndex? Would save a linear search
+// This isn't super efficient due to the linear search of `kids`
 void velbox_remove(box *o) {
 	o->parent->kids.rm(o);
 	remove(o);
@@ -556,8 +526,9 @@ box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *
 	return p;
 }
 
-// TODO Presumably the user has specified n->end, yeah? Or do we have to do that?
-//      We also need `start`, IDK if we should expect them to provide both or maybe we just add `vb_now`?
+// Among other things, `n` needs `start` and `end`.
+// If asking this of the client is a big hassle, we could do math involving `vb_now` I guess.
+// (assuming `vb_now` is set - since that's only set by some ops that are given the root.)
 void velbox_insert(box *guess, box *n) {
 	insert(guess, n);
 	// Don't actually need to set `inUse` in this case. Even if the leaf is only valid for this tick,
@@ -574,7 +545,8 @@ void velbox_insert(box *guess, box *n) {
 	setIntersects_leaf(n);
 }
 
-// TODO Revisit. Preconditions about `end`? Postconditions about `kids` (esp. early exit)?
+// Pre: `b->end` should be populated. Should not be in parent's list of kids.
+// Post: `b->parent` possibly updated, still not in list of kids.
 static void reposition(box *b) {
 #ifdef DEBUG
 	if (!b->parent) puts("`reposition` precond 1 failed");
@@ -582,22 +554,26 @@ static void reposition(box *b) {
 #endif
 	clearIntersects(b);
 	box *p = b->parent;
+	// This `contains` is basically a faster common path than the whole parent-finding business in `insert`.
 	if (contains(p, b)) return;
 	insert(p, b); // the first arg here is just a starting point, we're not adding it right back to `p` lol
 }
 
 // For leafs only
-// TODO Revisit after `reposition` is settled. This is client-only, so we can adapt the interface as needed.
 void velbox_update(box *b) {
 	b->parent->kids.rm(b);
-	reposition(b);
+	clearIntersects(b);
+	// Presumably its old parent is a good guess for the new parent.
+	insert(b->parent, b);
 	setIntersects_leaf(b);
 }
 
 void velbox_refresh(box *root) {
-	// TODO we have anybody that might even care about this value?
-	// `root` validity doesn't really matter lol
+	// Interestingly, no other place that reads `end` can possibly be looking at the root.
+	// The closest we come is `intersects()` checks with a parent's intersect, but we assume
+	// we're valid for less time than the parent, so it's never the root we pull `end` from.
 	root->end++;
+	// So we just use it as a way to track vb_now lol
 	vb_now = root->end;
 
 	// The root never needs revalidation or intersect checking,
@@ -752,10 +728,9 @@ box* velbox_dup(box *root) {
 }
 
 static void transBox(box *b) {
-	// TODO Reset all `start`s to 0 during serialization,
+	// Todo Reset all `start`s to 0 during serialization,
 	//      as a guard against time overflow.
 	//      Might get a little weird with the root, IDK.
-	// TODO Where do we handle alloc?
 	trans64(&b->r);
 	range(i, DIMS) trans64(&b->pos[i]);
 	range(i, DIMS) trans64(&b->vel[i]);
@@ -790,14 +765,14 @@ static void transBoxIntersects(box *b) {
 void velbox_trans(box **root) {
 	transRefList(&boxClones);
 
-	// TODO: Write a total number of boxes upfront,
+	// Todo: Write a total number of boxes upfront,
 	//       so we can alloc more intelligently
 
 	if (seriz_reading) *root = velbox_alloc();
 	transBox(*root);
 	if (seriz_reading) b->kids[i]->parent = NULL;
 
-	transBoxIntersects(root);
+	transBoxIntersects(*root);
 }
 
 void velbox_init() {
