@@ -29,7 +29,7 @@ public:
 	int s_find(const T &itm, int lo, int hi) const;
 	int s_find(const T &itm, Comparator<T> &comp) const;
 	int s_find(const T &itm, int lo, int hi, Comparator<T> &comp) const;
-	void addAll(const list<T> &other);
+	void addAll(const list<T> *other);
 	void setMax(int size);
 	void setMaxUp(int size);
 	void rm(const T &itm);
@@ -170,10 +170,10 @@ int list<T>::s_find(const T &itm, int lo, int hi, Comparator<T> &comp) const {
 }
 
 template <typename T>
-void list<T>::addAll(const list<T> &other) {
-	int n2 = num+other.num;
+void list<T>::addAll(const list<T> *other) {
+	int n2 = num+other->num;
 	if (n2 > max) setMax(n2);
-	memcpy(items+num, other.items, sizeof(T)*other.num);
+	memcpy(items+num, other->items, sizeof(T)*other->num);
 	num = n2;
 }
 

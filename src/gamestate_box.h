@@ -1,0 +1,2 @@
+
+extern list<cloneable*> dummyVelboxSerizList;

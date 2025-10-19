@@ -1,4 +1,8 @@
-#include "../clonable.h"
+// Ugh, this is all too tangled up with the current project.
+// I want boxes to be "cloneable", but that #include can't
+// be in this file (since the relative path doesn't make sense,
+// given that this file is meant to be included elsewhere...)
+//#include "../cloneable.h"
 
 // If you want to define these using GCC args, that's fine -
 // an alternative is to "wrap" this file (and the .cpp file)
@@ -15,12 +19,16 @@
 #define INT int64_t
 #endif
 
-#ifndef TIME
-#define TIME int32_t
-#endif
-
 #ifndef MAX
 #define MAX INT64_MAX
+#endif
+
+#ifndef MIN
+#define MIN INT64_MIN
+#endif
+
+#ifndef TIME
+#define TIME int32_t
 #endif
 
 #ifndef DIMS
@@ -57,7 +65,7 @@ struct sect {
 	int i;
 };
 
-struct box : clonable {
+struct box : cloneable {
 	// Should not exceed INT_MAX/2 (so it can be safely added to itself)
 	// Note for non-fish boxes, this will always be the same for all axes
 	INT r;
@@ -77,12 +85,7 @@ struct box : clonable {
 	// Could have "type" here directly, but the advantage is if it's just one field,
 	// we can just have `list<foo*>` as the way potential intersects are returned
 	// from a query!
-	void *data;
-
-	union {
-		int ix;
-		box *ptr;
-	} clone;
+	cloneable *data;
 };
 
 box* velbox_alloc();

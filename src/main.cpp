@@ -151,7 +151,7 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 		out.num += 4;
 		// First byte of syncData should identify to clients what kind of command it is.
 		// Server doesn't care about this though, just needs length + data for the cmd.
-		out.addAll(syncData);
+		out.addAll(&syncData);
 		syncData.num = 0;
 		numCmds++;
 	}
@@ -520,7 +520,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 
 			char clockOk = behindClock; // If we're behind the clock, then don't blame issues on the clock; we just need to catch up
 			playerDatas.num = 0;
-			playerDatas.addAll(frameData.peek(0));
+			playerDatas.addAll(&frameData.peek(0));
 			newPhantom(rootState);
 			int frameDataSize = frameData.size();
 			range(outboundIx, outboundSize) {

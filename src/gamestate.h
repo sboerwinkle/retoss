@@ -52,3 +52,6 @@ extern void shuffle(gamestate *gs, uint32_t seed);
 extern void write32(list<char> *data, int32_t v);
 extern void serialize(gamestate *gs, list<char> *data);
 extern void deserialize(gamestate *gs, list<char> *data, char fullState);
+
+extern void gamestate_init();
+extern void gamestate_destroy();

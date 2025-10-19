@@ -1,13 +1,18 @@
-#include <arpa/inet.h>
-
 #include "util.h"
-#include "gamestate.h"
+#include "cloneable.h"
+
 #include "random.h"
+#include "serialize.h"
+
+#include "gamestate.h"
+#include "gamestate_box.h"
 
 static void decr(mapChunk *mc);
 static mapChunk* dup(mapChunk* mc);
 static void setSpace(gamestate *gs, int x, int y, char value);
 static char getSpace(gamestate *gs, int x, int y);
+
+list<cloneable*> dummyVelboxSerizList;
 
 void resetPlayer(gamestate *gs, int i) {
 	int32_t pos = boardSizeSpaces/2;
@@ -278,7 +283,7 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	seriz_reading = 1;
 	// This will set seriz_version and seriz_index
 	// (if no error)
-	if (seriz_verifyHeader(data)) return;
+	if (seriz_verifyHeader()) return;
 
 	transBoard(gs);
 	int players = read8();
@@ -288,4 +293,12 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	// `prepareGamestateForLoad` to have consistently initialized them.
 	
 	range(i, players) transPlayer(&gs->players[i]);
+}
+
+void gamestate_init() {
+	dummyVelboxSerizList.init();
+}
+
+void gamestate_destroy() {
+	dummyVelboxSerizList.destroy();
 }

@@ -38,6 +38,7 @@ static char intersects(box *o, box *n) {
 	// Really we want whichever is smaller, but a `min` here probably isn't worth the effort.
 	// Instead, we leave it up to the caller to put whichever one is probably smaller as `n`.
 	TIME t2 = n->end - vb_now;
+	INT r = o->r + n->r;
 	range(d, DIMS) {
 		INT vel = o->vel[d] - n->vel[d];
 		// Removed a check here about very large relative velocities.
@@ -47,11 +48,10 @@ static char intersects(box *o, box *n) {
 		INT d1 = o->pos[d] + o->vel[d] * t_o - n->pos[d] - n->vel[d] * t_n;
 		INT d2 = d1 + vel * t2;
 
-		INT r = o->r[d] + n->r[d];
 		// Outside before, and outside after, and...
 		//   The measurement of "distance between" doesn't cross 0
 		//   (in which case it would be disrupted by a shift of INT_MIN)
-		if (abs(d1) >= r && abs(d2) >= r && (d2-d1 > 0) == (d2-INT_MIN > d1-INT_MIN)) return 0;
+		if (abs(d1) >= r && abs(d2) >= r && (d2-d1 > 0) == (d2-MIN > d1-MIN)) return 0;
 	}
 	return 1;
 }
@@ -95,7 +95,7 @@ static void addWhale(box *n, list<box*> *children) {
 		// is a slight optimization in that it reports fewer intersects.
 		if (intersects(b, n)) {
 			recordIntersect(b, n);
-			addWhale(n, &b->children);
+			addWhale(n, &b->kids);
 		}
 	}
 }
@@ -339,7 +339,7 @@ static box* mkParent(box *level, box *n, INT minParentR) {
 	// `n->end` has already been set for some time...
 	INT minGrandparentR = SCALE*minParentR;
 
-	while (level->r[0] >= minGrandparentR) {
+	while (level->r >= minGrandparentR) {
 		level = mkContainer(level, n);
 	}
 
@@ -357,14 +357,14 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 			lookDownSrc->add(sects[i].b);
 		}
 		optionsSrc = lookDownSrc;
-		optionsR = mergeBase->r[0];
+		optionsR = mergeBase->r;
 		optionsDepth = mergeBase->depth;
 	} else if (mergeBase->kids.num) {
 		// I think we have a separate case for the root box so that we don't incorrectly
 		// rule it out for parentage (since its radius is kind of a lie)
 		optionsSrc = &mergeBase->kids;
 		// We are once again assuming no titanically large whales
-		optionsR = (*optionsSrc)[0]->r[0];
+		optionsR = (*optionsSrc)[0]->r;
 		optionsDepth = (*optionsSrc)[0]->depth;
 	} else {
 		// This will (should) only happen for the first non-root box added
@@ -417,7 +417,7 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 
 			result = test;
 			// if (finalLevel) break; // Not sure if this is a worthwhile time save
-			lookDownDest->addAll(test->kids);
+			lookDownDest->addAll(&test->kids);
 
 			fail:;
 		}
@@ -433,9 +433,8 @@ static box* tryLookDown(box *mergeBase, box *n, INT minParentR, INT p1[DIMS]) {
 
 static box* lookUp(box *b, box *n, INT minParentR, INT p1[DIMS]) {
 	for (; b->parent; b = b->parent) {
-		INT r = b->r;
-		r = r - r / SCALE;
-		duration = getValidity(b->depth+1);
+		INT r = b->r - b->r/SCALE;
+		TIME duration = getValidity(b->depth+1);
 		list<sect> &intersects = b->intersects;
 		range(i, intersects.num) {
 			box *test = intersects[i].b;
@@ -510,9 +509,9 @@ static void writeQueryResults(box *b, list<void*> *results) {
 // false positives).
 box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results) {
 	box thing = {
+		.r = r,
 		.start = vb_now,
 		.end = vb_now+1,
-		.r = r
 	};
 	range(i, DIMS) {
 		thing.pos[i] = pos[i];
@@ -541,7 +540,7 @@ void velbox_insert(box *guess, box *n) {
 	}
 #endif
 	// Todo Not sure we need `depth` on leafs
-	n->depth = p->parent->depth+1;
+	n->depth = n->parent->depth+1;
 	setIntersects_leaf(n);
 }
 
@@ -594,8 +593,8 @@ void velbox_refresh(box *root) {
 		range(i, globalOptionsSrc->num) {
 			box *b = (*globalOptionsSrc)[i];
 			list<box*> &kids = b->kids;
-			globalOptionsDest->addAll(&k);
-			range(j, kids.num) {
+			globalOptionsDest->addAll(&kids);
+			range(j, kids.num) { // not rangeconst, `kids.num` might change
 				box *k = kids[j];
 				if (isLeaf(k)) continue;
 				if (k->end == cutoff) {
@@ -707,16 +706,18 @@ static box* dup(box *b) {
 	}
 
 	ret->intersects.init(b->intersects.num+2);
-	ret->intersects.addAll(b->intersects); // We'll clean this up later.
+	ret->intersects.addAll(&b->intersects); // We'll clean this up later.
+
+	return ret;
 }
 
-static void dupIntersectCleanup(box *b) {
+static void dupIntersectsCleanup(box *b) {
 	range(i, b->intersects.num) {
-		b->intersects[i].b = b->intersects[i].b->clone.ptr;
+		b->intersects[i].b = (box*)b->intersects[i].b->clone.ptr;
 	}
 	int numKids = b->kids.num;
 	range(i, numKids) {
-		dupIntersectCleanup(b->kids[i]);
+		dupIntersectsCleanup(b->kids[i]);
 	}
 }
 
@@ -770,7 +771,7 @@ void velbox_trans(box **root) {
 
 	if (seriz_reading) *root = velbox_alloc();
 	transBox(*root);
-	if (seriz_reading) b->kids[i]->parent = NULL;
+	if (seriz_reading) (*root)->parent = NULL;
 
 	transBoxIntersects(*root);
 }

@@ -368,7 +368,7 @@ static void doIndent(list<char> *data, int indentCount) {
 
 static void writeRawString(list<char> *data, char const *str) {
 	const list<char> dummy = {.items = (char*)str, .num=(int)strlen(str), .max=0};
-	data->addAll(dummy);
+	data->addAll(&dummy);
 }
 
 static void writeString(list<char> *data, char *str) {

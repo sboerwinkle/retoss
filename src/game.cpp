@@ -28,6 +28,7 @@ struct {
 
 void game_init() {
 	initGraphics();
+	gamestate_init();
 }
 
 // TODO gamestate init logic should be the responsibility of gamestate.cpp.
@@ -46,7 +47,9 @@ gamestate* game_init2() {
 }
 
 void game_destroy2() {}
-void game_destroy() {}
+void game_destroy() {
+	gamestate_destroy();
+}
 
 void handleKey(int key, int action) {
 	// I can't imagine a scenario where I actually need to know about repeat events
