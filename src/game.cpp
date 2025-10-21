@@ -6,6 +6,8 @@
 #include "util.h"
 #include "queue.h"
 
+#include "quaternion.h"
+
 #include "main.h"
 #include "graphics.h"
 #include "gamestate.h"
@@ -13,7 +15,9 @@
 #include "game.h"
 #include "game_callbacks.h"
 
-int zoomLvl = 0;
+static int mouseX = 0, mouseY = 0;
+static char mouseDown = 0;
+quat tmpGameRotation = {1,0,0,0};
 
 static char debugPrint = 0;
 
@@ -66,7 +70,6 @@ void handleKey(int key, int action) {
 }
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
-	/*
 	int x = xpos;
 	int y = ypos;
 	if (mouseDown) {
@@ -88,16 +91,13 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 	}
 	mouseX = x;
 	mouseY = y;
-	*/
 }
+
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
-	//if (button == 0) mouseDown = (action == GLFW_PRESS);
+	if (button == 0) mouseDown = (action == GLFW_PRESS);
 	if (action == GLFW_PRESS) debugPrint = 1;
 }
-void scroll_callback(GLFWwindow *window, double x, double y) {
-	// We don't handle any fancy non-integer scrolling, sorry
-	zoomLvl += y;
-}
+void scroll_callback(GLFWwindow *window, double x, double y) {}
 void window_focus_callback(GLFWwindow *window, int focused) {}
 
 void copyInputs() {
@@ -195,100 +195,9 @@ void prefsToCmds(queue<strbuf> *cmds) {
 }
 
 //// graphics stuff! ////
-static double lastCenterX = boardSizeSpaces/2*16, lastCenterY = boardSizeSpaces/2*16;
-
-static void drawPlayer(gamestate *gs, int i, int centerX, int centerY) {
-	player &p = gs->players[i];
-	int x = p.x*16 - centerX;
-	int y = p.y*16 - centerY;
-
-	// Draw legs (currently always the passive legs)
-	drawSprite(x, y, 2, 2);
-
-	// Then draw the head...
-	int headIx = i%5;
-	// Sprite sheet layout is kinda funny, and I don't have a dictionary of any sort currently.
-	// For now, this is it lol
-	if (headIx < 2) drawSprite(x, y, headIx, 1);
-	else drawSprite(x, y, headIx-2, 0);
-}
 
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	setupFrame();
-
-	// Okay, first we need to determine where the edges of the screen lie in world coordinates.
-	// Spaces are 16 world units wide, at least for now
-
-	{
-		// Calculate screen center. We smooth this out some,
-		// but not based on interpRatio since we don't want
-		// it to jump even if the timeline jumps.
-		player &p = gs->players[myPlayer];
-		double desiredCenterX = p.x * 16;
-		double desiredCenterY = p.y * 16;
-		double dx = desiredCenterX - lastCenterX;
-		double dy = desiredCenterY - lastCenterY;
-		double dist = sqrt(dx*dx + dy*dy);
-		if (dist) {
-			// This doesn't perfectly account for different frame rates,
-			// since the approach speed is partially based on distance
-			// but I only recompute approach speed once per frame (as
-			// opposed to doing some calculus to make it nicer).
-			double speed = (dist + 32) * totalNanos / 1'000'000'000;
-			if (speed > dist) speed = dist;
-			lastCenterX += speed * dx / dist;
-			lastCenterY += speed * dy / dist;
-		}
-	}
-	int centerX = round(lastCenterX);
-	int centerY = round(lastCenterY);
-
-	int worldRadiusX = 1.0/scaleX;
-	int worldRadiusY = 1.0/scaleY;
-	// We have to add 8 (half a space) to all these calculations
-	// because each space is centered at its coordinates
-	// (as opposed to its coordinates being at its upper-left
-	//  corner or something, in which case *this* math would be
-	//  slightly cleaner).
-	int leftChunk  = (centerX-worldRadiusX+8)/(chunkSizeSpaces*16);
-	int rightChunk = (centerX+worldRadiusX+8)/(chunkSizeSpaces*16) + 1;
-	int floorChunk = (centerY-worldRadiusY+8)/(chunkSizeSpaces*16);
-	int cielChunk  = (centerY+worldRadiusY+8)/(chunkSizeSpaces*16) + 1;
-	if (leftChunk < 0) leftChunk = 0;
-	if (floorChunk < 0) floorChunk = 0;
-	if (rightChunk > boardSizeChunks) rightChunk = boardSizeChunks;
-	if (cielChunk > boardSizeChunks) cielChunk = boardSizeChunks;
-
-	int written = 0;
-
-	for (int cy = floorChunk; cy < cielChunk; cy++) {
-		for (int cx = leftChunk; cx < rightChunk; cx++) {
-			char *data = gs->board[cy*boardSizeChunks+cx]->data;
-			int xBase = cx*chunkSizeSpaces*16 - centerX;
-			int yBase = cy*chunkSizeSpaces*16 - centerY;
-			for (int y = 0; y < chunkSizeSpaces; y++) {
-				for (int x = 0; x < chunkSizeSpaces; x++) {
-					char space = data[y*chunkSizeSpaces+x];
-					if (!space) continue;
-					written++;
-					drawSprite(
-						xBase + 16*x,
-						yBase + 16*y,
-						space-1, 2
-					);
-				}
-			}
-		}
-	}
-	range(i, gs->players.num) {
-		// Want to draw own player last
-		if (i == myPlayer) continue;
-		drawPlayer(gs, i, centerX, centerY);
-	}
-	drawPlayer(gs, myPlayer, centerX, centerY);
-
-	if (debugPrint) {
-		debugPrint = 0;
-		printf("%d,%d  %d,%d: %d\n", leftChunk, rightChunk, floorChunk, cielChunk, written);
-	}
+	// Right now `setupFrame` draws the one constant box that exists.
+	// We'll do more stuff here eventually (again)!
 }

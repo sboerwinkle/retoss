@@ -9,7 +9,7 @@
 #include "util.h"
 #include "quaternion.h"
 #include "matrix.h"
-#include "game.h"
+#include "game_graphics.h"
 #include "png.h"
 #include "watch_gfx.h"
 
@@ -133,6 +133,7 @@ void initGraphics() {
 	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "shaders/sprite.vert");
 	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
 	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "shaders/color.frag");
+	GLuint fragShaderSprite = mkShader(GL_FRAGMENT_SHADER, "shaders/texOnly.frag");
 	GLuint fragShaderStipple = mkShader(GL_FRAGMENT_SHADER, "shaders/stipple.frag");
 
 	main_prog = glCreateProgram();
@@ -143,7 +144,7 @@ void initGraphics() {
 
 	sprite_prog = glCreateProgram();
 	glAttachShader(sprite_prog, spriteShader);
-	glAttachShader(sprite_prog, fragShader);
+	glAttachShader(sprite_prog, fragShaderSprite);
 	glLinkProgram(sprite_prog);
 	cerr("Post link");
 
@@ -163,7 +164,7 @@ void initGraphics() {
 
 	// These will be the same attrib locations as stipple_prog, since they use the same vertex shader
 	GLint a_pos_id = attrib(main_prog, "a_pos");
-	//GLint a_norm_id = attrib(main_prog, "a_norm"); // Temporarily out of commission haha
+	GLint a_norm_id = attrib(main_prog, "a_norm");
 	GLint a_tex_st_id = attrib(main_prog, "a_tex_st");
 	// sprite_prog attribs
 	GLint a_spr_loc = attrib(sprite_prog, "a_loc");
@@ -185,6 +186,7 @@ void initGraphics() {
 	// and log + set startupFailed=1 if not.
 
 	printGLProgErrors(main_prog, "main");
+	printGLProgErrors(sprite_prog, "sprite");
 	printGLProgErrors(stipple_prog, "stipple");
 	//printGLProgErrors(flat_prog, "flat");
 
@@ -195,14 +197,14 @@ void initGraphics() {
 
 	glEnable(GL_CULL_FACE);
 	glGenVertexArrays(2, vaos);
-	GLuint tex_noise;
-	glGenTextures(1, &tex_noise);
+	GLuint myTexture;
+	glGenTextures(1, &myTexture);
 
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
-	glBindTexture(GL_TEXTURE_2D, tex_noise);
+	glBindTexture(GL_TEXTURE_2D, myTexture);
 	glEnableVertexAttribArray(a_pos_id);
-	//glEnableVertexAttribArray(a_norm_id);
+	glEnableVertexAttribArray(a_norm_id);
 	glEnableVertexAttribArray(a_tex_st_id);
 	glGenBuffers(1, &buffer_id);
 	glBindBuffer(GL_ARRAY_BUFFER, buffer_id);
@@ -210,13 +212,13 @@ void initGraphics() {
 	// Position data is first
 	glVertexAttribPointer(a_pos_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) 0);
 	// Followed by normal data
-	//glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
+	glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
 	// Followed by tex coord data
 	glVertexAttribPointer(a_tex_st_id, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 6));
 	cerr("End of vao 0 prep");
 	// vaos[1]
 	glBindVertexArray(vaos[1]);
-	glBindTexture(GL_TEXTURE_2D, tex_noise); // Do we need to bind this once per VAO? I'm guessing so, need to check.
+	glBindTexture(GL_TEXTURE_2D, myTexture); // Do we need to bind this once per VAO? I'm guessing so, need to check.
 	glEnableVertexAttribArray(a_spr_loc);
 	glGenBuffers(1, &spr_buffer_id);
 	glBindBuffer(GL_ARRAY_BUFFER, spr_buffer_id);
@@ -233,8 +235,10 @@ void initGraphics() {
 	cerr("End of vao 1 prep");
 	*/
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// TODO probably not this, idk. May need to set per-texture?
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
 	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
 	//  1. You are on a large, flat plane moving around.
 	//    How crisp is it? How visible is the mipmap and sampling seam? How much does the sampling seam move as you move the camera only?
@@ -243,14 +247,19 @@ void initGraphics() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
+	// This is probably loaded in the wrong place, since we're going to be using vaos[0] mostly at the moment.
+	// I also don't know if tex parameters are part of the texture or of the vao!!
 	loadTexture();
 
-	glClearColor(0.8, 0.8, 0.8, 1);
-	glEnable(GL_BLEND);
-	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
-	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
-	glBlendEquation(GL_FUNC_ADD);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glClearColor(0.2, 0.2, 0.2, 1);
+
+	/// Stuff for transparency
+	// glEnable(GL_BLEND);
+	// // It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
+	// // This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
+	// glBlendEquation(GL_FUNC_ADD);
+	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	///
 
 	cerr("End of graphics setup");
 }
@@ -270,14 +279,12 @@ static void checkReload() {
 
 void setupFrame() {
 	checkReload();
-	glUseProgram(sprite_prog);
-	glBindVertexArray(vaos[1]);
+	glUseProgram(main_prog);
+	glBindVertexArray(vaos[0]);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	// We don't actually have to re-set this each frame,
 	// but it isn't part of VAO state so it matters if you're flipping between those.
-	glDisable(GL_DEPTH_TEST);
-
-	/* Rotation stuff, how tedious. Don't need this in 2D mode!
+	glEnable(GL_DEPTH_TEST);
 
 	// This will represent the rotation the world goes through
 	// to sit it in front of the camera, more accurately.
@@ -319,7 +326,7 @@ void setupFrame() {
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
-	*/
+	/* 2D stuff, how passé
 
 	// This one depends on the size of the texture.
 	// Might consider shrinking this a few percent to fix issues at borders,
@@ -331,11 +338,13 @@ void setupFrame() {
 	// For now all our rendered sprites are the same size, so we can set this in advance.
 	glUniform2f(u_spr_size, 8, 8);
 
+	*/
+
 	//cerr("frame");
 }
 
 void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
-	// Coordinates on the spritesheet (which is currently only 2 16x16 sprites lol)
+	// Coordinates on the spritesheet
 	glUniform2f(u_spr_tex_offset, 12+20*sprX, 12+20*sprY);
 	glUniform2f(
 		u_spr_offset,
