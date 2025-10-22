@@ -6,7 +6,7 @@ layout(location=0) uniform mat4 u_modelview;
 layout(location=2) uniform float u_texscale;
 layout(location=3) uniform vec2 u_texoffset;
 layout(location=4) uniform mat3 u_rot;
-layout(location=5) uniform vec3 u_tint;
+// layout(location=5) uniform vec3 u_tint;
 
 // I don't think I *need* explicit locations on these, since graphics.c asks GL what location they got anyway.
 // However, it is nice to have them explicit, as I do re-use attribute locations between programs that share
@@ -28,7 +28,8 @@ void main()
 	// I'm sure there's a more correct/technical term for this.
 	// Point is, if it's facing the light directly we add a little of the light's color.
 	// Uh... this will still be subjected to the texture stuff though, not fixing that rn.
-	vec3 glare = max(lighting_dot - 0.9, 0) * vec3(1,1,1);
+	vec3 glare = max(lighting_dot - 0.6, 0) * vec3(1,1,1);
 
-	v_color = glare + (0.75 + 0.25*lighting_dot)*u_tint;
+	// v_color = glare + (0.75 + 0.25*lighting_dot)*u_tint;
+	v_color = glare;
 }
