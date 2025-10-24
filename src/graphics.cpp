@@ -15,8 +15,9 @@
 
 #include "graphics.h"
 
-#define MOTTLE_TEX_RESOLUTION 64
-#define SPRITE_FILE "dirt.png"
+#define NUM_TEXS 2
+char const * const texSrcFiles[NUM_TEXS] = {"dirt.png", "guy.png"};
+GLuint textures[NUM_TEXS];
 
 static void populateCubeVertexData(list<GLfloat> *data);
 static void populateCubeVertexData2(list<GLfloat> *data);
@@ -112,13 +113,16 @@ static GLuint mkShader(GLenum type, const char* path) {
 	return shader;
 }
 
-static void loadTexture() {
+static void loadTexture(int i) {
 	char *imageData;
 	int width, height;
-	png_read(&imageData, &width, &height, "assets/" SPRITE_FILE);
-	if (!imageData) { //  || width != MOTTLE_TEX_RESOLUTION || height != MOTTLE_TEX_RESOLUTION) {
-		puts("Not loading texture");
+	char path[200];
+	snprintf(path, 200, "assets/%s", texSrcFiles[i]);
+	png_read(&imageData, &width, &height, path);
+	if (!imageData) {
+		printf("Not loading texture %d\n", i);
 	} else {
+		glBindTexture(GL_TEXTURE_2D, textures[i]);
 		// We're going to assume the correct texture is bound!
 		// That's the nice thing about only using one texture.
 		glTexImage2D(
@@ -131,6 +135,10 @@ static void loadTexture() {
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
 	free(imageData);
+}
+
+static void loadAllTextures() {
+	range(i, NUM_TEXS) loadTexture(i);
 }
 
 void initGraphics() {
@@ -202,8 +210,7 @@ void initGraphics() {
 
 	glEnable(GL_CULL_FACE);
 	glGenVertexArrays(2, vaos);
-	GLuint myTexture;
-	glGenTextures(1, &myTexture);
+	glGenTextures(NUM_TEXS, textures);
 
 	list<GLfloat> vtxData;
 	vtxData.init();
@@ -214,7 +221,6 @@ void initGraphics() {
 
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
-	glBindTexture(GL_TEXTURE_2D, myTexture);
 	glEnableVertexAttribArray(a_pos_id);
 	glEnableVertexAttribArray(a_norm_id);
 	glEnableVertexAttribArray(a_tex_st_id);
@@ -238,7 +244,6 @@ void initGraphics() {
 
 	// vaos[1]
 	glBindVertexArray(vaos[1]);
-	glBindTexture(GL_TEXTURE_2D, myTexture); // Do we need to bind this once per VAO? I'm guessing so, need to check.
 	glEnableVertexAttribArray(a_spr_loc);
 	glGenBuffers(1, &spr_buffer_id);
 	glBindBuffer(GL_ARRAY_BUFFER, spr_buffer_id);
@@ -255,7 +260,7 @@ void initGraphics() {
 	cerr("End of vao 1 prep");
 	*/
 
-	// TODO probably not this, idk. May need to set per-texture?
+	// Turns out GL_REPEAT is the default.
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -264,12 +269,13 @@ void initGraphics() {
 	//    How crisp is it? How visible is the mipmap and sampling seam? How much does the sampling seam move as you move the camera only?
 	//  2. There is a large object moving in the distance.
 	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	range(i, NUM_TEXS) {
+		glBindTexture(GL_TEXTURE_2D, textures[i]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	}
 
-	// This is probably loaded in the wrong place, since we're going to be using vaos[0] mostly at the moment.
-	// I also don't know if tex parameters are part of the texture or of the vao!!
-	loadTexture();
+	loadAllTextures();
 
 	glClearColor(0.2, 0.2, 0.2, 1);
 
@@ -289,11 +295,17 @@ static void checkReload() {
 	// but the short version is that we're getting some guarantees similar to
 	// a very simple semaphore.
 	if (!texReloadFlag.load(std::memory_order::acquire)) return;
-	if (strcmp(texReloadPath, SPRITE_FILE)) {
-		printf("We don't care about '%s'\n", texReloadPath);
-	} else {
-		loadTexture();
+
+	range(i, NUM_TEXS) {
+		if (!strcmp(texReloadPath, texSrcFiles[i])) {
+			loadTexture(i);
+			goto success;
+		}
 	}
+	// Never thought I'd miss python's for-else...
+	printf("We don't care about '%s'\n", texReloadPath);
+	success:;
+
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
@@ -342,6 +354,8 @@ void setupFrame() {
 	// Cube drawing stuff. Plenty to do here, like figure in model rotation.
 	glUniform1f(u_main_texscale, 1);
 	glUniform2f(u_main_texoffset, 0, 0);
+	// Is this okay to be doing so often? Hope so!
+	glBindTexture(GL_TEXTURE_2D, textures[0]);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, vtxIdx_cubeSixFace, 36);
 
