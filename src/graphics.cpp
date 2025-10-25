@@ -15,8 +15,8 @@
 
 #include "graphics.h"
 
-#define NUM_TEXS 2
-char const * const texSrcFiles[NUM_TEXS] = {"dirt.png", "guy.png"};
+#define NUM_TEXS 3
+char const * const texSrcFiles[NUM_TEXS] = {"dirt.png", "guy.png", "stop.png"};
 GLuint textures[NUM_TEXS];
 
 static void populateCubeVertexData(list<GLfloat> *data);
@@ -51,6 +51,8 @@ static GLint u_spr_tex_scale;
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
 static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
+
+static float matWorldToScreen[16];
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -318,62 +320,49 @@ void setupFrame() {
 	// but it isn't part of VAO state so it matters if you're flipping between those.
 	glEnable(GL_DEPTH_TEST);
 
-	// This will represent the rotation the world goes through
-	// to sit it in front of the camera, more accurately.
-	quat cameraRotation = {1,0,0,0};
+	float matWorldToCam[16];
+	mat4FromQuat(matWorldToCam, quatWorldToCam);
 
-	// TODO stuff with actual position haha
+	// Todo I'm sure I'm wasting some multiplications here.
+	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
+	//      we do, we know some of the values are constants like 0 or 1 going in.
 
-	GLfloat modelview_data[16], rot_data[9];
-
-	quat thingRotation;
-	memcpy(thingRotation, tmpGameRotation, sizeof(thingRotation));
-	// This is intentionally before `cameraRotation` is applied,
-	// lighting doesn't rotate with the camera.
-	mat3FromQuat(rot_data, thingRotation);
-
-	quat modelCamRotation;
-	float modelCam_mat[16];
-	quat_mult(modelCamRotation, thingRotation, cameraRotation);
-	mat4FromQuat(modelCam_mat, modelCamRotation);
-	//mat4Transf(modelCam_mat, 0, 0, 0); // TODO as stated above, actual position is not done haha
-
-	float persp_mat[16];
+	// This is the same no matter what (or where) we're rending, so I can do that here...
+	float matPersp[16];
 	float fovThingIdk = 1/0.7;
 	perspective(
-		persp_mat,
+		matPersp,
 		fovThingIdk*displayHeight/displayWidth,
 		fovThingIdk,
 		0.1 // zNear
 	);
-	mat4Multf(modelview_data, persp_mat, modelCam_mat);
 
-	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, modelview_data);
+	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
+}
+
+void drawCube() {
+	// The rotation of the thing itself (used for lighting).
+	GLfloat rot_data[9];
+	mat3FromQuat(rot_data, tmpGameRotation);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
-	// Cube drawing stuff. Plenty to do here, like figure in model rotation.
+	// Add in translation...
+	float matWorld[16];
+	float X = 0, Y = 3, Z = 0;
+	matEmbiggen(matWorld, rot_data, X, Y, Z);
+
+	// And finally apply the transform we computed during `setupFrame`
+	float matScreen[16];
+	mat4Multf(matScreen, matWorldToScreen, matWorld);
+	// Then we have to translate it and rotate for the camera
+	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
+
+	// Set texture and tex-related uniforms
+	glBindTexture(GL_TEXTURE_2D, textures[0]); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_texscale, 1);
 	glUniform2f(u_main_texoffset, 0, 0);
-	// Is this okay to be doing so often? Hope so!
-	glBindTexture(GL_TEXTURE_2D, textures[0]);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, vtxIdx_cubeSixFace, 36);
-
-	/* 2D stuff, how passé
-
-	// This one depends on the size of the texture.
-	// Might consider shrinking this a few percent to fix issues at borders,
-	// but I'd have to think about a bunch of stuff.
-	glUniform2f(u_spr_tex_scale, 1.0/64, -1.0/64);
-	scaleY = 1.0/256*exp(zoomLvl*0.2);
-	scaleX = scaleY*displayHeight/displayWidth;
-	glUniform2f(u_spr_scale, scaleX, scaleY);
-	// For now all our rendered sprites are the same size, so we can set this in advance.
-	glUniform2f(u_spr_size, 8, 8);
-
-	*/
-
-	//cerr("frame");
 }
 
 void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {

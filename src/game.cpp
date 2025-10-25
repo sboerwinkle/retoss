@@ -18,8 +18,7 @@
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
 quat tmpGameRotation = {1,0,0,0};
-
-static char debugPrint = 0;
+quat quatWorldToCam = {1,0,0,0};
 
 struct {
 	struct {
@@ -76,7 +75,8 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 		float dx = x - mouseX;
 		float dy = y - mouseY;
 		float dist = sqrt(dx*dx + dy*dy);
-		float radians = dist * 0.002;
+		float scale = mouseDown == 1 ? 0.002 : 0.0004;
+		float radians = dist * scale;
 		// Because of quaternion math, this represents a rotation of `radians*2`.
 		// We cap it at under a half rotation, after which I'm not sure my
 		// quaternions keep behaving haha
@@ -86,16 +86,17 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 		// Positive Y -> mouse down -> rotate around +X
 
 		quat r = {cos(radians), s*dy/dist, 0, s*dx/dist};
-		quat_rotateBy(tmpGameRotation, r);
-		quat_norm(tmpGameRotation);
+		float *dest = mouseDown == 1 ? tmpGameRotation : quatWorldToCam;
+		quat_rotateBy(dest, r);
+		quat_norm(dest);
 	}
 	mouseX = x;
 	mouseY = y;
 }
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
-	if (button == 0) mouseDown = (action == GLFW_PRESS);
-	if (action == GLFW_PRESS) debugPrint = 1;
+	if (action == GLFW_PRESS && (button == 0 || button == 1)) mouseDown = button+1;
+	else mouseDown = 0;
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {}
 void window_focus_callback(GLFWwindow *window, int focused) {}
@@ -198,6 +199,7 @@ void prefsToCmds(queue<strbuf> *cmds) {
 
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	setupFrame();
+	drawCube();
 	// Right now `setupFrame` draws the one constant box that exists.
 	// We'll do more stuff here eventually (again)!
 }

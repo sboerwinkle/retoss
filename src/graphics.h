@@ -7,5 +7,6 @@ extern void initGraphics();
 extern void setDisplaySize(int width, int height);
 
 extern void setupFrame();
+extern void drawCube();
 
 extern void drawSprite(int cameraX, int cameraY, int sprX, int sprY);
