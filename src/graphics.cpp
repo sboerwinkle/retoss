@@ -53,6 +53,7 @@ static GLint u_spr_tex_scale;
 static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
+static int64_t camPos[3];
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -338,9 +339,17 @@ void setupFrame() {
 	);
 
 	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
+
+	// For now camera is fixed
+	range(i, 3) camPos[i] = 0;
 }
 
-void drawCube() {
+void drawCube(int64_t pos[3], int tex, char sixFaced) {
+	// Will need scaling (and mottling) eventually
+	if (tex < 0 || tex >= NUM_TEXS) {
+		printf("ERROR: Invalid tex %d\n", tex);
+		return;
+	}
 	// The rotation of the thing itself (used for lighting).
 	GLfloat rot_data[9];
 	mat3FromQuat(rot_data, tmpGameRotation);
@@ -348,8 +357,9 @@ void drawCube() {
 
 	// Add in translation...
 	float matWorld[16];
-	float X = 0, Y = 3, Z = 0;
-	matEmbiggen(matWorld, rot_data, X, Y, Z);
+	float translate[3];
+	range(i, 3) translate[i] = pos[i] - camPos[i];
+	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`
 	float matScreen[16];
@@ -358,11 +368,11 @@ void drawCube() {
 	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
 
 	// Set texture and tex-related uniforms
-	glBindTexture(GL_TEXTURE_2D, textures[0]); // Is this okay to be doing so often? Hope so!
+	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_texscale, 1);
 	glUniform2f(u_main_texoffset, 0, 0);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
-	glDrawArrays(GL_TRIANGLES, vtxIdx_cubeSixFace, 36);
+	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);
 }
 
 void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
