@@ -200,10 +200,13 @@ void prefsToCmds(queue<strbuf> *cmds) {
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	setupFrame();
 	int64_t pos[3] = {0, 3, 0};
-	drawCube(pos, 0, 1); // Draw first texture as a net
+	drawCube(pos, 1, 1); // Draw texture index 1 as a net
 	pos[0] += 1; pos[1] += 1; pos[2] += 1; // Elsewhere...
-	drawCube(pos, 2, 0); // Draw second texture, not as a net
-	// Right now `setupFrame` draws the one constant box that exists.
+	drawCube(pos, 3, 0); // Draw texture index 3, not as a net
+
+	setup2d();
+	setup2dText();
+	drawText("Hello, World!1!");
 
 	// We'll do more stuff here eventually (again)!
 }

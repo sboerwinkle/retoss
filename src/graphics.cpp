@@ -15,8 +15,8 @@
 
 #include "graphics.h"
 
-#define NUM_TEXS 3
-char const * const texSrcFiles[NUM_TEXS] = {"dirt.png", "guy.png", "stop.png"};
+#define NUM_TEXS 4
+char const * const texSrcFiles[NUM_TEXS] = {"font.png", "dirt.png", "guy.png", "stop.png"};
 GLuint textures[NUM_TEXS];
 
 static void populateCubeVertexData(list<GLfloat> *data);
@@ -42,11 +42,11 @@ static GLint u_main_texscale;
 static GLint u_main_texoffset;
 //static GLint u_main_tint;
 
-static GLint u_spr_offset;
 static GLint u_spr_size;
 static GLint u_spr_scale;
-static GLint u_spr_tex_offset;
+static GLint u_spr_offset;
 static GLint u_spr_tex_scale;
+static GLint u_spr_tex_offset;
 
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
@@ -54,6 +54,8 @@ static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
 static int64_t camPos[3];
+
+static float textAreaBounds[2];
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -192,11 +194,11 @@ void initGraphics() {
 	u_main_texoffset = glGetUniformLocation(main_prog, "u_texoffset");
 	//u_main_tint = glGetUniformLocation(main_prog, "u_tint");
 	// sprite_prog uniforms
-	u_spr_offset = glGetUniformLocation(sprite_prog, "u_offset");
 	u_spr_size = glGetUniformLocation(sprite_prog, "u_size");
 	u_spr_scale = glGetUniformLocation(sprite_prog, "u_scale");
-	u_spr_tex_offset = glGetUniformLocation(sprite_prog, "u_tex_offset");
+	u_spr_offset = glGetUniformLocation(sprite_prog, "u_offset");
 	u_spr_tex_scale = glGetUniformLocation(sprite_prog, "u_tex_scale");
+	u_spr_tex_offset = glGetUniformLocation(sprite_prog, "u_tex_offset");
 
 	// Previously I checked that some uniforms are in the same spots across programs here,
 	// and log + set startupFailed=1 if not.
@@ -282,13 +284,12 @@ void initGraphics() {
 
 	glClearColor(0.2, 0.2, 0.2, 1);
 
-	/// Stuff for transparency
-	// glEnable(GL_BLEND);
-	// // It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
-	// // This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
-	// glBlendEquation(GL_FUNC_ADD);
-	// glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	///
+	// I think these settings stick around, but they don't "apply" until
+	// we enable GL_BLEND.
+	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
+	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	cerr("End of graphics setup");
 }
@@ -317,9 +318,10 @@ void setupFrame() {
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	// We don't actually have to re-set this each frame,
-	// but it isn't part of VAO state so it matters if you're flipping between those.
+
+	// Some settings differ from the 2D drawing state.
 	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
 
 	float matWorldToCam[16];
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
@@ -375,7 +377,46 @@ void drawCube(int64_t pos[3], int tex, char sixFaced) {
 	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);
 }
 
+void setup2d() {
+	glUseProgram(sprite_prog);
+	glBindVertexArray(vaos[1]);
+
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+}
+
+void setup2dText() {
+	float textSize = 4;
+	textAreaBounds[0] = displayWidth/2.0/textSize;
+	textAreaBounds[1] = displayHeight/2.0/textSize;
+	// We put (0,0) in the upper-left of the letter, at least for now.
+	// That means we need Y to increase downwards on the screen, so we flip that axis here.
+	glUniform2f(u_spr_scale, 1.0/textAreaBounds[0], -1.0/textAreaBounds[1]);
+	// Our texture is 64x64, and I belive tex coords go 0-1
+	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
+	glBindTexture(GL_TEXTURE_2D, textures[0]);
+}
+
+void setup2dSprites() {
+	// TODO: All old code from the Climber clone.
+	//       Perhaps useful as a reference, but outdated.
+
+	// This one depends on the size of the texture.
+	// Might consider shrinking this a few percent to fix issues at borders,
+	// but I'd have to think about a bunch of stuff.
+	glUniform2f(u_spr_tex_scale, 1.0/64, -1.0/64);
+	scaleY = 1.0/256; // *exp(zoomLvl*0.2);
+	scaleX = scaleY*displayHeight/displayWidth;
+	glUniform2f(u_spr_scale, scaleX, scaleY);
+	// For now all our rendered sprites are the same size, so we can set this in advance.
+	glUniform2f(u_spr_size, 8, 8);
+
+}
+
 void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
+	// Will need to revisit this at some point,
+	// I think there are some uniforms that are no longer set as this expects.
+
 	// Coordinates on the spritesheet
 	glUniform2f(u_spr_tex_offset, 12+20*sprX, 12+20*sprY);
 	glUniform2f(
@@ -385,6 +426,50 @@ void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
 	);
 	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 }
+
+void drawText(char const* str){
+	// Text is 4x6, stride is 5x7, and the copied piece is 5x8 (including blank pixels above, below, and to the right).
+
+	float cursorX = -textAreaBounds[0]+1;
+	float cursorY = -textAreaBounds[1]+1;
+	// Each letter has a blank column copied to the right, but the first blank column (to the left) is done manually.
+	glUniform2f(u_spr_size, 1, 8);
+	glUniform2f(u_spr_offset, cursorX, cursorY);
+	cursorX++;
+	glUniform2f(u_spr_tex_offset, 0, 0);
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+
+	glUniform2f(u_spr_size, 5, 8);
+
+	for (int idx = 0;; idx++){
+		int letter = str[idx];
+		if (!letter) return;
+
+		glUniform2f(u_spr_offset, cursorX, cursorY);
+		cursorX += 5;
+
+		letter -= 32;
+		if (letter < 0 || letter >= 96) continue;
+
+		int texRow = letter/12;
+		int texCol = letter%12;
+		glUniform2f(u_spr_tex_offset, 1+texCol*5, texRow*7);
+		glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	}
+}
+
+/*
+void drawHudRect(double x, double y, double w, double h, float *color) {
+	// I've added one more font character (at postition 94, corresponding to ASCII 127 / DEL)
+	// which is just 2 tris as a square. This is because I am lazy, and want to draw rectangles easily.
+
+	glUniform2f(u_flat_offset_id, x, y);
+	glUniform2f(u_flat_scale_id, w, h);
+	glUniform3fv(u_flat_color_id, 1, color);
+
+	glDrawElements(GL_TRIANGLES, myfont.letterLen[94], GL_UNSIGNED_SHORT, (void*)(sizeof(short)*myfont.letterStart[94]));
+}
+*/
 
 #define vtx(x, y, z, nx, ny, nz, s, t) \
         data->add(x); \
@@ -508,9 +593,12 @@ static void populateCubeVertexData2(list<GLfloat> *data) {
 
 static void populateSpriteVertexData() {
 	GLfloat data[12];
-        GLfloat L = -1;
+	// Previously these ranged from -1 to 1.
+	// For text, easier to work with 0 to 1.
+	// Could always have 2 versions in the array back-to-back if we want both!
+        GLfloat L =  0;
         GLfloat R =  1;
-        GLfloat U = -1;
+        GLfloat U =  0;
         GLfloat D =  1;
         int counter = 0;
 #define vtx(x, y) \
@@ -518,11 +606,11 @@ static void populateSpriteVertexData() {
         data[counter++] = y; \
 // END vtx
 	vtx(L,U);
-	vtx(R,U);
-	vtx(L,D);
 	vtx(L,D);
 	vtx(R,U);
 	vtx(R,D);
+	vtx(R,U);
+	vtx(L,D);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
 #undef vtx
 }
