@@ -17,11 +17,15 @@ layout(location=2) in vec2 a_tex_st;
 
 layout(location=0) out vec3 v_color;
 layout(location=1) out vec2 v_uv;
+layout(location=2) out vec2 v_mottle_1;
+layout(location=3) out vec2 v_mottle_2;
 
 void main()
 {
 	gl_Position = u_modelview * vec4(a_pos, 1.0);
-	v_uv = u_texoffset + u_texscale*a_tex_st;
+	v_uv = a_tex_st;
+	v_mottle_1 = u_texoffset + u_texscale*a_tex_st;
+	v_mottle_2 = u_texoffset + 1.618034*u_texscale*a_tex_st;
 
 	float lighting_dot = dot(vec3(0.6, 0, 0.8), u_rot*a_norm);
 

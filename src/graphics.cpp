@@ -15,8 +15,10 @@
 
 #include "graphics.h"
 
-#define NUM_TEXS 4
-char const * const texSrcFiles[NUM_TEXS] = {"font.png", "dirt.png", "guy.png", "stop.png"};
+#define NUM_TEXS 5
+#define TEX_MOTTLE 0
+#define TEX_FONT 1
+char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png"};
 GLuint textures[NUM_TEXS];
 
 static void populateCubeVertexData(list<GLfloat> *data);
@@ -142,8 +144,32 @@ static void loadTexture(int i) {
 	free(imageData);
 }
 
+static void loadMottleTex() {
+	int const res = 64;
+	uint8_t tex_noise_data[res*res];
+	uint32_t rstate = 59423;
+	for(int idx = 0; idx < res*res; idx++){
+		// Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
+		rstate ^= rstate << 13;
+		rstate ^= rstate >> 17;
+		rstate ^= rstate << 5;
+		tex_noise_data[idx] = rstate & 0xFF;
+	}
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, textures[TEX_MOTTLE]);
+	glTexImage2D(
+		GL_TEXTURE_2D, 0, GL_R8,
+		res, res,
+		0,
+		GL_RED, GL_UNSIGNED_BYTE, tex_noise_data
+	);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glActiveTexture(GL_TEXTURE0);
+}
+
 static void loadAllTextures() {
-	range(i, NUM_TEXS) loadTexture(i);
+	loadMottleTex();
+	for (int i = 1; i < NUM_TEXS; i++) loadTexture(i);
 }
 
 void initGraphics() {
@@ -300,7 +326,8 @@ static void checkReload() {
 	// a very simple semaphore.
 	if (!texReloadFlag.load(std::memory_order::acquire)) return;
 
-	range(i, NUM_TEXS) {
+	// Skip mottle tex, it isn't read from file
+	for (int i = 1; i < NUM_TEXS; i++) {
 		if (!strcmp(texReloadPath, texSrcFiles[i])) {
 			loadTexture(i);
 			goto success;
@@ -346,7 +373,7 @@ void setupFrame() {
 	range(i, 3) camPos[i] = 0;
 }
 
-void drawCube(int64_t pos[3], int tex, char sixFaced) {
+void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
 	// Will need scaling (and mottling) eventually
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
@@ -357,7 +384,8 @@ void drawCube(int64_t pos[3], int tex, char sixFaced) {
 	mat3FromQuat(rot_data, tmpGameRotation);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
-	// Add in translation...
+	// Add in scaling / translation...
+	range(i, 9) rot_data[i] *= scale;
 	float matWorld[16];
 	float translate[3];
 	range(i, 3) translate[i] = pos[i] - camPos[i];
@@ -371,7 +399,7 @@ void drawCube(int64_t pos[3], int tex, char sixFaced) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, 1);
+	glUniform1f(u_main_texscale, scale);
 	glUniform2f(u_main_texoffset, 0, 0);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);
@@ -394,7 +422,7 @@ void setup2dText() {
 	glUniform2f(u_spr_scale, 1.0/textAreaBounds[0], -1.0/textAreaBounds[1]);
 	// Our texture is 64x64, and I belive tex coords go 0-1
 	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
-	glBindTexture(GL_TEXTURE_2D, textures[0]);
+	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
 }
 
 void setup2dSprites() {

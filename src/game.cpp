@@ -200,9 +200,13 @@ void prefsToCmds(queue<strbuf> *cmds) {
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	setupFrame();
 	int64_t pos[3] = {0, 3, 0};
-	drawCube(pos, 1, 1); // Draw texture index 1 as a net
+	// Args are pos, scale, tex #, and whether the texture should be used as a net or not.
+	drawCube(pos, 1, 2, 1);
 	pos[0] += 1; pos[1] += 1; pos[2] += 1; // Elsewhere...
-	drawCube(pos, 3, 0); // Draw texture index 3, not as a net
+	drawCube(pos, 1, 4, 0);
+	pos[0] += 30;
+	pos[1] += 5;
+	drawCube(pos, 15, 4, 0);
 
 	setup2d();
 	setup2dText();

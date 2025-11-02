@@ -7,7 +7,7 @@ extern void initGraphics();
 extern void setDisplaySize(int width, int height);
 
 extern void setupFrame();
-extern void drawCube(int64_t pos[3], int tex, char sixFaced);
+extern void drawCube(int64_t pos[3], float scale, int tex, char sixFaced);
 
 extern void setup2d();
 extern void setup2dText();
