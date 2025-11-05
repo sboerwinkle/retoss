@@ -27,6 +27,7 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 }
 
 void runTick(gamestate *gs) {
+	velbox_refresh(gs->vb_root);
 	range(i, gs->players.num) {
 		player &p = gs->players[i];
 		if (p.cooldown) {
@@ -53,6 +54,7 @@ void runTick(gamestate *gs) {
 			p.cooldown = 4;
 		}
 	}
+	velbox_completeTick(gs->vb_root);
 }
 
 static char isGrounded(gamestate *gs, player *p) {
@@ -98,10 +100,12 @@ gamestate* dup(gamestate *orig) {
 	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
 	range(i, boardAreaChunks) ret->board[i] = dup(orig->board[i]);
 	ret->players.init(orig->players);
+	ret->vb_root = velbox_dup(orig->vb_root);
 	return ret;
 }
 
 void init(gamestate *gs) {
+	gs->vb_root = velbox_getRoot();
 	mapChunk *emptyChunk = (mapChunk*)malloc(sizeof(mapChunk));
 	*emptyChunk = {}; // Zero the chunk out. Empty space, and zero references.
 	range(i, boardAreaChunks) {
@@ -115,6 +119,7 @@ void cleanup(gamestate *gs) {
 		decr(gs->board[i]);
 	}
 	gs->players.destroy();
+	velbox_freeRoot(gs->vb_root);
 }
 
 static void decr(mapChunk* mc) {

@@ -88,20 +88,25 @@ struct box : cloneable {
 	cloneable *data;
 };
 
-box* velbox_alloc();
-void velbox_insert(box *guess, box *n);
-void velbox_remove(box *o);
+extern box* velbox_alloc();
 
-// Intent is that you call `velbox_step` on all your leaf boxes,
-// and then call velbox_refresh to step all the interal boxes and update intersects as necessary.
-void velbox_step(box *b, INT *p1, INT *p2);
-void velbox_refresh(box *root);
-// If you need to make changes to a subset of boxes, you call velbox_update on all of them,
-// and then velbox_single_refresh on all of them.
-void velbox_update(box *b);
-void velbox_single_refresh(box *b);
+extern void velbox_remove(box *o);
+extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results);
+extern void velbox_insert(box *guess, box *n);
 
-box* velbox_getRoot();
-void velbox_freeRoot(box *r);
-void velbox_init();
-void velbox_destroy();
+// For leafs
+extern void velbox_update(box *b);
+// This should happen as the first thing. Advances time and updates intersects as necessary.
+extern void velbox_refresh(box *root);
+// This should happen as the last thing. Cleans up expired boxes mostly,
+// so there's less stuff to dup or serizialize.
+extern void velbox_completeTick(box *root);
+
+extern box* velbox_getRoot();
+extern void velbox_freeRoot(box *r);
+
+extern box *velbox_dup(box *r);
+extern void velbox_trans(box **r);
+
+extern void velbox_init();
+extern void velbox_destroy();

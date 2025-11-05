@@ -31,6 +31,7 @@ struct {
 
 void game_init() {
 	initGraphics();
+	velbox_init();
 	gamestate_init();
 }
 
@@ -52,6 +53,8 @@ gamestate* game_init2() {
 void game_destroy2() {}
 void game_destroy() {
 	gamestate_destroy();
+	velbox_destroy();
+	// no "destroy" call for graphics at present, maybe should make a stub for symmetry's sake?
 }
 
 void handleKey(int key, int action) {

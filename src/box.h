@@ -1,3 +1,5 @@
+#pragma once
+
 #include "util.h"
 #include "cloneable.h"
 #include "list.h"

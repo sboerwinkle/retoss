@@ -324,7 +324,7 @@ static void clearIntersects(box *b) {
 	intersects.num = 0;
 }
 
-void remove(box *b) {
+static void remove(box *b) {
 	clearIntersects(b);
 	freeBoxes.add(b);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "list.h"
+#include "box.h"
 
 #define chunkSizeSpaces 8
 #define boardSizeChunks 20
@@ -33,6 +34,7 @@ struct gamestate {
 	int cycle;
 	list<player> players;
 	mapChunk *board[boardAreaChunks];
+	box *vb_root;
 };
 
 extern void resetPlayer(gamestate *gs, int i);
