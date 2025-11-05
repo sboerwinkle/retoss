@@ -7,17 +7,10 @@
 #include "gamestate.h"
 #include "gamestate_box.h"
 
-static void decr(mapChunk *mc);
-static mapChunk* dup(mapChunk* mc);
-static void setSpace(gamestate *gs, int x, int y, char value);
-static char getSpace(gamestate *gs, int x, int y);
-
 list<cloneable*> dummyVelboxSerizList;
 
 void resetPlayer(gamestate *gs, int i) {
-	int32_t pos = boardSizeSpaces/2;
-	gs->players[i] = {.x=pos, .y=pos, .facing=1};
-	setSpace(gs, pos, pos, 0);
+	gs->players[i] = {.pos={0,0,0}};
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
@@ -30,58 +23,9 @@ void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
 	range(i, gs->players.num) {
 		player &p = gs->players[i];
-		if (p.cooldown) {
-			p.cooldown--;
-			continue;
-		}
-		// If there's a free space beneath us,
-		if (!getSpace(gs, p.x, p.y - 1)) {
-			// If player asked to go down, or doesn't have a ledge to stand on,
-			if (p.move == 2 || !getSpace(gs, p.x + p.facing, p.y - 1)) {
-				// player goes down.
-				p.y--;
-				p.cooldown = 4; // cooldown of 4 => 1 move every 5 frames => 3Hz
-				continue;
-			}
-		}
-		if (p.move != 1 && p.move != -1) continue;
-		p.facing = p.move;
-		if (!getSpace(gs, p.x + p.move, p.y)) {
-			p.x += p.move;
-			p.cooldown = 4;
-		} else if (!getSpace(gs, p.x, p.y + 1)) {
-			p.y += 1;
-			p.cooldown = 4;
-		}
+		// We, uhh, tore everything out again lol
 	}
 	velbox_completeTick(gs->vb_root);
-}
-
-static char isGrounded(gamestate *gs, player *p) {
-	return getSpace(gs, p->x, p->y - 1) || getSpace(gs, p->x + p->facing, p->y - 1);
-}
-
-void actionBuild(gamestate *gs, player *p) {
-	if (!isGrounded(gs, p)) return;
-	// Don't want to mess with tracking a random seed right now,
-	// or adding a new tile for player buildings,
-	// so they just make the first dirt tile always.
-	setSpace(gs, p->x - 1, p->y, 1);
-	setSpace(gs, p->x + 1, p->y, 1);
-}
-
-void actionDig(gamestate *gs, player *p) {
-	if (!isGrounded(gs, p)) return;
-	setSpace(gs, p->x + p->facing, p->y, 0);
-}
-
-void actionBomb(gamestate *gs, player *p) {
-	if (!isGrounded(gs, p)) return;
-	range(i, 3) {
-		range(j, 3) {
-			setSpace(gs, p->x-1+i, p->y-1+j, 0);
-		}
-	}
 }
 
 // I'm thinking `isSync` may be unused forever, but we can leave it for now (forever)
@@ -98,103 +42,19 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 
 gamestate* dup(gamestate *orig) {
 	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
-	range(i, boardAreaChunks) ret->board[i] = dup(orig->board[i]);
 	ret->players.init(orig->players);
 	ret->vb_root = velbox_dup(orig->vb_root);
 	return ret;
 }
 
 void init(gamestate *gs) {
-	gs->vb_root = velbox_getRoot();
-	mapChunk *emptyChunk = (mapChunk*)malloc(sizeof(mapChunk));
-	*emptyChunk = {}; // Zero the chunk out. Empty space, and zero references.
-	range(i, boardAreaChunks) {
-		gs->board[i] = dup(emptyChunk);
-	}
 	gs->players.init();
+	gs->vb_root = velbox_getRoot();
 }
 
 void cleanup(gamestate *gs) {
-	range(i, boardAreaChunks) {
-		decr(gs->board[i]);
-	}
-	gs->players.destroy();
 	velbox_freeRoot(gs->vb_root);
-}
-
-static void decr(mapChunk* mc) {
-	mc->refs--;
-	// Cleanup for a mapChunk is fortunately very simple
-	if (!mc->refs) free(mc);
-}
-
-static void mkWritable(mapChunk **mc2) {
-	mapChunk *&mc = *mc2;
-#ifndef NODEBUG
-	if (mc->refs < 1) {
-		printf("ERROR: refs is %d\n", mc->refs);
-	}
-#endif
-	if (mc->refs == 1) return;
-
-	mapChunk *ret = (mapChunk*)malloc(sizeof(mapChunk));
-	*ret = *mc;
-	mc->refs--;
-	ret->refs = 1;
-
-	mc = ret;
-}
-
-static mapChunk* dup(mapChunk* mc) {
-	// Beautiful COW
-	mc->refs++;
-	return mc;
-}
-
-void shuffle(gamestate *gs, uint32_t seed) {
-	range(i, boardAreaChunks) {
-		mkWritable(&gs->board[i]);
-		mapChunk *mc = gs->board[i];
-		range(j, chunkAreaSpaces) {
-			uint32_t rand = splitmix32(&seed);
-			// This is kind of goofy, but I'm having a good time okay?
-			mc->data[j] = (rand % 4) % 3;
-		}
-	}
-}
-
-static char coords(int x, int y, int *chunk, int *space) {
-	if (x < 0 || x >= boardSizeSpaces || y < 0 || y >= boardSizeSpaces) return 1;
-	int c_x = x / chunkSizeSpaces;
-	int c_y = y / chunkSizeSpaces;
-	int s_x = x % chunkSizeSpaces;
-	int s_y = y % chunkSizeSpaces;
-	*chunk = c_y * boardSizeChunks + c_x;
-	*space = s_y * chunkSizeSpaces + s_x;
-	return 0;
-}
-
-// May not be `static` in the future, idk
-static void setSpace(gamestate *gs, int x, int y, char value) {
-	int c_coord, s_coord;
-	if (coords(x, y, &c_coord, &s_coord)) return;
-
-	if (value) {
-		range(i, gs->players.num) {
-			player &p = gs->players[i];
-			if (p.x == x && p.y == y) return;
-		}
-	}
-
-	mkWritable(gs->board + c_coord);
-	gs->board[c_coord]->data[s_coord] = value;
-}
-
-static char getSpace(gamestate *gs, int x, int y) {
-	int c_coord, s_coord;
-	if (coords(x, y, &c_coord, &s_coord)) return 1;
-
-	return gs->board[c_coord]->data[s_coord];
+	gs->players.destroy();
 }
 
 // Seriz / Deser stuff
@@ -218,27 +78,14 @@ static void readBlock(char *mem, int len) {
 	seriz_index += len;
 }
 
+// Not sure if we'll ever need this again lol
 static void transBlock(char *mem, int len) {
 	if (seriz_data) readBlock(mem, len);
 	else writeBlock(mem, len);
 }
 
-static void transBoard(gamestate *gs) {
-	if (seriz_reading) {
-		range(i, boardAreaChunks) mkWritable(gs->board + i);
-	}
-	range(i, boardAreaChunks) {
-		// Compression? What's that?????
-		transBlock(gs->board[i]->data, chunkAreaSpaces);
-	}
-}
-
 static void transPlayer(player *p) {
-	trans32(&p->x);
-	trans32(&p->y);
-	trans8(&p->move);
-	trans8(&p->facing);
-	trans8(&p->cooldown);
+	range(i, 3) trans64(&p->pos[i]);
 }
 
 /* Unused
@@ -276,7 +123,6 @@ void serialize(gamestate *gs, list<char> *data) {
 	seriz_version = seriz_latestVersion;
 
 	seriz_writeHeader();
-	transBoard(gs);
 	write8(gs->players.num);
 	range(i, gs->players.num) {
 		transPlayer(&gs->players[i]);
@@ -290,7 +136,6 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	// (if no error)
 	if (seriz_verifyHeader()) return;
 
-	transBoard(gs);
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.
 	if (gs->players.num < players) players = gs->players.num;
@@ -298,6 +143,7 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	// `prepareGamestateForLoad` to have consistently initialized them.
 	
 	range(i, players) transPlayer(&gs->players[i]);
+	// Maybe extra data here corresponding to extra players we don't have seated currently
 }
 
 void gamestate_init() {

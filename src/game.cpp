@@ -39,13 +39,14 @@ void game_init() {
 //      `game_init2` can be responsible for level gen if it wants to,
 //      but not data integrity.
 gamestate* game_init2() {
+	gamestate *tmp = (gamestate*)malloc(sizeof(gamestate));
+	init(tmp);
+	/*
 	timespec now;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
 	uint32_t seed = now.tv_sec;
-
-	gamestate *tmp = (gamestate*)malloc(sizeof(gamestate));
-	init(tmp);
 	shuffle(tmp, seed);
+	*/
 
 	return tmp;
 }
@@ -127,8 +128,9 @@ void copyInputs() {
 // In practice we don't use that, partly because anything that *might* winds up
 // being better implemented as a command, which ensures delivery (even if late,
 // or stacked up with commands from other frames).
-int getInputsSize() { return 1; }
+int getInputsSize() { return 0; }
 void serializeInputs(char * dest) {
+	/*
 	if (sharedInputs.dir.d) {
 		*dest = 2;
 	} else {
@@ -151,8 +153,11 @@ void serializeInputs(char * dest) {
 		strcpy(outboundTextQueue.add().items, "/_v");
 	}
 	sharedInputs.cmd = {};
+	*/
 }
 int playerInputs(player *p, list<char> const * data) {
+	return 0;
+	/*
 	// Shouldn't happen. Not sure what a malicious
 	// client could even get from this, but safety
 	// is always a good habit to have.
@@ -161,6 +166,7 @@ int playerInputs(player *p, list<char> const * data) {
 	p->move = (*data)[0];
 	// We used 1 byte.
 	return 1;
+	*/
 }
 
 
@@ -179,11 +185,9 @@ char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char i
 }
 
 char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) {
-	if (isCmd(str, "/_z")) actionBuild(gs, p);
-	else if (isCmd(str, "/_x")) actionDig(gs, p);
-	else if (isCmd(str, "/_c")) actionBomb(gs, p);
-	else if (isCmd(str, "/_v")) {
-		if (isReal) puts("Unimplemented!");
+	if (0) {
+		// Previously there were actual commands to process here.
+		// I like this else/if structure though so I'm keeping it.
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.
