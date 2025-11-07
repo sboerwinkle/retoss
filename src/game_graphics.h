@@ -1,3 +1,3 @@
 #pragma once
 
-extern quat tmpGameRotation, quatWorldToCam;
+extern quat tmpGameRotation, quatCamRotation;

@@ -55,7 +55,7 @@ static GLint u_spr_tex_offset;
 static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
-static int64_t camPos[3];
+static int64_t *camPos;
 
 static float textAreaBounds[2];
 
@@ -340,7 +340,7 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-void setupFrame() {
+void setupFrame(int64_t *_camPos) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
@@ -351,6 +351,12 @@ void setupFrame() {
 	glDisable(GL_BLEND);
 
 	float matWorldToCam[16];
+	// Grab the camera rotation and reverse it
+	quat quatWorldToCam;
+	memcpy(quatWorldToCam, quatCamRotation, sizeof(quat));
+	quatWorldToCam[1] *= -1;
+	quatWorldToCam[2] *= -1;
+	quatWorldToCam[3] *= -1;
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
 
 	// Todo I'm sure I'm wasting some multiplications here.
@@ -364,13 +370,12 @@ void setupFrame() {
 		matPersp,
 		fovThingIdk*displayHeight/displayWidth,
 		fovThingIdk,
-		0.1 // zNear
+		100 // zNear
 	);
 
 	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
 
-	// For now camera is fixed
-	range(i, 3) camPos[i] = 0;
+	camPos = _camPos;
 }
 
 void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
@@ -399,7 +404,7 @@ void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, scale);
+	glUniform1f(u_main_texscale, scale/1000);
 	glUniform2f(u_main_texoffset, 0, 0);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);

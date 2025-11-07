@@ -6,7 +6,7 @@ extern void initGraphics();
 
 extern void setDisplaySize(int width, int height);
 
-extern void setupFrame();
+extern void setupFrame(int64_t *_camPos);
 extern void drawCube(int64_t pos[3], float scale, int tex, char sixFaced);
 
 extern void setup2d();

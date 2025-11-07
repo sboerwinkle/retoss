@@ -18,15 +18,10 @@
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
 quat tmpGameRotation = {1,0,0,0};
-quat quatWorldToCam = {1,0,0,0};
+quat quatCamRotation = {1,0,0,0};
 
 struct {
-	struct {
-		char l, r, d;
-	} dir;
-	struct {
-		char z, x, c, v;
-	} cmd;
+	char u, d, l, r;
 } activeInputs = {}, sharedInputs = {};
 
 void game_init() {
@@ -62,14 +57,10 @@ void handleKey(int key, int action) {
 	// I can't imagine a scenario where I actually need to know about repeat events
 	if (action == GLFW_REPEAT) return;
 
-	     if (key == GLFW_KEY_RIGHT) activeInputs.dir.r = action;
-	else if (key == GLFW_KEY_LEFT) activeInputs.dir.l = action;
-	else if (key == GLFW_KEY_DOWN) activeInputs.dir.d = action;
-	else if (!action) return;
-	else if (key == GLFW_KEY_Z) activeInputs.cmd.z = 1;
-	else if (key == GLFW_KEY_X) activeInputs.cmd.x = 1;
-	else if (key == GLFW_KEY_C) activeInputs.cmd.c = 1;
-	else if (key == GLFW_KEY_V) activeInputs.cmd.v = 1;
+	     if (key == GLFW_KEY_RIGHT) activeInputs.r = action;
+	else if (key == GLFW_KEY_LEFT)  activeInputs.l = action;
+	else if (key == GLFW_KEY_DOWN)  activeInputs.d = action;
+	else if (key == GLFW_KEY_UP)    activeInputs.u = action;
 }
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
@@ -79,7 +70,7 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 		float dx = x - mouseX;
 		float dy = y - mouseY;
 		float dist = sqrt(dx*dx + dy*dy);
-		float scale = mouseDown == 1 ? 0.002 : 0.0004;
+		float scale = mouseDown == 1 ? 0.002 : -0.0008;
 		float radians = dist * scale;
 		// Because of quaternion math, this represents a rotation of `radians*2`.
 		// We cap it at under a half rotation, after which I'm not sure my
@@ -90,9 +81,15 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 		// Positive Y -> mouse down -> rotate around +X
 
 		quat r = {cos(radians), s*dy/dist, 0, s*dx/dist};
-		float *dest = mouseDown == 1 ? tmpGameRotation : quatWorldToCam;
-		quat_rotateBy(dest, r);
-		quat_norm(dest);
+		if (mouseDown == 1) {
+			quat_rotateBy(tmpGameRotation, r);
+			quat_norm(tmpGameRotation);
+		} else {
+			quat o;
+			quat_mult(o, r, quatCamRotation);
+			quat_norm(o);
+			memcpy(quatCamRotation, o, sizeof(quat));
+		}
 	}
 	mouseX = x;
 	mouseY = y;
@@ -106,67 +103,29 @@ void scroll_callback(GLFWwindow *window, double x, double y) {}
 void window_focus_callback(GLFWwindow *window, int focused) {}
 
 void copyInputs() {
-	// Realisitcally I could get away with doing less here,
-	// especially if I didn't have `sharedInputs.cmd`.
-	// The basic movement stuff doesn't require the thread that
-	// serializes outputs (the "game" thread, I believe) to do
-	// writes, and since we're looking at individual chars,
-	// unsynchronized reads to the input thread's data would be fine.
-	// However, `sharedInputs.cmd` requires some minimal writing,
-	// at which point it's cleaner just to do things correctly,
-	// under mutex lock. (Which I have this very nice framework
-	// to organize, so that's basically free anyway!)
-	sharedInputs.dir = activeInputs.dir;
-	sharedInputs.cmd.z |= activeInputs.cmd.z;
-	sharedInputs.cmd.x |= activeInputs.cmd.x;
-	sharedInputs.cmd.c |= activeInputs.cmd.c;
-	sharedInputs.cmd.v |= activeInputs.cmd.v;
-	activeInputs.cmd = {};
+	// This matter a lot more if you're doing anything non-atomic writes,
+	// or if serializing the inputs means writing something
+	// (like for commands you want to be sent out exactly once).
+	sharedInputs = activeInputs;
 }
 
 // In theory I think this would let us have a dynamic size of input data per-frame.
 // In practice we don't use that, partly because anything that *might* winds up
 // being better implemented as a command, which ensures delivery (even if late,
 // or stacked up with commands from other frames).
-int getInputsSize() { return 0; }
+int getInputsSize() { return 3*sizeof(int32_t); }
 void serializeInputs(char * dest) {
-	/*
-	if (sharedInputs.dir.d) {
-		*dest = 2;
-	} else {
-		*dest = sharedInputs.dir.r - sharedInputs.dir.l;
-	}
-	// Each item in outboundTextQueue can be TEXT_BUF_LEN chars long,
-	// and that's like 200. These short, static strings are fine.
-	if (sharedInputs.cmd.c) {
-		strcpy(outboundTextQueue.add().items, "/_c");
-	}
-	// Order's shuffled from keyboard layout b/c it affects the order
-	// commands are processed in (if a player issues 2 in the same frame)
-	if (sharedInputs.cmd.z) {
-		strcpy(outboundTextQueue.add().items, "/_z");
-	}
-	if (sharedInputs.cmd.x) {
-		strcpy(outboundTextQueue.add().items, "/_x");
-	}
-	if (sharedInputs.cmd.v) {
-		strcpy(outboundTextQueue.add().items, "/_v");
-	}
-	sharedInputs.cmd = {};
-	*/
+	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
+	int32_t *p = (int32_t*) dest;
+	p[0] = (sharedInputs.r - sharedInputs.l) * 100;
+	p[1] = (sharedInputs.u - sharedInputs.d) * 100;
+	p[2] = 0;
 }
 int playerInputs(player *p, list<char> const * data) {
-	return 0;
-	/*
-	// Shouldn't happen. Not sure what a malicious
-	// client could even get from this, but safety
-	// is always a good habit to have.
-	if (!data->num) return 0;
-
-	p->move = (*data)[0];
-	// We used 1 byte.
-	return 1;
-	*/
+	if (data->num < 12) return 0;
+	int32_t *ptr = (int32_t*)(data->items);
+	range(i, 3) p->pos[i] += ptr[i];
+	return 12;
 }
 
 
@@ -205,15 +164,15 @@ void prefsToCmds(queue<strbuf> *cmds) {
 //// graphics stuff! ////
 
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
-	setupFrame();
-	int64_t pos[3] = {0, 3, 0};
+	setupFrame(gs->players[myPlayer].pos);
+	int64_t pos[3] = {0, 3000, 0};
 	// Args are pos, scale, tex #, and whether the texture should be used as a net or not.
-	drawCube(pos, 1, 2, 1);
-	pos[0] += 1; pos[1] += 1; pos[2] += 1; // Elsewhere...
-	drawCube(pos, 1, 4, 0);
-	pos[0] += 30;
-	pos[1] += 5;
-	drawCube(pos, 15, 4, 0);
+	drawCube(pos, 1000, 2, 1);
+	pos[0] += 1000; pos[1] += 1000; pos[2] += 1000; // Elsewhere...
+	drawCube(pos, 1000, 4, 0);
+	pos[0] += 30000;
+	pos[1] += 5000;
+	drawCube(pos, 15000, 4, 0);
 
 	setup2d();
 	setup2dText();
