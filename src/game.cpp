@@ -17,6 +17,7 @@
 
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
+static char debugPrint;
 quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
 
@@ -61,6 +62,7 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_LEFT)  activeInputs.l = action;
 	else if (key == GLFW_KEY_DOWN)  activeInputs.d = action;
 	else if (key == GLFW_KEY_UP)    activeInputs.u = action;
+	else if (key == GLFW_KEY_X)	debugPrint = 1;
 }
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
@@ -176,7 +178,10 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	setup2d();
 	setup2dText();
-	drawText("Hello, World!1!");
+	char msg[20];
+	snprintf(msg, 20, "Hello, World!1! %2d.", gs->vb_root->kids.num);
+	drawText(msg);
 
+	if (debugPrint) debugPrint = 0; // lol
 	// We'll do more stuff here eventually (again)!
 }

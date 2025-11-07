@@ -186,7 +186,7 @@ box* velbox_alloc() {
 	ret->data = NULL;
 #ifndef NODEBUG
 	// Hm, usually I don't like my DEBUG defines to actually change behavior. Is this okay? Maybe...
-	ret->clone.ptr = NULL;
+	//ret->clone.ptr = NULL;
 #endif
 	// Shouldn't need to init `clone`, we've got a comfortable strong ref (parentage tree)
 	//   so we don't need to know when the first time we encounter it is (medium refs are garbage)
@@ -604,6 +604,8 @@ void velbox_refresh(box *root) {
 #ifndef NODEBUG
 				} else if (k->end < cutoff) {
 					puts("box's `end` got too low somehow");
+					printf("vb_now %d; cutoff %d; depth %d; validity d+1 %d; end %d\n", vb_now, cutoff, depth, getValidity(depth+1), k->end);
+					exit(1);
 #endif
 				}
 			}
@@ -670,12 +672,16 @@ box* velbox_getRoot() {
 	return ret;
 }
 
-void velbox_freeRoot(box *r) {
-	if (r->kids.num) {
-		fputs("Tried to return a root box with children! Someone isn't cleaning up properly!\n", stderr);
-		exit(1);
+static void blindFree(box *b) {
+	rangeconst(i, b->kids.num) {
+		blindFree(b->kids[i]);
 	}
-	freeBoxes.add(r);
+	freeBoxes.add(b);
+}
+
+void velbox_freeRoot(box *r) {
+	// Surely this won't come back to bite me
+	blindFree(r);
 }
 
 static box* dup(box *b) {
@@ -685,6 +691,8 @@ static box* dup(box *b) {
 		ret->pos[i] = b->pos[i];
 		ret->vel[i] = b->vel[i];
 	}
+	ret->start = b->start;
+	ret->end   = b->end;
 	ret->inUse = b->inUse;
 	ret->depth = b->depth;
 
@@ -697,15 +705,14 @@ static box* dup(box *b) {
 
 	b->clone.ptr = ret;
 
-	int numKids = b->kids.num;
-	ret->kids.init(numKids+2); // Wow this is super arbitrary, incredible
-	ret->kids.num = numKids;
-	range(i, numKids) {
+	ret->kids.setMaxUp(b->kids.num+2); // Todo there's got to be a better way
+	ret->kids.num = b->kids.num;
+	rangeconst(i, b->kids.num) {
 		ret->kids[i] = dup(b->kids[i]);
 		ret->kids[i]->parent = ret;
 	}
 
-	ret->intersects.init(b->intersects.num+2);
+	ret->intersects.setMaxUp(b->intersects.num+2);
 	ret->intersects.addAll(&b->intersects); // We'll clean this up later.
 
 	return ret;

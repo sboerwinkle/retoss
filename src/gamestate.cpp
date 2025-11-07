@@ -8,6 +8,7 @@
 #include "gamestate_box.h"
 
 list<cloneable*> dummyVelboxSerizList;
+cloneable dummyDataItem;
 
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {.pos={0,0,0}};
@@ -50,6 +51,19 @@ gamestate* dup(gamestate *orig) {
 void init(gamestate *gs) {
 	gs->players.init();
 	gs->vb_root = velbox_getRoot();
+
+	// This will move obviously
+	box *tmp = velbox_alloc();
+	tmp->pos[0] = 0;
+	tmp->pos[1] = 3000;
+	tmp->pos[2] = 0;
+	tmp->vel[0] = 0;
+	tmp->vel[1] = 0;
+	tmp->vel[2] = 0;
+	tmp->r = 1000;
+	tmp->end = tmp->start + 90; // This is either 3 sec or 6 sec, I forget
+	tmp->data = &dummyDataItem;
+	velbox_insert(gs->vb_root, tmp);
 }
 
 void cleanup(gamestate *gs) {
@@ -148,6 +162,8 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 
 void gamestate_init() {
 	dummyVelboxSerizList.init();
+	dummyVelboxSerizList.add(&dummyDataItem);
+	dummyDataItem.clone.ptr = &dummyDataItem;
 }
 
 void gamestate_destroy() {
