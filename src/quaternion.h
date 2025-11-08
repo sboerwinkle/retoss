@@ -22,4 +22,6 @@ extern void quat_rotY(quat ret, quat strt, float r);
 extern void quat_rotZ(quat ret, quat strt, float r);
 */
 extern void quat_mult(quat ret, quat a, quat b);
+
+extern void quat_apply(float dest[3], quat q, float src[3]);
 extern void quat_print(quat t);

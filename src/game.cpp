@@ -119,9 +119,13 @@ int getInputsSize() { return 3*sizeof(int32_t); }
 void serializeInputs(char * dest) {
 	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
 	int32_t *p = (int32_t*) dest;
-	p[0] = (sharedInputs.r - sharedInputs.l) * 100;
-	p[1] = (sharedInputs.u - sharedInputs.d) * 100;
-	p[2] = 0;
+
+	float keyboard_x = (float)(sharedInputs.r-sharedInputs.l);
+	float keyboard_y = (float)(sharedInputs.u-sharedInputs.d);
+	float dirKeyboard[3] = {keyboard_x, keyboard_y, 0};
+	float dirWorld[3];
+	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
+	range(i, 3) p[i] = 100*dirWorld[i];
 }
 int playerInputs(player *p, list<char> const * data) {
 	if (data->num < 12) return 0;
