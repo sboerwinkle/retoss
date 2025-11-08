@@ -8,7 +8,8 @@
 #include "gamestate_box.h"
 
 list<cloneable*> dummyVelboxSerizList;
-cloneable dummyDataItem;
+
+static list<box**> lateResolveVbClones;
 
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {.pos={0,0,0}};
@@ -20,11 +21,58 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 	range(i, gs->players.num) resetPlayer(gs, i);
 }
 
+static void solidPutVb(solid *s, box *guess) {
+	box *tmp = velbox_alloc();
+	s->b = tmp;
+	memcpy(tmp->pos, s->pos, sizeof(s->pos));
+	tmp->vel[0] = 0;
+	tmp->vel[1] = 0;
+	tmp->vel[2] = 0;
+	tmp->r = s->r;
+	tmp->end = tmp->start + 15; // 1 second
+	tmp->data = s;
+	velbox_insert(guess, tmp);
+
+}
+
+static void solidUpdate(gamestate *gs, solid *s) {
+	// The only thing we're doing is updating our velbox,
+	// so if it's still valid for long enough we leave it alone.
+	if (s->b->end > gs->vb_root->end+1) return;
+	box *old = s->b;
+	solidPutVb(s, old->parent);
+	// TODO If this keeps up, then we're actually not expecting anything to naturally expire.
+	//      Not sure if this will keep up, though.
+	velbox_remove(old);
+}
+
+static void solidDup(solid *t, solid *s) {
+	// Todo Could do this as part of the new gamestate's `solids` init
+	//      (copy the whole memory region, rather than copying per-item here)
+	*t = *s;
+
+	s->clone.ptr = t;
+	lateResolveVbClones.add(&t->b);
+}
+
+static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r) {
+	solid *s = &gs->solids.add();
+	s->pos[0] = x;
+	s->pos[1] = y;
+	s->pos[2] = z;
+	s->r = r;
+
+	solidPutVb(s, gs->vb_root);
+}
+
 void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
 	range(i, gs->players.num) {
 		player &p = gs->players[i];
 		// We, uhh, tore everything out again lol
+	}
+	rangeconst(i, gs->solids.num) {
+		solidUpdate(gs, &gs->solids[i]);
 	}
 	velbox_completeTick(gs->vb_root);
 }
@@ -41,34 +89,42 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	setupPlayers(gs, numPlayers);
 }
 
+static void resolveVbClones() {
+	rangeconst(i, lateResolveVbClones.num) {
+		box **b = lateResolveVbClones[i];
+		*b = (box*)(*b)->clone.ptr;
+	}
+}
+
 gamestate* dup(gamestate *orig) {
 	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
 	ret->players.init(orig->players);
+
+	lateResolveVbClones.num = 0;
+	ret->solids.init(orig->solids.num);
+	ret->solids.num = orig->solids.num;
+	rangeconst(i, ret->solids.num) {
+		solidDup(&ret->solids[i], &orig->solids[i]);
+	}
+
 	ret->vb_root = velbox_dup(orig->vb_root);
+
+	resolveVbClones();
 	return ret;
 }
 
 void init(gamestate *gs) {
 	gs->players.init();
+	gs->solids.init();
 	gs->vb_root = velbox_getRoot();
 
-	// This will move obviously
-	box *tmp = velbox_alloc();
-	tmp->pos[0] = 0;
-	tmp->pos[1] = 3000;
-	tmp->pos[2] = 0;
-	tmp->vel[0] = 0;
-	tmp->vel[1] = 0;
-	tmp->vel[2] = 0;
-	tmp->r = 1000;
-	tmp->end = tmp->start + 90; // This is either 3 sec or 6 sec, I forget
-	tmp->data = &dummyDataItem;
-	velbox_insert(gs->vb_root, tmp);
+	addSolid(gs, 0, 3000, 0, 1000);
 }
 
 void cleanup(gamestate *gs) {
 	velbox_freeRoot(gs->vb_root);
 	gs->players.destroy();
+	gs->solids.destroy();
 }
 
 // Seriz / Deser stuff
@@ -162,10 +218,10 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 
 void gamestate_init() {
 	dummyVelboxSerizList.init();
-	dummyVelboxSerizList.add(&dummyDataItem);
-	dummyDataItem.clone.ptr = &dummyDataItem;
+	lateResolveVbClones.init();
 }
 
 void gamestate_destroy() {
+	lateResolveVbClones.destroy();
 	dummyVelboxSerizList.destroy();
 }

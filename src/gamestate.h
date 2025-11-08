@@ -2,13 +2,21 @@
 
 #include "list.h"
 #include "box.h"
+#include "cloneable.h"
 
 struct player {
 	int64_t pos[3];
 };
 
+struct solid : cloneable {
+	int64_t pos[3];
+	int64_t r;
+	box *b;
+};
+
 struct gamestate {
 	list<player> players;
+	list<solid> solids;
 	box *vb_root;
 };
 
