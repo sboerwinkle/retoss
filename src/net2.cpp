@@ -199,6 +199,11 @@ char net2_read() {
 	}
 	pendingMessages.num = 0;
 
+	// We never advance `finalizedFrames` more than one step, even if everybody's already got their data in ahead of time.
+	// Partly this might be a holdover (there have been some tweaks to how this nonsense works),
+	// but I think it's also partly because a *new player* might potentially connect and send data for the frame.
+	// If we're over-zealous about finalizing frames we can't respond to that
+	// (probably desyncing from that player, if not from others).
 	finalizedFrames++;
 
 	if (asleep) {

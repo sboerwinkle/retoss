@@ -169,16 +169,16 @@ void prefsToCmds(queue<strbuf> *cmds) {
 
 //// graphics stuff! ////
 
+// The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
+// but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
+// Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	setupFrame(gs->players[myPlayer].pos);
-	int64_t pos[3] = {0, 3000, 0};
-	// Args are pos, scale, tex #, and whether the texture should be used as a net or not.
-	drawCube(pos, 1000, 2, 1);
-	pos[0] += 1000; pos[1] += 1000; pos[2] += 1000; // Elsewhere...
-	drawCube(pos, 1000, 4, 0);
-	pos[0] += 30000;
-	pos[1] += 5000;
-	drawCube(pos, 15000, 4, 0);
+
+	rangeconst(i, gs->solids.num) {
+		solid *s = gs->solids[i];
+		drawCube(s->pos, s->r, s->tex & 31, !!(s->tex & 32));
+	}
 
 	setup2d();
 	setup2dText();

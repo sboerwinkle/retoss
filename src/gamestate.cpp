@@ -46,21 +46,24 @@ static void solidUpdate(gamestate *gs, solid *s) {
 	velbox_remove(old);
 }
 
-static void solidDup(solid *t, solid *s) {
-	// Todo Could do this as part of the new gamestate's `solids` init
-	//      (copy the whole memory region, rather than copying per-item here)
+static solid* solidDup(solid *s) {
+	solid *t = new solid();
 	*t = *s;
 
 	s->clone.ptr = t;
 	lateResolveVbClones.add(&t->b);
+
+	return t;
 }
 
-static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r) {
-	solid *s = &gs->solids.add();
+static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
+	solid *s = new solid();
+	gs->solids.add(s);
 	s->pos[0] = x;
 	s->pos[1] = y;
 	s->pos[2] = z;
 	s->r = r;
+	s->tex = tex;
 
 	solidPutVb(s, gs->vb_root);
 }
@@ -72,7 +75,7 @@ void runTick(gamestate *gs) {
 		// We, uhh, tore everything out again lol
 	}
 	rangeconst(i, gs->solids.num) {
-		solidUpdate(gs, &gs->solids[i]);
+		solidUpdate(gs, gs->solids[i]);
 	}
 	velbox_completeTick(gs->vb_root);
 }
@@ -104,7 +107,7 @@ gamestate* dup(gamestate *orig) {
 	ret->solids.init(orig->solids.num);
 	ret->solids.num = orig->solids.num;
 	rangeconst(i, ret->solids.num) {
-		solidDup(&ret->solids[i], &orig->solids[i]);
+		ret->solids[i] = solidDup(orig->solids[i]);
 	}
 
 	ret->vb_root = velbox_dup(orig->vb_root);
@@ -118,12 +121,17 @@ void init(gamestate *gs) {
 	gs->solids.init();
 	gs->vb_root = velbox_getRoot();
 
-	addSolid(gs, 0, 3000, 0, 1000);
+	addSolid(gs,     0, 3000,    0,  1000, 2+32);
+	addSolid(gs,  1000, 4000, 1000,  1000, 4);
+	addSolid(gs, 31000, 9000, 1000, 15000, 4);
 }
 
 void cleanup(gamestate *gs) {
 	velbox_freeRoot(gs->vb_root);
 	gs->players.destroy();
+	rangeconst(i, gs->solids.num) {
+		delete gs->solids[i];
+	}
 	gs->solids.destroy();
 }
 

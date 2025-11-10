@@ -11,12 +11,13 @@ struct player {
 struct solid : cloneable {
 	int64_t pos[3];
 	int64_t r;
+	int32_t tex;
 	box *b;
 };
 
 struct gamestate {
 	list<player> players;
-	list<solid> solids;
+	list<solid*> solids;
 	box *vb_root;
 };
 

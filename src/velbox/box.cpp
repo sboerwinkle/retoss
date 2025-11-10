@@ -609,12 +609,12 @@ void velbox_refresh(box *root) {
 #endif
 				}
 			}
-			range(j, refreshList.num) {
-				box *k = refreshList[j];
-				k->end = newEnd;
-				reposition(k);
-				setIntersects_refresh(k);
-			}
+		}
+		range(j, refreshList.num) {
+			box *k = refreshList[j];
+			k->end = newEnd;
+			reposition(k);
+			setIntersects_refresh(k);
 		}
 
 		swap(globalOptionsSrc, globalOptionsDest);
