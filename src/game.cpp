@@ -184,7 +184,16 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	setup2dText();
 	char msg[20];
 	snprintf(msg, 20, "Hello, World!1! %2d.", gs->vb_root->kids.num);
-	drawText(msg);
+	drawText(msg, 1, 1);
+
+	player *p = &gs->players[myPlayer];
+	snprintf(msg, 20, "t: %5d", p->tmp);
+	drawText(msg, 1, 8);
+	snprintf(msg, 20, "(%5d,%5d,%5d)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);
+	drawText(msg, 1, 15);
+	snprintf(msg, 20, "r %6d", p->prox->r);
+	drawText(msg, 1, 22);
+
 
 	if (debugPrint) debugPrint = 0; // lol
 	// We'll do more stuff here eventually (again)!

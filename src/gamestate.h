@@ -6,6 +6,8 @@
 
 struct player {
 	int64_t pos[3];
+	box *prox;
+	int tmp;
 };
 
 struct solid : cloneable {

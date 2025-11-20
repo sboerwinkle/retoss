@@ -10,9 +10,14 @@
 list<cloneable*> dummyVelboxSerizList;
 
 static list<box**> lateResolveVbClones;
+static list<void*> queryResults;
 
 void resetPlayer(gamestate *gs, int i) {
-	gs->players[i] = {.pos={0,0,0}};
+	gs->players[i] = {
+		.pos={0,0,0},
+		.prox=gs->vb_root,
+		.tmp=0,
+	};
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
@@ -70,8 +75,14 @@ static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, 
 
 void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
+	int64_t fakeVel[3] = {0,0,0};
 	range(i, gs->players.num) {
 		player &p = gs->players[i];
+		queryResults.num = 0;
+		p.prox = velbox_query(p.prox, p.pos, fakeVel, 1000, &queryResults);
+		// This calculation doesn't make much sense, but it's something we can easily print!
+		p.tmp = 0;
+		rangeconst(j, queryResults.num) { p.tmp += ((solid*)queryResults[j])->r; }
 		// We, uhh, tore everything out again lol
 	}
 	rangeconst(i, gs->solids.num) {
@@ -227,9 +238,11 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 void gamestate_init() {
 	dummyVelboxSerizList.init();
 	lateResolveVbClones.init();
+	queryResults.init();
 }
 
 void gamestate_destroy() {
+	queryResults.destroy();
 	lateResolveVbClones.destroy();
 	dummyVelboxSerizList.destroy();
 }

@@ -13,4 +13,4 @@ extern void setup2d();
 extern void setup2dText();
 extern void setup2dSprites();
 extern void drawSprite(int cameraX, int cameraY, int sprX, int sprY);
-extern void drawText(char const *str);
+extern void drawText(char const *str, int x, int y);

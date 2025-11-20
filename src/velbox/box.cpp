@@ -494,12 +494,18 @@ static void insert(box *guess, box *n) {
 	// Don't add to `p->kids` yet. Part of the contract for "setIntersects" methods
 }
 
-static void writeQueryResults(box *b, list<void*> *results) {
-	list<box*> const &kids = b->kids;
-	range(i, kids.num) {
-		box *k = kids[i];
-		if (isLeaf(k)) results->add(k->data);
-		else writeQueryResults(k, results);
+static void writeQueryResults(box *b, box *target, list<void*> *results) {
+	// We could skip the `intersects` check for a more optimistic query,
+	// but I think I'll leave it in for now.
+	if (!intersects(b, target)) return;
+
+	if (isLeaf(b)) {
+		results->add(b->data);
+	} else {
+		list<box*> const &kids = b->kids;
+		range(i, kids.num) {
+			writeQueryResults(kids[i], target, results);
+		}
 	}
 }
 
@@ -521,7 +527,9 @@ box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *
 	// than the fields provided above.
 	box *p = findParent(guess, &thing);
 	p->inUse = 1;
-	writeQueryResults(p, results);
+	rangeconst(i, p->intersects.num) {
+		writeQueryResults(p->intersects[i].b, &thing, results);
+	}
 	return p;
 }
 

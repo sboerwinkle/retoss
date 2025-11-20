@@ -460,11 +460,11 @@ void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
 	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 }
 
-void drawText(char const* str){
+void drawText(char const* str, int x, int y) {
 	// Text is 4x6, stride is 5x7, and the copied piece is 5x8 (including blank pixels above, below, and to the right).
 
-	float cursorX = -textAreaBounds[0]+1;
-	float cursorY = -textAreaBounds[1]+1;
+	float cursorX = -textAreaBounds[0]+x;
+	float cursorY = -textAreaBounds[1]+y;
 	// Each letter has a blank column copied to the right, but the first blank column (to the left) is done manually.
 	glUniform2f(u_spr_size, 1, 8);
 	glUniform2f(u_spr_offset, cursorX, cursorY);
