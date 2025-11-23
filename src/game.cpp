@@ -189,9 +189,9 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	player *p = &gs->players[myPlayer];
 	snprintf(msg, 20, "t: %5d", p->tmp);
 	drawText(msg, 1, 8);
-	snprintf(msg, 20, "(%5d,%5d,%5d)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);
+	snprintf(msg, 20, "(%5ld,%5ld,%5ld)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);
 	drawText(msg, 1, 15);
-	snprintf(msg, 20, "r %6d", p->prox->r);
+	snprintf(msg, 20, "r %6ld", p->prox->r);
 	drawText(msg, 1, 22);
 
 

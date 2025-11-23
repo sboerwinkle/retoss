@@ -50,6 +50,42 @@ void mat4FromQuat(float* M, quat rot){
 	M[15] = 1;
 }
 
+void mat3FromIquat(float *M, iquat rot) {
+	// All the operations on components of `rot`
+	// involve a `*2`, so we just include that in
+	// the calculation of our fixed-point divisor.
+	float divisor = FIXP/2*FIXP;
+	M[0] = 1-(rot[2]*rot[2]-rot[3]*rot[3])/divisor;
+	M[1] =   (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
+	M[2] =   (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
+
+	M[3] =   (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
+	M[4] = 1-(rot[1]*rot[1]-rot[3]*rot[3])/divisor;
+	M[5] =   (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
+
+	M[6] =   (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
+	M[7] =   (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
+	M[8] = 1-(rot[1]*rot[1]-rot[2]*rot[2])/divisor;
+}
+
+void imatFromIquat(int32_t *M, iquat rot) {
+	// All the operations on components of `rot`
+	// involve a `*2`, so we just include that in
+	// the calculation of our fixed-point divisor.
+	int32_t divisor = FIXP/2;
+	M[0] = FIXP-(rot[2]*rot[2]-rot[3]*rot[3])/divisor;
+	M[1] =      (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
+	M[2] =      (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
+
+	M[3] =      (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
+	M[4] = FIXP-(rot[1]*rot[1]-rot[3]*rot[3])/divisor;
+	M[5] =      (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
+
+	M[6] =      (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
+	M[7] =      (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
+	M[8] = FIXP-(rot[1]*rot[1]-rot[2]*rot[2])/divisor;
+}
+
 void matEmbiggen(float M[16], float in[9], float x, float y, float z) {
 	M[ 0] = in[0];
 	M[ 1] = in[1];

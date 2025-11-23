@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 /////////////////////////////////
 // Most work by mboerwinkle
@@ -11,8 +12,8 @@
 // to fit in an int32_t without messing up the sign is 1<<15.
 #define FIXP 32768
 
-// TODO going to rework this some day to be int32_t...
 typedef float quat[4];
+typedef int32_t iquat[4];
 
 extern void quat_norm(quat t);
 extern void quat_rotateBy(quat x, quat rot);
