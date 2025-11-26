@@ -12,8 +12,10 @@
 #include "game_graphics.h"
 #include "png.h"
 #include "watch_gfx.h"
+#include "gamestate.h"
 
 #include "graphics.h"
+#include "graphics_callbacks.h"
 
 #define NUM_TEXS 5
 #define TEX_MOTTLE 0
@@ -378,7 +380,7 @@ void setupFrame(int64_t *_camPos) {
 	camPos = _camPos;
 }
 
-void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
+void drawCube(solid *s, int tex, char sixFaced) {
 	// Will need scaling (and mottling) eventually
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
@@ -386,14 +388,14 @@ void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
 	}
 	// The rotation of the thing itself (used for lighting).
 	GLfloat rot_data[9];
-	mat3FromQuat(rot_data, tmpGameRotation);
+	mat3FromIquat(rot_data, s->rot);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
 	// Add in scaling / translation...
-	range(i, 9) rot_data[i] *= scale;
+	range(i, 9) rot_data[i] *= s->r;
 	float matWorld[16];
 	float translate[3];
-	range(i, 3) translate[i] = pos[i] - camPos[i];
+	range(i, 3) translate[i] = s->pos[i] - camPos[i];
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`
@@ -404,7 +406,7 @@ void drawCube(int64_t pos[3], float scale, int tex, char sixFaced) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, scale/1000);
+	glUniform1f(u_main_texscale, s->r/1000);
 	glUniform2f(u_main_texoffset, 0, 0);
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
 	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);

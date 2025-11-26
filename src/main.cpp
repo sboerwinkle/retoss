@@ -16,7 +16,6 @@
 
 #include "config.h"
 #include "game.h"
-#include "graphics.h"
 #include "mypoll.h"
 #include "net.h"
 #include "net2.h"
@@ -26,6 +25,7 @@
 #include "main.h"
 #include "gamestate.h"
 #include "game_callbacks.h"
+#include "graphics_callbacks.h"
 
 char globalRunning = 1;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "list.h"
+#include "quaternion.h"
 #include "box.h"
 #include "cloneable.h"
 
@@ -14,6 +15,7 @@ struct solid : cloneable {
 	int64_t pos[3];
 	int64_t r;
 	int32_t tex;
+	iquat rot;
 	box *b;
 };
 

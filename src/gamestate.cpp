@@ -69,6 +69,10 @@ static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, 
 	s->pos[2] = z;
 	s->r = r;
 	s->tex = tex;
+	s->rot[0] = FIXP;
+	s->rot[1] = 0;
+	s->rot[2] = 0;
+	s->rot[3] = 0;
 
 	solidPutVb(s, gs->vb_root);
 }
@@ -83,7 +87,6 @@ void runTick(gamestate *gs) {
 		// This calculation doesn't make much sense, but it's something we can easily print!
 		p.tmp = 0;
 		rangeconst(j, queryResults.num) { p.tmp += ((solid*)queryResults[j])->r; }
-		// We, uhh, tore everything out again lol
 	}
 	rangeconst(i, gs->solids.num) {
 		solidUpdate(gs, gs->solids[i]);
@@ -135,6 +138,8 @@ void init(gamestate *gs) {
 	addSolid(gs,     0, 3000,    0,  1000, 2+32);
 	addSolid(gs,  1000, 4000, 1000,  1000, 4);
 	addSolid(gs, 31000, 9000, 1000, 15000, 4);
+	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
+	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
 }
 
 void cleanup(gamestate *gs) {

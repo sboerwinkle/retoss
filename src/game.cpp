@@ -9,8 +9,8 @@
 #include "quaternion.h"
 
 #include "main.h"
-#include "graphics.h"
 #include "gamestate.h"
+#include "graphics.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -177,7 +177,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
-		drawCube(s->pos, s->r, s->tex & 31, !!(s->tex & 32));
+		drawCube(s, s->tex & 31, !!(s->tex & 32));
 	}
 
 	setup2d();
