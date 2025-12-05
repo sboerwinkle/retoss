@@ -6,7 +6,7 @@
 #include "util.h"
 #include "queue.h"
 
-#include "quaternion.h"
+#include "matrix.h"
 
 #include "main.h"
 #include "gamestate.h"
@@ -127,10 +127,20 @@ void serializeInputs(char * dest) {
 	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
 	range(i, 3) p[i] = 100*dirWorld[i];
 }
+
 int playerInputs(player *p, list<char> const * data) {
-	if (data->num < 12) return 0;
+	// TODO is this handling players we don't have data for?
+	//      I think we re-use inputs in that case...
+	//      Does this handle players that have never yet sent anything?
+	//      Because that's maybe something we need to handle,
+	//      like if we don't properly init `inputs`...
+	if (data->num < 12) {
+		range(i, 3) p->inputs[i] = 0;
+		return 0;
+	}
+
 	int32_t *ptr = (int32_t*)(data->items);
-	range(i, 3) p->pos[i] += ptr[i];
+	range(i, 3) p->inputs[i] = ptr[i];
 	return 12;
 }
 

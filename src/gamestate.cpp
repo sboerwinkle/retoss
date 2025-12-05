@@ -7,6 +7,8 @@
 #include "gamestate.h"
 #include "gamestate_box.h"
 
+#include "collision.h"
+
 list<cloneable*> dummyVelboxSerizList;
 
 static list<box**> lateResolveVbClones;
@@ -15,6 +17,7 @@ static list<void*> queryResults;
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
 		.pos={0,0,0},
+		.inputs={0,0,0},
 		.prox=gs->vb_root,
 		.tmp=0,
 	};
@@ -33,7 +36,7 @@ static void solidPutVb(solid *s, box *guess) {
 	tmp->vel[0] = 0;
 	tmp->vel[1] = 0;
 	tmp->vel[2] = 0;
-	tmp->r = s->r;
+	tmp->r = s->r*7/4; // cube diagonal is sqrt(3), or approx 1.75
 	tmp->end = tmp->start + 15; // 1 second
 	tmp->data = s;
 	velbox_insert(guess, tmp);
@@ -41,19 +44,28 @@ static void solidPutVb(solid *s, box *guess) {
 }
 
 static void solidUpdate(gamestate *gs, solid *s) {
-	// The only thing we're doing is updating our velbox,
+	memcpy(s->oldPos, s->pos, sizeof(s->pos));
+	// For stuff that doesn't spin, we could maybe just set this up after de-seriz and cloning.
+	memcpy(s->oldRot, s->rot, sizeof(s->rot));
+
+	// The only other thing we're doing is updating our velbox,
 	// so if it's still valid for long enough we leave it alone.
 	if (s->b->end > gs->vb_root->end+1) return;
 	box *old = s->b;
-	solidPutVb(s, old->parent);
+	box *p = old->parent;
 	// TODO If this keeps up, then we're actually not expecting anything to naturally expire.
 	//      Not sure if this will keep up, though.
 	velbox_remove(old);
+	solidPutVb(s, p);
 }
 
 static solid* solidDup(solid *s) {
 	solid *t = new solid();
 	*t = *s;
+	// Not stictly necessary - dup'd states are never the canon state,
+	// but the idea is that we don't want to rely on oldPos until the
+	// thing in question has ticked this frame.
+	t->oldPos[0] = t->oldPos[1] = t->oldPos[2] = -1;
 
 	s->clone.ptr = t;
 	lateResolveVbClones.add(&t->b);
@@ -67,6 +79,8 @@ static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, 
 	s->pos[0] = x;
 	s->pos[1] = y;
 	s->pos[2] = z;
+	s->oldPos[0] = s->oldPos[1] = s->oldPos[2] = -1;
+	s->vel[0] = s->vel[1] = s->vel[2] = 0;
 	s->r = r;
 	s->tex = tex;
 	s->rot[0] = FIXP;
@@ -77,20 +91,30 @@ static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, 
 	solidPutVb(s, gs->vb_root);
 }
 
+static void playerUpdate(gamestate *gs, player *p) {
+	offset dest;
+	range(i, 3) dest[i] = p->pos[i] + p->inputs[i];
+	// Could replace this with a more-real velocity
+	int64_t fakeVel[3] = {0,0,0};
+	queryResults.num = 0;
+	p->prox = velbox_query(p->prox, p->pos, fakeVel, 1000, &queryResults);
+	rangeconst(j, queryResults.num) {
+		solid *s = (solid*) queryResults[j];
+		collide_check(p, dest, 200, s);
+	}
+	memcpy(p->pos, dest, sizeof(dest));
+}
+
 void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
-	int64_t fakeVel[3] = {0,0,0};
-	range(i, gs->players.num) {
-		player &p = gs->players[i];
-		queryResults.num = 0;
-		p.prox = velbox_query(p.prox, p.pos, fakeVel, 1000, &queryResults);
-		// This calculation doesn't make much sense, but it's something we can easily print!
-		p.tmp = 0;
-		rangeconst(j, queryResults.num) { p.tmp += ((solid*)queryResults[j])->r; }
-	}
 	rangeconst(i, gs->solids.num) {
 		solidUpdate(gs, gs->solids[i]);
 	}
+
+	range(i, gs->players.num) {
+		playerUpdate(gs, &gs->players[i]);
+	}
+
 	velbox_completeTick(gs->vb_root);
 }
 
@@ -217,6 +241,9 @@ void serialize(gamestate *gs, list<char> *data) {
 	seriz_version = seriz_latestVersion;
 
 	seriz_writeHeader();
+
+	// TODO seriz solids etc
+
 	write8(gs->players.num);
 	range(i, gs->players.num) {
 		transPlayer(&gs->players[i]);
@@ -229,6 +256,8 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	// This will set seriz_version and seriz_index
 	// (if no error)
 	if (seriz_verifyHeader()) return;
+
+	// TODO seriz solids etc
 
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.

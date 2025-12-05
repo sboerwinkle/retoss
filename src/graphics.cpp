@@ -7,7 +7,6 @@
 #include "list.h"
 #include "file.h"
 #include "util.h"
-#include "quaternion.h"
 #include "matrix.h"
 #include "game_graphics.h"
 #include "png.h"

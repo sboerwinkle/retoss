@@ -1,21 +1,25 @@
 #pragma once
 
 #include "list.h"
-#include "quaternion.h"
+#include "matrix.h"
 #include "box.h"
 #include "cloneable.h"
 
 struct player {
 	int64_t pos[3];
+	int32_t inputs[3];
 	box *prox;
 	int tmp;
 };
 
 struct solid : cloneable {
 	int64_t pos[3];
+	int64_t oldPos[3];
+	int64_t vel[3];
 	int64_t r;
 	int32_t tex;
 	iquat rot;
+	iquat oldRot; // This isn't serialized, and we don't care if it's copied. Should avoid using this until this solid has ticked!
 	box *b;
 };
 
