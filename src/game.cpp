@@ -160,9 +160,15 @@ char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char i
 }
 
 char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) {
-	if (0) {
-		// Previously there were actual commands to process here.
-		// I like this else/if structure though so I'm keeping it.
+	if (isCmd(str, "/c")) {
+		// We're restricting this to only run for ourselves to artificially force a desync.
+		// Also we don't have player camera direction as part of tracked state, so we
+		// actually can't do it in synchrony right now.
+		if (isMe) {
+			iquat objectRotation;
+			range(i, 4) objectRotation[i] = FIXP*quatCamRotation[i];
+			mkSolidAtPlayer(gs, p, objectRotation);
+		}
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.
@@ -207,4 +213,6 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	if (debugPrint) debugPrint = 0; // lol
 	// We'll do more stuff here eventually (again)!
+
+	// TODO: Render text chat buffer that main.cpp maintains
 }

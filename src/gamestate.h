@@ -33,6 +33,9 @@ extern void resetPlayer(gamestate *gs, int i);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 
 extern void runTick(gamestate *gs);
+
+extern void mkSolidAtPlayer(gamestate *gs, player *p, iquat r);
+
 extern gamestate* dup(gamestate *orig);
 extern void prepareGamestateForLoad(gamestate *gs, char isSync);
 extern void init(gamestate *gs);

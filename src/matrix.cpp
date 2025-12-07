@@ -10,7 +10,11 @@
 #include "matrix.h"
 
 void quat_norm(quat t){
-	float len = t[0]*t[0]+t[1]*t[1]+t[2]*t[2]+t[3]*t[3];
+	// If this `sqrt` call is too expensive for you, you could
+	// replace it with an iteration of Newton's approximation.
+	// You can't just remove it, however, or repeated calls to
+	// the function won't actually converge properly.
+	float len = sqrt(t[0]*t[0]+t[1]*t[1]+t[2]*t[2]+t[3]*t[3]);
 	t[0]/=len;
 	t[1]/=len;
 	t[2]/=len;
@@ -136,15 +140,15 @@ void mat3FromQuat(float* M, quat rot){
 
 void mat4FromQuat(float* M, quat rot){
 	M[ 0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
-	M[ 1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
-	M[ 2] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
+	M[ 1] =   2*rot[1]*rot[2]+2*rot[0]*rot[3];
+	M[ 2] =   2*rot[1]*rot[3]-2*rot[0]*rot[2];
 	M[ 3] = 0;
-	M[ 4] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
+	M[ 4] =   2*rot[1]*rot[2]-2*rot[0]*rot[3];
 	M[ 5] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
-	M[ 6] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
+	M[ 6] =   2*rot[2]*rot[3]+2*rot[0]*rot[1];
 	M[ 7] = 0;
-	M[ 8] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
-	M[ 9] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
+	M[ 8] =   2*rot[1]*rot[3]+2*rot[0]*rot[2];
+	M[ 9] =   2*rot[2]*rot[3]-2*rot[0]*rot[1];
 	M[10] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
 	M[11] = 0;
 	M[12] = 0;
@@ -158,17 +162,17 @@ void mat3FromIquat(float *M, iquat rot) {
 	// involve a `*2`, so we just include that in
 	// the calculation of our fixed-point divisor.
 	float divisor = FIXP/2*FIXP;
-	M[0] = 1-(rot[2]*rot[2]-rot[3]*rot[3])/divisor;
+	M[0] = 1-(rot[2]*rot[2]+rot[3]*rot[3])/divisor;
 	M[1] =   (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
 	M[2] =   (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
 
 	M[3] =   (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
-	M[4] = 1-(rot[1]*rot[1]-rot[3]*rot[3])/divisor;
+	M[4] = 1-(rot[1]*rot[1]+rot[3]*rot[3])/divisor;
 	M[5] =   (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
 
 	M[6] =   (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
 	M[7] =   (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
-	M[8] = 1-(rot[1]*rot[1]-rot[2]*rot[2])/divisor;
+	M[8] = 1-(rot[1]*rot[1]+rot[2]*rot[2])/divisor;
 }
 
 // Produces a matrix that represents the reverse rotation of `rot`
@@ -178,17 +182,17 @@ void imatFromIquatInv(imat M, iquat rot) {
 	// the calculation of our fixed-point divisor.
 	int32_t const divisor = FIXP/2;
 
-	M[0] = FIXP-(rot[2]*rot[2]-rot[3]*rot[3])/divisor;
+	M[0] = FIXP-(rot[2]*rot[2]+rot[3]*rot[3])/divisor;
 	M[1] =      (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
 	M[2] =      (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
 
 	M[3] =      (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
-	M[4] = FIXP-(rot[1]*rot[1]-rot[3]*rot[3])/divisor;
+	M[4] = FIXP-(rot[1]*rot[1]+rot[3]*rot[3])/divisor;
 	M[5] =      (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
 
 	M[6] =      (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
 	M[7] =      (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
-	M[8] = FIXP-(rot[1]*rot[1]-rot[2]*rot[2])/divisor;
+	M[8] = FIXP-(rot[1]*rot[1]+rot[2]*rot[2])/divisor;
 }
 
 // 'Sm' is because we assume the input offset is small enough (approx. 500 Jupiters across at 1000 units/m)
@@ -204,17 +208,17 @@ void imatFromIquat(int32_t *M, iquat rot) {
 	// involve a `*2`, so we just include that in
 	// the calculation of our fixed-point divisor.
 	int32_t divisor = FIXP/2;
-	M[0] = FIXP-(rot[2]*rot[2]-rot[3]*rot[3])/divisor;
+	M[0] = FIXP-(rot[2]*rot[2]+rot[3]*rot[3])/divisor;
 	M[1] =      (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
 	M[2] =      (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
 
 	M[3] =      (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
-	M[4] = FIXP-(rot[1]*rot[1]-rot[3]*rot[3])/divisor;
+	M[4] = FIXP-(rot[1]*rot[1]+rot[3]*rot[3])/divisor;
 	M[5] =      (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
 
 	M[6] =      (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
 	M[7] =      (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
-	M[8] = FIXP-(rot[1]*rot[1]-rot[2]*rot[2])/divisor;
+	M[8] = FIXP-(rot[1]*rot[1]+rot[2]*rot[2])/divisor;
 }
 
 void matEmbiggen(float M[16], float in[9], float x, float y, float z) {

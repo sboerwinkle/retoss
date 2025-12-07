@@ -73,7 +73,7 @@ static solid* solidDup(solid *s) {
 	return t;
 }
 
-static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
+static solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
 	solid *s = new solid();
 	gs->solids.add(s);
 	s->pos[0] = x;
@@ -88,7 +88,8 @@ static void addSolid(gamestate *gs, int64_t x, int64_t y, int64_t z, int64_t r, 
 	s->rot[2] = 0;
 	s->rot[3] = 0;
 
-	solidPutVb(s, gs->vb_root);
+	solidPutVb(s, b);
+	return s;
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
@@ -116,6 +117,11 @@ void runTick(gamestate *gs) {
 	}
 
 	velbox_completeTick(gs->vb_root);
+}
+
+void mkSolidAtPlayer(gamestate *gs, player *p, iquat r) {
+	solid *s = addSolid(gs, p->prox, p->pos[0], p->pos[1], p->pos[2], 1000, 4);
+	memcpy(s->rot, r, sizeof(iquat)); // Array types are weird in C
 }
 
 // I'm thinking `isSync` may be unused forever, but we can leave it for now (forever)
@@ -151,6 +157,11 @@ gamestate* dup(gamestate *orig) {
 	ret->vb_root = velbox_dup(orig->vb_root);
 
 	resolveVbClones();
+	rangeconst(i, ret->players.num) {
+		player *p = &ret->players[i];
+		p->prox = (box*)p->prox->clone.ptr;
+	}
+
 	return ret;
 }
 
@@ -159,9 +170,9 @@ void init(gamestate *gs) {
 	gs->solids.init();
 	gs->vb_root = velbox_getRoot();
 
-	addSolid(gs,     0, 3000,    0,  1000, 2+32);
-	addSolid(gs,  1000, 4000, 1000,  1000, 4);
-	addSolid(gs, 31000, 9000, 1000, 15000, 4);
+	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 2+32);
+	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 4);
+	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 4);
 	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
 	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
 }
