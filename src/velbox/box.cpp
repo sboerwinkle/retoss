@@ -755,8 +755,9 @@ static void transBox(box *b) {
 	trans8(&b->inUse);
 	trans8(&b->depth);
 
-	transWeakRef(&b->data, &VELBOX_DATA_LIST);
-	
+	// We don't transcribe box data, we rely on whoever we're pointing to to manage that.
+	// After all, they probably have a ref to us anyway.
+
 	transStrongRef(b, &boxClones);
 
 	transItemCount(&b->kids);

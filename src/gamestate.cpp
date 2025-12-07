@@ -5,11 +5,8 @@
 #include "serialize.h"
 
 #include "gamestate.h"
-#include "gamestate_box.h"
 
 #include "collision.h"
-
-list<cloneable*> dummyVelboxSerizList;
 
 static list<box**> lateResolveVbClones;
 static list<void*> queryResults;
@@ -281,7 +278,6 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 }
 
 void gamestate_init() {
-	dummyVelboxSerizList.init();
 	lateResolveVbClones.init();
 	queryResults.init();
 }
@@ -289,5 +285,4 @@ void gamestate_init() {
 void gamestate_destroy() {
 	queryResults.destroy();
 	lateResolveVbClones.destroy();
-	dummyVelboxSerizList.destroy();
 }
