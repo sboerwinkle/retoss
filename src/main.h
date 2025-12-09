@@ -5,6 +5,8 @@
 #include "bloc.h"
 #include "queue.h"
 
+#define FASTER_NANOS 66000000
+
 #define TEXT_BUF_LEN 200
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
 

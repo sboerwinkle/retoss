@@ -29,6 +29,7 @@ static void populateSpriteVertexData();
 int displayWidth = 0;
 int displayHeight = 0;
 float scaleX, scaleY;
+float textAreaBounds[2];
 
 static char startupFailed = 0;
 static GLuint main_prog;
@@ -57,8 +58,6 @@ static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
 static int64_t *camPos;
-
-static float textAreaBounds[2];
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){

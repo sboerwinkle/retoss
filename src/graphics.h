@@ -1,6 +1,7 @@
 extern int displayWidth;
 extern int displayHeight;
 extern float scaleX, scaleY;
+extern float textAreaBounds[2];
 
 extern void initGraphics();
 

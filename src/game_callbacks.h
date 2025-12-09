@@ -5,8 +5,11 @@ extern gamestate* game_init2();
 extern void game_destroy2();
 extern void game_destroy();
 
-extern void handleKey(int key, int action);
+extern void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos);
 
+//// Input stuff ////
+
+extern void handleKey(int key, int action);
 extern void cursor_position_callback(GLFWwindow *window, double xpos, double ypos);
 extern void mouse_button_callback(GLFWwindow *window, int button, int action, int mods);
 extern void scroll_callback(GLFWwindow *window, double x, double y);

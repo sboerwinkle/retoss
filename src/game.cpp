@@ -15,9 +15,18 @@
 #include "game.h"
 #include "game_callbacks.h"
 
+struct timing {
+	long minNanos, maxNanos;
+	long nextMin, nextMax;
+	int counter;
+};
+static timing logicTiming = {0}, renderTiming = {0};
+void updateTiming(timing *t, long nanos);
+
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
 static char debugPrint;
+static char renderStats = 0;
 quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
 
@@ -54,6 +63,11 @@ void game_destroy() {
 	// no "destroy" call for graphics at present, maybe should make a stub for symmetry's sake?
 }
 
+void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos) {
+	long totalNanos = inputs_nanos + update_nanos + follow_nanos;
+	updateTiming(&logicTiming, totalNanos);
+}
+
 void handleKey(int key, int action) {
 	// I can't imagine a scenario where I actually need to know about repeat events
 	if (action == GLFW_REPEAT) return;
@@ -63,6 +77,9 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_DOWN)  activeInputs.d = action;
 	else if (key == GLFW_KEY_UP)    activeInputs.u = action;
 	else if (key == GLFW_KEY_X)	debugPrint = 1;
+	else if (action) {
+		if (key == GLFW_KEY_F3) renderStats ^= 1;
+	}
 }
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
@@ -189,6 +206,7 @@ void prefsToCmds(queue<strbuf> *cmds) {
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
+	updateTiming(&renderTiming, drawingNanos);
 	setupFrame(gs->players[myPlayer].pos);
 
 	rangeconst(i, gs->solids.num) {
@@ -209,10 +227,34 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	drawText(msg, 1, 15);
 	snprintf(msg, 20, "r %6ld", p->prox->r);
 	drawText(msg, 1, 22);
+	if (renderStats) {
+		if (!totalNanos) totalNanos = 1; // Whatever I guess
+		snprintf(
+			msg, 20, "%3ld%%%3ld%%%3ld%%%3ld%%",
+			100*logicTiming.minNanos/FASTER_NANOS,
+			100*logicTiming.maxNanos/FASTER_NANOS,
+			100*renderTiming.minNanos/totalNanos,
+			100*renderTiming.maxNanos/totalNanos
+		);
+		drawText(msg, 1, textAreaBounds[1]*2-8);
+	}
 
 
 	if (debugPrint) debugPrint = 0; // lol
 	// We'll do more stuff here eventually (again)!
 
 	// TODO: Render text chat buffer that main.cpp maintains
+}
+
+void updateTiming(timing *t, long nanos) {
+	if (!t->counter) {
+		t->counter = 14;
+		t->minNanos = t->nextMin;
+		t->maxNanos = t->nextMax;
+		t->nextMin = t->nextMax = nanos;
+	} else {
+		t->counter--;
+		if (nanos < t->nextMin) t->nextMin = nanos;
+		if (nanos > t->nextMax) t->nextMax = nanos;
+	}
 }

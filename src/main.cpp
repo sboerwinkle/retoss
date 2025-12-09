@@ -83,7 +83,7 @@ static int performanceFrames = 0, performanceIters = 0;
 // lag spikes. I'm not sure about these values,
 // but hopefully they're about right?
 #define STEP_NANOS   67666666
-#define FASTER_NANOS 66000000
+// Uhhh FASTER_NANOS got moved to a header because I need it somewhere else. Clean this up later.
 #define PENALTY_FRAMES 90
 
 static int fasterFrames = 0;
@@ -568,6 +568,8 @@ static void* gameThreadFunc(void *startFramePtr) {
 			inputs_nanos = BILLION * (t2.tv_sec - t1.tv_sec) + (t2.tv_nsec - t1.tv_nsec);
 			update_nanos = BILLION * (t3.tv_sec - t2.tv_sec) + (t3.tv_nsec - t2.tv_nsec);
 			follow_nanos = BILLION * (t4.tv_sec - t3.tv_sec) + (t4.tv_nsec - t3.tv_nsec);
+			timekeeping(inputs_nanos, update_nanos, follow_nanos);
+			// TODO could probably move this into our timekeeping function
 			if (performanceFrames) {
 				performanceFrames--;
 				performanceTotal += follow_nanos;
