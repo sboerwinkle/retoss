@@ -32,6 +32,8 @@ struct gamestate {
 extern void resetPlayer(gamestate *gs, int i);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 
+extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex);
+
 extern void runTick(gamestate *gs);
 
 extern void mkSolidAtPlayer(gamestate *gs, player *p, iquat r);

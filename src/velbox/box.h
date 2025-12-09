@@ -88,6 +88,8 @@ struct box : cloneable {
 	cloneable *data;
 };
 
+extern list<box*> boxSerizPtrs;
+
 extern box* velbox_alloc();
 
 extern void velbox_remove(box *o);
@@ -106,7 +108,7 @@ extern box* velbox_getRoot();
 extern void velbox_freeRoot(box *r);
 
 extern box *velbox_dup(box *r);
-extern void velbox_trans(box **r);
+extern void velbox_trans(box *r);
 
 extern void velbox_init();
 extern void velbox_destroy();

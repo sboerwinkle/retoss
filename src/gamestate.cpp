@@ -70,7 +70,7 @@ static solid* solidDup(solid *s) {
 	return t;
 }
 
-static solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
+solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
 	solid *s = new solid();
 	gs->solids.add(s);
 	s->pos[0] = x;
@@ -166,12 +166,6 @@ void init(gamestate *gs) {
 	gs->players.init();
 	gs->solids.init();
 	gs->vb_root = velbox_getRoot();
-
-	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 2+32);
-	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 4);
-	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 4);
-	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
-	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
 }
 
 void cleanup(gamestate *gs) {
@@ -185,7 +179,7 @@ void cleanup(gamestate *gs) {
 
 // Seriz / Deser stuff
 
-static void writeBlock(char *mem, int len) {
+static void writeBlock(void *mem, int len) {
 	// Could probably rewrite this to use `data->addAll`,
 	// but right now that uses `setMax` instead of `setMaxUp` internally.
 	int n = seriz_data->num;
@@ -194,7 +188,7 @@ static void writeBlock(char *mem, int len) {
 	seriz_data->num = n + len;
 }
 
-static void readBlock(char *mem, int len) {
+static void readBlock(void *mem, int len) {
 	int i = seriz_index;
 	if (i + len > seriz_data->num) {
 		memset(mem, 0, len);
@@ -204,10 +198,35 @@ static void readBlock(char *mem, int len) {
 	seriz_index += len;
 }
 
-// Not sure if we'll ever need this again lol
-static void transBlock(char *mem, int len) {
-	if (seriz_data) readBlock(mem, len);
+static void transBlock(void *mem, int len) {
+	if (seriz_reading) readBlock(mem, len);
 	else writeBlock(mem, len);
+}
+
+static void transSolid(solid *s) {
+	transBlock(s->pos, sizeof(s->pos));
+	transBlock(s->vel, sizeof(s->vel));
+	trans64(&s->r);
+	trans32(&s->tex);
+	transBlock(s->rot, sizeof(s->rot));
+	transWeakRef(&s->b, &boxSerizPtrs);
+	if (seriz_reading) {
+		// Some fields that we want consistently initialized,
+		// but ideally nothing will need them before they are reset.
+		memset(s->oldPos, 0, sizeof(s->oldPos));
+		memset(s->oldRot, 0, sizeof(s->oldRot));
+		// Box and Solid have ptrs to each other, but only one dir gets
+		// explicitly serialized. Other has to be handled by hand during de-seriz.
+		s->b->data = s;
+	}
+}
+
+static void transAllSolids(gamestate *gs) {
+	transItemCount(&gs->solids);
+	rangeconst(i, gs->solids.num) {
+		if (seriz_reading) gs->solids[i] = new solid();
+		transSolid(gs->solids[i]);
+	}
 }
 
 static void transPlayer(player *p) {
@@ -250,7 +269,8 @@ void serialize(gamestate *gs, list<char> *data) {
 
 	seriz_writeHeader();
 
-	// TODO seriz solids etc
+	velbox_trans(gs->vb_root);
+	transAllSolids(gs);
 
 	write8(gs->players.num);
 	range(i, gs->players.num) {
@@ -265,7 +285,8 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	// (if no error)
 	if (seriz_verifyHeader()) return;
 
-	// TODO seriz solids etc
+	velbox_trans(gs->vb_root);
+	transAllSolids(gs);
 
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.

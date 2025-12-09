@@ -35,16 +35,16 @@ void game_init() {
 //      `game_init2` can be responsible for level gen if it wants to,
 //      but not data integrity.
 gamestate* game_init2() {
-	gamestate *tmp = (gamestate*)malloc(sizeof(gamestate));
-	init(tmp);
-	/*
-	timespec now;
-	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
-	uint32_t seed = now.tv_sec;
-	shuffle(tmp, seed);
-	*/
+	gamestate *gs = (gamestate*)malloc(sizeof(gamestate));
+	init(gs);
 
-	return tmp;
+	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 2+32);
+	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 4);
+	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 4);
+	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
+	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
+
+	return gs;
 }
 
 void game_destroy2() {}

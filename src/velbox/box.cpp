@@ -22,7 +22,7 @@ static char isLeaf(box *b) {
 static list<box*> *globalOptionsDest, *globalOptionsSrc;
 static list<box*> *lookDownSrc, *lookDownDest;
 static list<box*> refreshList;
-static list<box*> boxClones;
+list<box*> boxSerizPtrs;
 
 static inline void swap(list<box*> *&a, list<box*> *&b) {
 	list<box*> *tmp = a;
@@ -758,7 +758,7 @@ static void transBox(box *b) {
 	// We don't transcribe box data, we rely on whoever we're pointing to to manage that.
 	// After all, they probably have a ref to us anyway.
 
-	transStrongRef(b, &boxClones);
+	transStrongRef(b, &boxSerizPtrs);
 
 	transItemCount(&b->kids);
 	rangeconst(i, b->kids.num) {
@@ -772,24 +772,23 @@ static void transBoxIntersects(box *b) {
 	transItemCount(&b->intersects);
 	rangeconst(i, b->intersects.num) {
 		trans32(&b->intersects[i].i);
-		transWeakRef(&b->intersects[i].b, &boxClones);
+		transWeakRef(&b->intersects[i].b, &boxSerizPtrs);
 	}
 	rangeconst(i, b->kids.num) {
 		transBoxIntersects(b->kids[i]);
 	}
 }
 
-void velbox_trans(box **root) {
-	transRefList(&boxClones);
+void velbox_trans(box *root) {
+	transRefList(&boxSerizPtrs);
 
 	// Todo: Write a total number of boxes upfront,
-	//       so we can alloc more intelligently
+	//       so we can alloc more intelligently?
 
-	if (seriz_reading) *root = velbox_alloc();
-	transBox(*root);
-	if (seriz_reading) (*root)->parent = NULL;
+	transBox(root);
+	if (seriz_reading) root->parent = NULL;
 
-	transBoxIntersects(*root);
+	transBoxIntersects(root);
 }
 
 void velbox_init() {
@@ -805,7 +804,7 @@ void velbox_init() {
 	lookDownDest = new list<box*>();
 	lookDownDest->init();
 	refreshList.init();
-	boxClones.init();
+	boxSerizPtrs.init();
 }
 
 void velbox_destroy() {
@@ -828,5 +827,5 @@ void velbox_destroy() {
 	lookDownDest->destroy();
 	delete lookDownDest;
 	refreshList.destroy();
-	boxClones.destroy();
+	boxSerizPtrs.destroy();
 }

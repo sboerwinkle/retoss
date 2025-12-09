@@ -38,8 +38,6 @@ void transItemCount(list<T> *l) {
 	if (seriz_reading) l->setMaxUp(l->num);
 }
 
-// This can actually be a list of something bigger than a naked `cloneable` -
-// the size of the pointer will be the same either way, so there's no issue.
 template <typename T>
 void transWeakRef(T** itm, list<T*> *l) {
 	if (seriz_reading) {
@@ -71,8 +69,6 @@ void transWeakRef(T** itm, list<T*> *l) {
 	}
 }
 
-// This can actually be a list of something bigger than a naked `cloneable` -
-// the size of the pointer will be the same either way, so there's no issue.
 template <typename T>
 void transStrongRef(T* itm, list<T*> *l) {
 	if (seriz_reading) {
