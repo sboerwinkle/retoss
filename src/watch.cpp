@@ -12,12 +12,16 @@
 #include "main.h"
 
 #include "watch.h"
-#include "watch_gfx.h"
+#include "watch_flags.h"
 
 int watch_fd = -1;
 
+// Todo "watch_" prefix on these vars would be nice.
 std::atomic<char> texReloadFlag = 0;
 char texReloadPath[WATCH_PATH_LEN];
+
+std::atomic<char> watch_dlFlag = 0;
+char watch_dlPath[WATCH_PATH_LEN];
 
 static int watchDesc_dl, watchDesc_gfx;
 
@@ -61,6 +65,15 @@ void watch_read() {
 			continue;
 		}
 
+		if (ev->len > WATCH_PATH_LEN) {
+			// Note that `ev->len` can be longer than `strlen(ev->name)+1`,
+			// because multiple null bytes can be included at the end to
+			// pad out the structure for memory aligment reasons. This shouldn't
+			// be too many though, so probably the path is still pretty dang long.
+			printf("Watched file path too long (wd %d): '%s'\n", ev->wd, ev->name);
+			continue;
+		}
+
 		// Only one option right now, but we could add others!
 		if (ev->wd == watchDesc_gfx) {
 			// Try to let gfx thread know.
@@ -80,16 +93,30 @@ void watch_read() {
 			if (texReloadFlag.load(std::memory_order::acquire)) {
 				// Gfx thread still hasn't processed the last one. We just drop this one.
 				printf("Missed change for watched file '%s' (gfx)\n", ev->name);
-			} else if (ev->len > WATCH_PATH_LEN) {
-				// Note that `ev->len` can be longer than `strlen(ev->name)+1`,
-				// because multiple null bytes can be included at the end to
-				// pad out the structure for memory aligment reasons. This shouldn't
-				// be too many though, so probably the path is still pretty dang long.
-				printf("Watched file path too long (gfx): '%s'\n", ev->name);
 			} else {
 				printf("Saw update for '%s'\n", ev->name);
 				memcpy(texReloadPath, ev->name, ev->len);
 				texReloadFlag.store(1, std::memory_order::release);
+			}
+		} else if (ev->wd == watchDesc_dl) {
+			// For DL stuff we only care about *.so files
+			int sl = strlen(ev->name);
+			if (sl < 3 || strcmp(".so", ev->name+sl-3)) {
+				continue;
+			}
+			// If the write is to some '.so' file,
+			// we want to open it, pick out a particular function (fixed, for now),
+			// run said function, and close the DL handle.
+			// However, later on we might be doing more interesting things,
+			// including keeping a few different DL handles open at a time.
+			// I guess the sensible thing to do would be to have a similar setup to gfx for now,
+			// and the game thread (I guess) can deal with whatever logic.
+			if (watch_dlFlag.load(std::memory_order::acquire)) {
+				printf("Missed change for watched file '%s' (dl)\n", ev->name);
+			} else {
+				printf("Saw update for '%s' (dl)\n", ev->name);
+				memcpy(watch_dlPath, ev->name, ev->len);
+				watch_dlFlag.store(1, std::memory_order::release);
 			}
 		}
 	}
@@ -118,6 +145,16 @@ void watch_init() {
 		exit(1);
 	}
 
+	watchDesc_dl = inotify_add_watch(watch_fd, "src/dl_tmp", IN_CLOSE_WRITE);
+	if (watchDesc_dl == -1) {
+		if (errno == ENOENT) {
+			puts("Couldn't find dl folder, so not doing that very optional thing");
+		} else {
+			perror("inotify_add_watch for dl");
+			close(watch_fd);
+			exit(1);
+		}
+	}
 }
 
 void watch_destroy() {

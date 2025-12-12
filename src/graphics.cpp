@@ -10,7 +10,7 @@
 #include "matrix.h"
 #include "game_graphics.h"
 #include "png.h"
-#include "watch_gfx.h"
+#include "watch_flags.h"
 #include "gamestate.h"
 
 #include "graphics.h"

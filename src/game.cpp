@@ -5,12 +5,12 @@
 
 #include "util.h"
 #include "queue.h"
-
 #include "matrix.h"
 
 #include "main.h"
 #include "gamestate.h"
 #include "graphics.h"
+#include "watch_flags.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -66,6 +66,8 @@ void game_destroy() {
 void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos) {
 	long totalNanos = inputs_nanos + update_nanos + follow_nanos;
 	updateTiming(&logicTiming, totalNanos);
+
+	// I should probably make a better place to put this nonsense, 
 }
 
 void handleKey(int key, int action) {
@@ -143,6 +145,11 @@ void serializeInputs(char * dest) {
 	float dirWorld[3];
 	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
 	range(i, 3) p[i] = 100*dirWorld[i];
+
+	if (watch_dlFlag.load(std::memory_order::acquire)) {
+		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
+		watch_dlFlag.store(0, std::memory_order::release);
+	}
 }
 
 int playerInputs(player *p, list<char> const * data) {
@@ -165,10 +172,22 @@ int playerInputs(player *p, list<char> const * data) {
 //// Text command stuff ////
 
 char handleLocalCommand(char * buf, list<char> * outData) {
+	if (isCmd(buf, "/dl")) {
+		strcpy(loopbackCommandBuffer, buf);
+		return 1;
+	}
 	return 0;
 }
 
 char customLoopbackCommand(gamestate *gs, char const * str) {
+	if (isCmd(str, "/dl")) {
+		if (!str[3]) {
+			puts("/dl requires an arg!");
+			return 1;
+		}
+		printf("Got /dl for %s\n", str+4);
+		return 1;
+	}
 	return 0;
 }
 

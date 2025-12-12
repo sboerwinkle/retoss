@@ -57,7 +57,7 @@ char manualGlFinish = 1;
 static int typingLen = -1;
 
 static char chatBuffer[TEXT_BUF_LEN];
-static char loopbackCommandBuffer[TEXT_BUF_LEN];
+char loopbackCommandBuffer[TEXT_BUF_LEN];
 
 // Mostly, nobody outside this file should use `rootState`,
 // but it's helpful to have for debug prints somtimes.
