@@ -1,3 +1,4 @@
+#include <dlfcn.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <math.h>
@@ -21,7 +22,8 @@ struct timing {
 	int counter;
 };
 static timing logicTiming = {0}, renderTiming = {0};
-void updateTiming(timing *t, long nanos);
+static void updateTiming(timing *t, long nanos);
+static void doDynamicLoad(char const *filename, gamestate *gs);
 
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
@@ -185,7 +187,7 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 			puts("/dl requires an arg!");
 			return 1;
 		}
-		printf("Got /dl for %s\n", str+4);
+		doDynamicLoad(str+4, gs);
 		return 1;
 	}
 	return 0;
@@ -265,7 +267,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	// TODO: Render text chat buffer that main.cpp maintains
 }
 
-void updateTiming(timing *t, long nanos) {
+static void updateTiming(timing *t, long nanos) {
 	if (!t->counter) {
 		t->counter = 14;
 		t->minNanos = t->nextMin;
@@ -275,5 +277,34 @@ void updateTiming(timing *t, long nanos) {
 		t->counter--;
 		if (nanos < t->nextMin) t->nextMin = nanos;
 		if (nanos > t->nextMax) t->nextMax = nanos;
+	}
+}
+
+///// DL (Dynamic Load) stuff /////
+
+static void printDlError(char const *prefix) {
+	char const *msg = dlerror();
+	if (!msg) msg = "[dlerror returned NULL]";
+	printf("%s: %s\n", prefix, msg);
+}
+
+static void doDynamicLoad(char const *filename, gamestate *gs) {
+	char path[TEXT_BUF_LEN];
+	snprintf(path, TEXT_BUF_LEN, "./src/dl_tmp/%s", filename);
+	printf("dl: %s\n", path);
+
+	void *dlHandle = dlopen(path, RTLD_NOW);
+	if (!dlHandle) {
+		printDlError("`dlopen` failed");
+		return;
+	}
+	void (*onLoadFn)(gamestate*) = (void (*)(gamestate*)) dlsym(dlHandle, "onLoad");
+	if (onLoadFn) {
+		(*onLoadFn)(gs);
+	} else {
+		printDlError("Couldn't find \"onLoad\" symbol");
+	}
+	if (dlclose(dlHandle)) {
+		printDlError("`dlclose` failed");
 	}
 }
