@@ -14,6 +14,7 @@ static list<void*> queryResults;
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
 		.pos={0,0,0},
+		.vel={0,0,0},
 		.inputs={0,0,0},
 		.prox=gs->vb_root,
 		.tmp=0,
@@ -90,12 +91,11 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
+	range(i, 3) p->vel[i] += p->inputs[i];
 	offset dest;
-	range(i, 3) dest[i] = p->pos[i] + p->inputs[i];
-	// Could replace this with a more-real velocity
-	int64_t fakeVel[3] = {0,0,0};
+	range(i, 3) dest[i] = p->pos[i] + p->vel[i];
 	queryResults.num = 0;
-	p->prox = velbox_query(p->prox, p->pos, fakeVel, 1000, &queryResults);
+	p->prox = velbox_query(p->prox, p->pos, p->vel, 1000, &queryResults);
 	rangeconst(j, queryResults.num) {
 		solid *s = (solid*) queryResults[j];
 		collide_check(p, dest, 200, s);
@@ -231,6 +231,7 @@ static void transAllSolids(gamestate *gs) {
 
 static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->pos[i]);
+	range(i, 3) trans64(&p->vel[i]);
 }
 
 /* Unused

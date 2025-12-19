@@ -77,6 +77,15 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 	// Lots of ways I could do this; e.g. a dedicated method to apply our existing rotation matrix but in reverse.
 	iquat_apply(forceDir, s->rot, cubeFaceNorms[winner]);
 	range(i, 3) dest[i] -= winnerDepth*forceDir[i]/FIXP;
+
+	// TODO this should be a bit more complex,
+	//      since what we actually want is the relative velocity at the point of contact
+	//      (accounting for each item's velocity and rotation).
+	//      This is fine for now though.
+	int64_t impulse = dot(p->vel, forceDir);
+	if (impulse < 0) {
+		range(i, 3) p->vel[i] -= impulse*forceDir[i]/FIXP;
+	}
 }
 
 // Next up is probably figuring out how to collide something that has a number of spheres

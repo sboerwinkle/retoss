@@ -76,10 +76,10 @@ void handleKey(int key, int action) {
 	// I can't imagine a scenario where I actually need to know about repeat events
 	if (action == GLFW_REPEAT) return;
 
-	     if (key == GLFW_KEY_RIGHT) activeInputs.r = action;
-	else if (key == GLFW_KEY_LEFT)  activeInputs.l = action;
-	else if (key == GLFW_KEY_DOWN)  activeInputs.d = action;
-	else if (key == GLFW_KEY_UP)    activeInputs.u = action;
+	     if (key == GLFW_KEY_D)     activeInputs.r = action;
+	else if (key == GLFW_KEY_A)     activeInputs.l = action;
+	else if (key == GLFW_KEY_S)     activeInputs.d = action;
+	else if (key == GLFW_KEY_W)     activeInputs.u = action;
 	else if (key == GLFW_KEY_X)	debugPrint = 1;
 	else if (action) {
 		if (key == GLFW_KEY_F3) renderStats ^= 1;
@@ -146,7 +146,7 @@ void serializeInputs(char * dest) {
 	float dirKeyboard[3] = {keyboard_x, keyboard_y, 0};
 	float dirWorld[3];
 	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
-	range(i, 3) p[i] = 100*dirWorld[i];
+	range(i, 3) p[i] = 10*dirWorld[i];
 
 	if (watch_dlFlag.load(std::memory_order::acquire)) {
 		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
