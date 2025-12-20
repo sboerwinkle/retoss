@@ -4,13 +4,12 @@
 vgcore*
 game
 
-# May need to revisit this, holdover stuff from Bittoss
-savegame
-*.gam
-*.itm
-*.bkp
-data/tmp*
-!**/itm/*.itm
+data/
+!data/.placeholder
 
 # VIM files
 *.swp
+
+# Some assets I maybe want to commit so the game runs on a fresh checkout,
+# but WIP asset stuff I probably don't want.
+*.xcf
