@@ -1,4 +1,3 @@
-#include <dlfcn.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <math.h>
@@ -12,6 +11,7 @@
 #include "gamestate.h"
 #include "graphics.h"
 #include "watch_flags.h"
+#include "dl.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -23,7 +23,6 @@ struct timing {
 };
 static timing logicTiming = {0}, renderTiming = {0};
 static void updateTiming(timing *t, long nanos);
-static void doDynamicLoad(char const *filename, gamestate *gs);
 
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
@@ -40,6 +39,7 @@ void game_init() {
 	initGraphics();
 	velbox_init();
 	gamestate_init();
+	dl_init();
 }
 
 // TODO gamestate init logic should be the responsibility of gamestate.cpp.
@@ -60,6 +60,7 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	dl_destroy();
 	gamestate_destroy();
 	velbox_destroy();
 	// no "destroy" call for graphics at present, maybe should make a stub for symmetry's sake?
@@ -187,7 +188,7 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 			puts("/dl requires an arg!");
 			return 1;
 		}
-		doDynamicLoad(str+4, gs);
+		dl_processFile(str+4, gs);
 		return 1;
 	}
 	return 0;
@@ -277,34 +278,5 @@ static void updateTiming(timing *t, long nanos) {
 		t->counter--;
 		if (nanos < t->nextMin) t->nextMin = nanos;
 		if (nanos > t->nextMax) t->nextMax = nanos;
-	}
-}
-
-///// DL (Dynamic Load) stuff /////
-
-static void printDlError(char const *prefix) {
-	char const *msg = dlerror();
-	if (!msg) msg = "[dlerror returned NULL]";
-	printf("%s: %s\n", prefix, msg);
-}
-
-static void doDynamicLoad(char const *filename, gamestate *gs) {
-	char path[TEXT_BUF_LEN];
-	snprintf(path, TEXT_BUF_LEN, "./src/dl_tmp/%s", filename);
-	printf("dl: %s\n", path);
-
-	void *dlHandle = dlopen(path, RTLD_NOW);
-	if (!dlHandle) {
-		printDlError("`dlopen` failed");
-		return;
-	}
-	void (*onLoadFn)(gamestate*) = (void (*)(gamestate*)) dlsym(dlHandle, "onLoad");
-	if (onLoadFn) {
-		(*onLoadFn)(gs);
-	} else {
-		printDlError("Couldn't find \"onLoad\" symbol");
-	}
-	if (dlclose(dlHandle)) {
-		printDlError("`dlclose` failed");
 	}
 }

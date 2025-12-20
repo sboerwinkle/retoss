@@ -1,17 +1,20 @@
 // This is "net2", which is an abstraction over "net".
 // I tried to think of a more descriptive name, but at the end of the day it's still networking stuff.
 
-#include <pthread.h>
 #include <arpa/inet.h>
 
 #include "util.h"
 #include "list.h"
 #include "queue.h"
+#include "mtx.h"
+
 #include "main.h"
 #include "net.h"
 
 #include "net2.h"
 
+// TODO Need to move `pthread_cond_t` stuff into "mtx.h" as well, just haven't done that yet.
+//      (As a side effect, we're currently we're depending on mtx.h to import <pthread.h>.)
 pthread_mutex_t netMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t netCond = PTHREAD_COND_INITIALIZER;
 

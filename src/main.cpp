@@ -13,6 +13,7 @@
 #include "list.h"
 #include "queue.h"
 #include "bloc.h"
+#include "mtx.h"
 
 #include "config.h"
 #include "game.h"
@@ -49,7 +50,7 @@ static struct {
 	gamestate *pickup, *dropoff;
 	long nanos;
 } renderData = {};
-static pthread_mutex_t renderMutex = PTHREAD_MUTEX_INITIALIZER;
+static mtx_t renderMutex = MTX_INIT_EXPR;
 static gamestate *renderedState = NULL;
 long renderStartNanos = 0;
 char manualGlFinish = 1;
@@ -94,7 +95,7 @@ static time_t startSec;
 static queue<list<char>> outboundData;
 static list<char> syncData; // Temporary buffer for savegame data, for "/sync" command
 static int syncNeeded = 0;
-pthread_mutex_t sharedInputsMutex = PTHREAD_MUTEX_INITIALIZER;
+mtx_t sharedInputsMutex = MTX_INIT_EXPR;
 static char isLoader = 0;
 static char prefsSent = 0;
 

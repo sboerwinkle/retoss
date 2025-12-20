@@ -16,10 +16,10 @@
 #include "graphics.h"
 #include "graphics_callbacks.h"
 
-#define NUM_TEXS 5
+#define NUM_TEXS 6
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
-char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png"};
+char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png"};
 GLuint textures[NUM_TEXS];
 
 static void populateCubeVertexData(list<GLfloat> *data);
