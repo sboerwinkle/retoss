@@ -6,12 +6,14 @@
 #include "util.h"
 #include "queue.h"
 #include "matrix.h"
+#include "mtx.h"
 
 #include "main.h"
 #include "gamestate.h"
 #include "graphics.h"
 #include "watch_flags.h"
 #include "dl.h"
+#include "dl_game.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -26,10 +28,14 @@ static void updateTiming(timing *t, long nanos);
 
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
+static char ctrlPressed = 0;
 static char debugPrint;
 static char renderStats = 0;
 quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
+
+static char editMenuState = -1;
+static int editMouseAmt = 0;
 
 struct {
 	char u, d, l, r;
@@ -81,9 +87,16 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_A)     activeInputs.l = action;
 	else if (key == GLFW_KEY_S)     activeInputs.d = action;
 	else if (key == GLFW_KEY_W)     activeInputs.u = action;
-	else if (key == GLFW_KEY_X)	debugPrint = 1;
-	else if (action) {
-		if (key == GLFW_KEY_F3) renderStats ^= 1;
+	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
+		ctrlPressed = action;
+	} else if (action) {
+		if (key == GLFW_KEY_F3)		renderStats ^= 1;
+		else if (key == GLFW_KEY_X)	debugPrint = 1;
+		else if (key == GLFW_KEY_E) {
+			if (ctrlPressed) {
+				editMenuState = ~editMenuState;
+			}
+		}
 	}
 }
 
@@ -120,10 +133,22 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 }
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
+	if (ctrlPressed && editMenuState >= 0) {
+		if (action != GLFW_PRESS) return;
+		if (button == 0) {
+			if (editMenuState < 2) editMenuState++;
+		} else if (button == 1) {
+			if (editMenuState > 0) editMenuState--;
+		}
+		return;
+	}
+
 	if (action == GLFW_PRESS && (button == 0 || button == 1)) mouseDown = button+1;
 	else mouseDown = 0;
 }
-void scroll_callback(GLFWwindow *window, double x, double y) {}
+void scroll_callback(GLFWwindow *window, double x, double y) {
+	if (ctrlPressed) editMouseAmt += y;
+}
 void window_focus_callback(GLFWwindow *window, int focused) {}
 
 void copyInputs() {
@@ -131,6 +156,17 @@ void copyInputs() {
 	// or if serializing the inputs means writing something
 	// (like for commands you want to be sent out exactly once).
 	sharedInputs = activeInputs;
+
+	if (editMouseAmt) {
+		if (editMenuState >= 0) {
+			char const *cmd;
+			if (editMenuState == 0) cmd = "/dlVarSel";
+			else if (editMenuState == 1) cmd = "/dlVarVal";
+			else cmd = "/dlVarInc";
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
+		}
+		editMouseAmt = 0;
+	}
 }
 
 // In theory I think this would let us have a dynamic size of input data per-frame.
@@ -179,6 +215,50 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		strcpy(loopbackCommandBuffer, buf);
 		return 1;
 	}
+	if (isCmd(buf, "/vars")) {
+		rangeconst(i, dl_updVars.num) {
+			dl_updVar &v = dl_updVars[i];
+			printf("%s: %ld\n", v.name, v.value);
+		}
+		return 1;
+	}
+	if (isCmd(buf, "/dlVarSel")) {
+		char const *pos = buf + 9;
+		int x;
+		if (getNum(&pos, &x)) {
+			int num = dl_updVars.num;
+			// Flip sign on x, since we display them top-to-bottom
+			dl_updVarSelected = ((dl_updVarSelected-x)%num+num)%num;
+		}
+		return 1;
+	}
+	if (isCmd(buf, "/dlVarVal")) {
+		char const *pos = buf + 9;
+		int x;
+		if (getNum(&pos, &x)) {
+			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			v.value += x * v.incr;
+			strcpy(loopbackCommandBuffer, "/dlUpd");
+		}
+		return 1;
+	}
+	if (isCmd(buf, "/dlVarInc")) {
+		char const *pos = buf + 9;
+		int x;
+		if (getNum(&pos, &x)) {
+			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			while (x > 0) {
+				x--;
+				v.incr *= 10;
+			}
+			while (x < 0) {
+				x++;
+				v.incr /= 10;
+			}
+			if (!v.incr) v.incr = 1;
+		}
+		return 1;
+	}
 	return 0;
 }
 
@@ -189,6 +269,10 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 			return 1;
 		}
 		dl_processFile(str+4, gs);
+		return 1;
+	}
+	if (isCmd(str, "/dlUpd")) {
+		dl_upd(gs);
 		return 1;
 	}
 	return 0;
@@ -239,8 +323,10 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	setup2d();
 	setup2dText();
 	char msg[20];
+	/*
 	snprintf(msg, 20, "Hello, World!1! %2d.", gs->vb_root->kids.num);
 	drawText(msg, 1, 1);
+	*/
 
 	player *p = &gs->players[myPlayer];
 	snprintf(msg, 20, "t: %5d", p->tmp);
@@ -249,6 +335,32 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	drawText(msg, 1, 15);
 	snprintf(msg, 20, "r %6ld", p->prox->r);
 	drawText(msg, 1, 22);
+
+	if (editMenuState >= 0) {
+		mtx_lock(dl_updVarMtx);
+		if (editMenuState == 0) {
+			rangeconst(i, dl_updVars.num) {
+				dl_updVar &v = dl_updVars[i];
+				snprintf(msg, 20, "%s: %ld", v.name, v.value);
+				drawText(msg, 7, 1+7*(i+4));
+			}
+			drawText(">", 1, 1+7*(dl_updVarSelected+4));
+		} else if (editMenuState == 1) {
+			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			snprintf(msg, 20, "%s (+/-%ld)", v.name, v.incr);
+			drawText(msg, 7, 29);
+			snprintf(msg, 20, "%ld", v.value);
+			drawText(msg, 7, 36);
+		} else {
+			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			snprintf(msg, 20, "%s +/-...", v.name);
+			drawText(msg, 7, 29);
+			snprintf(msg, 20, "%ld", v.incr);
+			drawText(msg, 7, 36);
+		}
+		mtx_unlock(dl_updVarMtx);
+	}
+
 	if (renderStats) {
 		if (!totalNanos) totalNanos = 1; // Whatever I guess
 		snprintf(

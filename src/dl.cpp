@@ -7,7 +7,7 @@
 #include "gamestate.h"
 
 #include "dl.h"
-#include "dl_graphics.h"
+#include "dl_game.h"
 
 // DL (Dynamic Load) stuff
 
@@ -84,9 +84,12 @@ void dl_resetVars(int version) {
 // Unlike most non-static methods, we omit the "dl_" prefix.
 // This method has a super-short name since it's intended for use in
 // the dl'd source files for level editing.
+int64_t var(char const *name) { return var(name, 0); }
+
 int64_t var(char const *name, int64_t val) {
 	rangeconst(i, dl_updVars.num) {
 		if (!strncmp(name, dl_updVars[i].name, DL_VARNAME_LEN)) {
+			if (updResetting) dl_updVars[i].inUse = 1;
 			return dl_updVars[i].value;
 		}
 	}
