@@ -5,6 +5,7 @@
 #include "mtx.h"
 
 #include "gamestate.h"
+#include "bctx.h"
 
 #include "dl.h"
 #include "dl_game.h"
@@ -156,6 +157,7 @@ void dl_processFile(char const *filename, gamestate *gs) {
 	lvlUpdFn = (void (*)(gamestate*)) dlsym(fileHandle, "lvlUpd");
 	updReset_pre();
 	if (lvlUpdFn) {
+		bctx.reset(gs);
 		(*lvlUpdFn)(gs);
 	}
 	updReset_post();
@@ -163,6 +165,7 @@ void dl_processFile(char const *filename, gamestate *gs) {
 
 void dl_upd(gamestate *gs) {
 	if (lvlUpdFn) {
+		bctx.reset(gs);
 		(*lvlUpdFn)(gs);
 	}
 }

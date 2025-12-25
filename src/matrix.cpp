@@ -20,9 +20,25 @@ void quat_norm(quat t){
 	t[2]/=len;
 	t[3]/=len;
 }
+void iquat_norm(iquat x) {
+	// Assuming the `iquat` is approximately normal, the result should be
+	// roughly 1*1, which fits.
+	// We do rely on `sqrt` being reproducible across systems (to within an integer),
+	// which seems like a reasonable assumption.
+	int32_t len = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]+x[3]*x[3]);
+	x[0] = x[0]*FIXP/len;
+	x[1] = x[1]*FIXP/len;
+	x[2] = x[2]*FIXP/len;
+	x[3] = x[3]*FIXP/len;
+}
 void quat_rotateBy(quat x, quat rot){
 	quat t;
 	quat_mult(t, x, rot);
+	memcpy(x, t, sizeof(t));
+}
+void iquat_rotateBy(iquat x, iquat const rot) {
+	iquat t;
+	iquat_mult(t, x, rot);
 	memcpy(x, t, sizeof(t));
 }
 
@@ -48,6 +64,13 @@ void quat_mult(quat ret, quat a, quat b){
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2]);
 	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1]);
 	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0]);
+}
+
+void iquat_mult(iquat ret, iquat const a, iquat const b){
+	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3])/FIXP;
+	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2])/FIXP;
+	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1])/FIXP;
+	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0])/FIXP;
 }
 
 void iquat_mult(iquat ret, iquat a, iquat b){
@@ -97,6 +120,26 @@ void iquat_apply(unitvec dest, iquat q, unitvec const src) {
 	int32_t ysqi = src[1] * q[1] / FIXP;
 	int32_t zsqi = src[2] * q[1] / FIXP;
 	int32_t zsqj = src[2] * q[2] / FIXP;
+	dest[0] = src[0] + ( - xsqj*q[2] - xsqk*q[3]
+		             - ysqk*q[0] + ysqi*q[2]
+		             + zsqi*q[3] + zsqj*q[0] ) / (FIXP/2);
+	dest[1] = src[1] + ( - ysqk*q[3] - ysqi*q[1]
+		             - zsqi*q[0] + zsqj*q[3]
+		             + xsqj*q[1] + xsqk*q[0] ) / (FIXP/2);
+	dest[2] = src[2] + ( - zsqi*q[1] - zsqj*q[2]
+		             - xsqj*q[0] + xsqk*q[1]
+		             + ysqk*q[2] + ysqi*q[0] ) / (FIXP/2);
+}
+
+// Exactly the same as `iquat_apply`, but works on bigger types.
+// The "Sm" suffix is because it won't work if the offsets are too big lol
+void iquat_applySm(offset dest, iquat q, offset const src) {
+	int64_t xsqj = src[0] * q[2] / FIXP;
+	int64_t xsqk = src[0] * q[3] / FIXP;
+	int64_t ysqk = src[1] * q[3] / FIXP;
+	int64_t ysqi = src[1] * q[1] / FIXP;
+	int64_t zsqi = src[2] * q[1] / FIXP;
+	int64_t zsqj = src[2] * q[2] / FIXP;
 	dest[0] = src[0] + ( - xsqj*q[2] - xsqk*q[3]
 		             - ysqk*q[0] + ysqi*q[2]
 		             + zsqi*q[3] + zsqj*q[0] ) / (FIXP/2);

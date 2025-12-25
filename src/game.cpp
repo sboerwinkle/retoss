@@ -14,6 +14,7 @@
 #include "watch_flags.h"
 #include "dl.h"
 #include "dl_game.h"
+#include "bctx.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -28,14 +29,14 @@ static void updateTiming(timing *t, long nanos);
 
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
-static char ctrlPressed = 0;
+static char ctrlPressed = 0, shiftPressed = 0;
 static char debugPrint;
 static char renderStats = 0;
 quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
 
 static char editMenuState = -1;
-static int editMouseAmt = 0;
+static int editMouseAmt = 0, editMouseShiftAmt = 0;
 
 struct {
 	char u, d, l, r;
@@ -46,6 +47,7 @@ void game_init() {
 	velbox_init();
 	gamestate_init();
 	dl_init();
+	bctx_init();
 }
 
 // TODO gamestate init logic should be the responsibility of gamestate.cpp.
@@ -66,6 +68,7 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	bctx_destroy();
 	dl_destroy();
 	gamestate_destroy();
 	velbox_destroy();
@@ -89,6 +92,8 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_W)     activeInputs.u = action;
 	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
+	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
+		shiftPressed = action;
 	} else if (action) {
 		if (key == GLFW_KEY_F3)		renderStats ^= 1;
 		else if (key == GLFW_KEY_X)	debugPrint = 1;
@@ -135,8 +140,9 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
 	if (ctrlPressed && editMenuState >= 0) {
 		if (action != GLFW_PRESS) return;
+		// I used to have 3 states, but now it's just 2 so this looks funny lol
 		if (button == 0) {
-			if (editMenuState < 2) editMenuState++;
+			if (editMenuState < 1) editMenuState++;
 		} else if (button == 1) {
 			if (editMenuState > 0) editMenuState--;
 		}
@@ -147,7 +153,10 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 	else mouseDown = 0;
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
-	if (ctrlPressed) editMouseAmt += y;
+	if (ctrlPressed) {
+		if (shiftPressed) editMouseShiftAmt += y;
+		else editMouseAmt += y;
+	}
 }
 void window_focus_callback(GLFWwindow *window, int focused) {}
 
@@ -157,16 +166,19 @@ void copyInputs() {
 	// (like for commands you want to be sent out exactly once).
 	sharedInputs = activeInputs;
 
-	if (editMouseAmt) {
-		if (editMenuState >= 0) {
-			char const *cmd;
+	if (editMenuState >= 0) {
+		char const *cmd;
+		if (editMouseAmt) {
 			if (editMenuState == 0) cmd = "/dlVarSel";
-			else if (editMenuState == 1) cmd = "/dlVarVal";
-			else cmd = "/dlVarInc";
+			else cmd = "/dlVarVal";
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
 		}
-		editMouseAmt = 0;
+		if (editMouseShiftAmt && editMenuState == 1) {
+			cmd = "/dlVarInc";
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
+		}
 	}
+	editMouseAmt = editMouseShiftAmt = 0;
 }
 
 // In theory I think this would let us have a dynamic size of input data per-frame.
@@ -345,17 +357,11 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 				drawText(msg, 7, 1+7*(i+4));
 			}
 			drawText(">", 1, 1+7*(dl_updVarSelected+4));
-		} else if (editMenuState == 1) {
+		} else {
 			dl_updVar &v = dl_updVars[dl_updVarSelected];
 			snprintf(msg, 20, "%s (+/-%ld)", v.name, v.incr);
 			drawText(msg, 7, 29);
 			snprintf(msg, 20, "%ld", v.value);
-			drawText(msg, 7, 36);
-		} else {
-			dl_updVar &v = dl_updVars[dl_updVarSelected];
-			snprintf(msg, 20, "%s +/-...", v.name);
-			drawText(msg, 7, 29);
-			snprintf(msg, 20, "%ld", v.incr);
 			drawText(msg, 7, 36);
 		}
 		mtx_unlock(dl_updVarMtx);

@@ -90,6 +90,15 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	return s;
 }
 
+// Would be slightly more efficient if we had an index (hypothetical `rmSolidAt`),
+// but I'm not sure if that's ever something we'll have.
+void rmSolid(gamestate *gs, solid *s) {
+	gs->solids.rm(s);
+	gs->selection.rm(s);
+	velbox_remove(s->b);
+	delete s;
+}
+
 static void playerUpdate(gamestate *gs, player *p) {
 	range(i, 3) p->vel[i] += p->inputs[i];
 	offset dest;
@@ -145,10 +154,17 @@ gamestate* dup(gamestate *orig) {
 	ret->players.init(orig->players);
 
 	lateResolveVbClones.num = 0;
+
 	ret->solids.init(orig->solids.num);
 	ret->solids.num = orig->solids.num;
 	rangeconst(i, ret->solids.num) {
 		ret->solids[i] = solidDup(orig->solids[i]);
+	}
+
+	ret->selection.init(orig->selection.num);
+	ret->selection.num = orig->selection.num;
+	rangeconst(i, ret->selection.num) {
+		ret->selection[i] = (solid*) orig->selection[i]->clone.ptr;
 	}
 
 	ret->vb_root = velbox_dup(orig->vb_root);
@@ -164,17 +180,19 @@ gamestate* dup(gamestate *orig) {
 
 void init(gamestate *gs) {
 	gs->players.init();
+	gs->selection.init();
 	gs->solids.init();
 	gs->vb_root = velbox_getRoot();
 }
 
 void cleanup(gamestate *gs) {
 	velbox_freeRoot(gs->vb_root);
-	gs->players.destroy();
 	rangeconst(i, gs->solids.num) {
 		delete gs->solids[i];
 	}
 	gs->solids.destroy();
+	gs->selection.destroy();
+	gs->players.destroy();
 }
 
 // Seriz / Deser stuff
@@ -272,6 +290,7 @@ void serialize(gamestate *gs, list<char> *data) {
 
 	velbox_trans(gs->vb_root);
 	transAllSolids(gs);
+	// We don't bother with the selection for now
 
 	write8(gs->players.num);
 	range(i, gs->players.num) {
@@ -288,6 +307,7 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 
 	velbox_trans(gs->vb_root);
 	transAllSolids(gs);
+	// We don't bother with the selection for now
 
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.

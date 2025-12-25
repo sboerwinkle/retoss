@@ -537,6 +537,12 @@ box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *
 // If asking this of the client is a big hassle, we could do math involving `vb_now` I guess.
 // (assuming `vb_now` is set - since that's only set by some ops that are given the root.)
 void velbox_insert(box *guess, box *n) {
+#ifndef NODEBUG
+	if (n->r <= 0) {
+		printf("`velbox_insert` called with invalid radius (%ld)\n", n->r);
+		exit(1);
+	}
+#endif
 	insert(guess, n);
 	// Don't actually need to set `inUse` in this case. Even if the leaf is only valid for this tick,
 	// it will be checked (and removed) after its parent, so the parent will still survive by virtue

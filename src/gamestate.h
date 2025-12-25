@@ -27,6 +27,7 @@ struct solid : cloneable {
 struct gamestate {
 	list<player> players;
 	list<solid*> solids;
+	list<solid*> selection;
 	box *vb_root;
 };
 
@@ -34,6 +35,7 @@ extern void resetPlayer(gamestate *gs, int i);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 
 extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex);
+extern void rmSolid(gamestate *gs, solid *s);
 
 extern void runTick(gamestate *gs);
 

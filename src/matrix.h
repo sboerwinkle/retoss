@@ -19,16 +19,20 @@ typedef int32_t imat[9];
 typedef int64_t offset[3];
 
 extern void quat_norm(quat t);
+extern void iquat_norm(iquat x);
 extern void quat_rotateBy(quat x, quat rot);
+extern void iquat_rotateBy(iquat x, iquat const rot);
 /* Need to re-evaluate what to do with `strt`
 extern void quat_rotX(quat ret, quat strt, float r);
 extern void quat_rotY(quat ret, quat strt, float r);
 extern void quat_rotZ(quat ret, quat strt, float r);
 */
 extern void quat_mult(quat ret, quat a, quat b);
+extern void iquat_mult(iquat ret, iquat const a, iquat const b);
 
 extern void quat_apply(float dest[3], quat q, float src[3]);
 extern void iquat_apply(unitvec dest, iquat q, unitvec const src);
+extern void iquat_applySm(offset dest, iquat q, offset const src);
 extern void quat_print(quat t);
 
 extern void mat4Multf(float* res, float* m1, float* m2);
