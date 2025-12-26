@@ -271,6 +271,11 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		}
 		return 1;
 	}
+	if (isCmd(buf, "/bake")) {
+		if (buf[5]) dl_bake(buf+6);
+		else dl_bake(NULL);
+		return 1;
+	}
 	return 0;
 }
 

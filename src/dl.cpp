@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+#include <stdio.h>
 
 #include "util.h"
 #include "list.h"
@@ -15,6 +16,7 @@
 static int lvlWrVersion = -1;
 static void *fileHandle = NULL;
 static void (*lvlUpdFn)(gamestate*) = NULL;
+static FILE* editEventsFifo;
 
 static int updVarsVersion = 0;
 list<dl_updVar> dl_updVars;
@@ -170,12 +172,32 @@ void dl_upd(gamestate *gs) {
 	}
 }
 
+void dl_bake(char const *name) {
+	if (!editEventsFifo) return;
+	fputs("/bake\n", editEventsFifo);
+	rangeconst(i, dl_updVars.num) {
+		dl_updVar &v = dl_updVars[i];
+		if (!name || !strcmp(name, v.name)) {
+			fprintf(editEventsFifo, "%ld %s\n", v.value, v.name);
+		}
+	}
+	fputs("\n", editEventsFifo);
+	fflush(editEventsFifo);
+}
+
 void dl_init() {
 	dl_updVars.init();
 	updReset_pre();
 	updReset_post();
+	editEventsFifo = fopen("edit_events.fifo", "w");
+	if (!editEventsFifo) {
+		// TODO shouldn't assume everyone is using an edit setup,
+		//      make it more clear that this isn't a big deal.
+		perror("Failed to open edit_events.fifo");
+	}
 }
 
 void dl_destroy() {
+	if (editEventsFifo) fclose(editEventsFifo);
 	dl_updVars.destroy();
 }

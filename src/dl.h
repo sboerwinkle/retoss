@@ -15,6 +15,7 @@ extern int64_t var(char const *name, int64_t val);
 
 extern void dl_processFile(char const *filename, gamestate *gs);
 extern void dl_upd(gamestate *gs);
+extern void dl_bake(char const *name);
 
 extern void dl_init();
 extern void dl_destroy();
