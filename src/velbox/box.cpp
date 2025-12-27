@@ -10,15 +10,12 @@ static char isLeaf(box *b) {
 	return !!b->data;
 }
 
-// Todo This is definitely messy stuff, but it's where I am for now.
-//      The only other option I can think of is allocating a box,
-//      and then completely abusing `kids` and `intersects` to mean something
-//      completely different.
-//      What I'm trying to avoid is re-allocating the list memory each time
-//      one of the functions that needs a local list is entered,
-//      and this achieves that, just at the cost that I have to be careful
-//      about which methods might potentially be on the callstack when the
-//      method which needs global lists is in use.
+// This is definitely messy stuff, but it's where I am for now.
+//
+// Static lists mean I can avoid re-allocating list memory each
+// time a function that uses a list is entered, but the cost is
+// that I have to be aware of any other functions that might be
+// on the call stack (plus the entire file is not thread-safe).
 static list<box*> *globalOptionsDest, *globalOptionsSrc;
 static list<box*> *lookDownSrc, *lookDownDest;
 static list<box*> refreshList;
