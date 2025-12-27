@@ -1,13 +1,51 @@
 #include "gamestate.h"
 #include "matrix.h"
 
-static unitvec const cubeFaceNorms[6] = {
-	{ FIXP,     0,     0},
-	{-FIXP,     0,     0},
-	{    0,  FIXP,     0},
-	{    0, -FIXP,     0},
-	{    0,     0,  FIXP},
-	{    0,     0, -FIXP}
+struct shapeSpec {
+	int const numFaces;
+	unitvec const *facings;
+	int32_t const *distances;
+};
+
+shapeSpec shapeSpecs[2] = {
+	{
+		.numFaces = 6,
+		.facings = (unitvec const []){
+			{ FIXP,     0,     0},
+			{-FIXP,     0,     0},
+			{    0,  FIXP,     0},
+			{    0, -FIXP,     0},
+			{    0,     0,  FIXP},
+			{    0,     0, -FIXP},
+		},
+		.distances = (int32_t const []){
+			FIXP,
+			FIXP,
+			FIXP,
+			FIXP,
+			FIXP,
+			FIXP,
+		}
+	},
+	{
+		.numFaces = 6,
+		.facings = (unitvec const []){
+			{ FIXP,     0,     0},
+			{-FIXP,     0,     0},
+			{    0,  FIXP,     0},
+			{    0, -FIXP,     0},
+			{    0,     0,  FIXP},
+			{    0,     0, -FIXP}
+		},
+		.distances = (int32_t const []){
+			FIXP,
+			FIXP,
+			FIXP,
+			FIXP,
+			FIXP/8,
+			FIXP/8,
+		}
+	}
 };
 
 // Assumes `o` isn't, like, super-duper big
@@ -37,6 +75,7 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 	imat_applySm(v1, rot1, v1raw);
 	imat_applySm(v2, rot2, v2raw);
 
+	shapeSpec &sh = shapeSpecs[s->shape];
 	int winner = 0;
 	int64_t best = INT64_MIN;
 	int64_t winnerDepth = 0;
@@ -47,11 +86,9 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 	// Or rather, if you rotate vectors that big, you'd need to know in advance that they're big
 	// (like e.g. orbital dynamics), and invoke a dedicated routine that divides by FIXP *first*.
 	// Who knows, at that scale you may even need more accurate rotations.
-	range(i, 6) {
-		int32_t const *norm = cubeFaceNorms[i];
-		// Cubes have the same offset for all their faces,
-		// so `limit` is constant across faces in this case.
-		int32_t limit = s->r + radius;
+	range(i, sh.numFaces) {
+		int32_t const *norm = sh.facings[i];
+		int32_t limit = s->r*sh.distances[i]/FIXP + radius;
 
 		int64_t d1 = dot(v1, norm) - limit;
 		int64_t d2 = dot(v2, norm) - limit;
@@ -75,7 +112,7 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 	// Hit, collide with face `winner`.
 	unitvec forceDir;
 	// Lots of ways I could do this; e.g. a dedicated method to apply our existing rotation matrix but in reverse.
-	iquat_apply(forceDir, s->rot, cubeFaceNorms[winner]);
+	iquat_apply(forceDir, s->rot, sh.facings[winner]);
 	range(i, 3) dest[i] -= winnerDepth*forceDir[i]/FIXP;
 
 	// TODO this should be a bit more complex,

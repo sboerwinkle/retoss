@@ -22,7 +22,7 @@
 char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png"};
 GLuint textures[NUM_TEXS];
 
-static void populateCubeVertexData(list<GLfloat> *data);
+static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
@@ -54,7 +54,7 @@ static GLint u_spr_tex_offset;
 
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
-static int vtxIdx_cubeOneFace = -1, vtxIdx_cubeSixFace = -1;
+static int vtxIdx_cubeOneFace = -1, vtxIdx_slabOneFace = -1, vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
 static int64_t *camPos;
@@ -246,8 +246,10 @@ void initGraphics() {
 	list<GLfloat> vtxData;
 	vtxData.init();
 	vtxIdx_cubeOneFace = 0;
-	populateCubeVertexData(&vtxData);
-	vtxIdx_cubeSixFace = vtxData.num / 8; // 8 is our "stride", I think it's called
+	populateCubeVertexData(&vtxData, 1, 1, 1);
+	vtxIdx_slabOneFace = vtxData.num / 8; // 8 is our "stride", I think it's called
+	populateCubeVertexData(&vtxData, 1, 1, 1.0/8);
+	vtxIdx_cubeSixFace = vtxData.num / 8;
 	populateCubeVertexData2(&vtxData);
 
 	// vaos[0]
@@ -378,7 +380,7 @@ void setupFrame(int64_t *_camPos) {
 	camPos = _camPos;
 }
 
-void drawCube(solid *s, int tex, char sixFaced) {
+void drawCube(solid *s, int tex, int mesh) {
 	// Will need scaling (and mottling) eventually
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
@@ -406,8 +408,19 @@ void drawCube(solid *s, int tex, char sixFaced) {
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_texscale, s->r/1000);
 	glUniform2f(u_main_texoffset, 0, 0);
+
+	int32_t vertexIndex;
+	if (mesh == 0) {
+		vertexIndex = vtxIdx_cubeOneFace;
+	} else if (mesh == 1) {
+		vertexIndex = vtxIdx_slabOneFace;
+	} else {
+		vertexIndex = vtxIdx_cubeSixFace;
+	}
+
+	// For now, all our meshes have the same number of vertices:
 	// 6 faces * 2 tris/face * 3 vtx/tri = 36 vertexes to draw
-	glDrawArrays(GL_TRIANGLES, sixFaced ? vtxIdx_cubeSixFace : vtxIdx_cubeOneFace, 36);
+	glDrawArrays(GL_TRIANGLES, vertexIndex, 36);
 }
 
 void setup2d() {
@@ -515,54 +528,54 @@ void drawHudRect(double x, double y, double w, double h, float *color) {
         data->add(t); \
 // END vtx
 
-// At some point this may be a bit more dynamic if we have other
-// geometry "primitives" we want to render
-static void populateCubeVertexData(list<GLfloat> *data) {
-	GLfloat L = -1, R = 1;
-	GLfloat F = -1, B = 1;
-	GLfloat D = -1, U = 1;
+// This handles the single-textured "cube" and "slab" meshes,
+// and will probably handle a "rod"/"pillar" at some point as well
+static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z) {
+	GLfloat L = -x, R = x;
+	GLfloat F = -y, B = y;
+	GLfloat D = -z, U = z;
 	// up
 	vtx(L, B, U, 0, 0, U, 0, 0);
-	vtx(L, F, U, 0, 0, U, 0, 1);
-	vtx(R, B, U, 0, 0, U, 1, 0);
-	vtx(R, F, U, 0, 0, U, 1, 1);
-	vtx(R, B, U, 0, 0, U, 1, 0);
-	vtx(L, F, U, 0, 0, U, 0, 1);
+	vtx(L, F, U, 0, 0, U, 0, y);
+	vtx(R, B, U, 0, 0, U, x, 0);
+	vtx(R, F, U, 0, 0, U, x, y);
+	vtx(R, B, U, 0, 0, U, x, 0);
+	vtx(L, F, U, 0, 0, U, 0, y);
 	// front
 	vtx(L, F, U, 0, F, 0, 0, 0);
-	vtx(L, F, D, 0, F, 0, 0, 1);
-	vtx(R, F, U, 0, F, 0, 1, 0);
-	vtx(R, F, D, 0, F, 0, 1, 1);
-	vtx(R, F, U, 0, F, 0, 1, 0);
-	vtx(L, F, D, 0, F, 0, 0, 1);
+	vtx(L, F, D, 0, F, 0, 0, z);
+	vtx(R, F, U, 0, F, 0, x, 0);
+	vtx(R, F, D, 0, F, 0, x, z);
+	vtx(R, F, U, 0, F, 0, x, 0);
+	vtx(L, F, D, 0, F, 0, 0, z);
 	// right
 	vtx(R, F, U, R, 0, 0, 0, 0);
-	vtx(R, F, D, R, 0, 0, 0, 1);
-	vtx(R, B, U, R, 0, 0, 1, 0);
-	vtx(R, B, D, R, 0, 0, 1, 1);
-	vtx(R, B, U, R, 0, 0, 1, 0);
-	vtx(R, F, D, R, 0, 0, 0, 1);
+	vtx(R, F, D, R, 0, 0, 0, z);
+	vtx(R, B, U, R, 0, 0, y, 0);
+	vtx(R, B, D, R, 0, 0, y, z);
+	vtx(R, B, U, R, 0, 0, y, 0);
+	vtx(R, F, D, R, 0, 0, 0, z);
 	// left
 	vtx(L, B, U, L, 0, 0, 0, 0);
-	vtx(L, B, D, L, 0, 0, 0, 1);
-	vtx(L, F, U, L, 0, 0, 1, 0);
-	vtx(L, F, D, L, 0, 0, 1, 1);
-	vtx(L, F, U, L, 0, 0, 1, 0);
-	vtx(L, B, D, L, 0, 0, 0, 1);
+	vtx(L, B, D, L, 0, 0, 0, z);
+	vtx(L, F, U, L, 0, 0, y, 0);
+	vtx(L, F, D, L, 0, 0, y, z);
+	vtx(L, F, U, L, 0, 0, y, 0);
+	vtx(L, B, D, L, 0, 0, 0, z);
 	// back
 	vtx(R, B, U, 0, B, 0, 0, 0);
-	vtx(R, B, D, 0, B, 0, 0, 1);
-	vtx(L, B, U, 0, B, 0, 1, 0);
-	vtx(L, B, D, 0, B, 0, 1, 1);
-	vtx(L, B, U, 0, B, 0, 1, 0);
-	vtx(R, B, D, 0, B, 0, 0, 1);
+	vtx(R, B, D, 0, B, 0, 0, z);
+	vtx(L, B, U, 0, B, 0, x, 0);
+	vtx(L, B, D, 0, B, 0, x, z);
+	vtx(L, B, U, 0, B, 0, x, 0);
+	vtx(R, B, D, 0, B, 0, 0, z);
 	// down
 	vtx(L, F, D, 0, 0, D, 0, 0);
-	vtx(L, B, D, 0, 0, D, 0, 1);
-	vtx(R, F, D, 0, 0, D, 1, 0);
-	vtx(R, B, D, 0, 0, D, 1, 1);
-	vtx(R, F, D, 0, 0, D, 1, 0);
-	vtx(L, B, D, 0, 0, D, 0, 1);
+	vtx(L, B, D, 0, 0, D, 0, y);
+	vtx(R, F, D, 0, 0, D, x, 0);
+	vtx(R, B, D, 0, 0, D, x, y);
+	vtx(R, F, D, 0, 0, D, x, 0);
+	vtx(L, B, D, 0, 0, D, 0, y);
 }
 
 static void populateCubeVertexData2(list<GLfloat> *data) {

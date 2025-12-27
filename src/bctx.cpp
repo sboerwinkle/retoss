@@ -79,8 +79,8 @@ void buildCtx::resel() {
 	selecting = 1;
 }
 
-void buildCtx::add(int32_t tex, int64_t size) {
-	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], size*transf.scale/1000, tex);
+void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
+	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], size*transf.scale/1000, shape, tex);
 	memcpy(s->rot, transf.rot, sizeof(transf.rot));
 	gs->selection.add(s);
 	prevBox = s->b;

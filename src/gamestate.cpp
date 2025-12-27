@@ -27,6 +27,17 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 	range(i, gs->players.num) resetPlayer(gs, i);
 }
 
+// cube diagonal is sqrt(3), or approx 1.75 (=7/4)
+// square diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
+static double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2};
+
+static void solidValidate(solid *s) {
+	if (s->shape < 0 || s->shape >= NUM_SHAPES) {
+		printf("Invalid shape %d!!\n", s->shape);
+		s->shape = 0;
+	}
+}
+
 static void solidPutVb(solid *s, box *guess) {
 	box *tmp = velbox_alloc();
 	s->b = tmp;
@@ -34,7 +45,7 @@ static void solidPutVb(solid *s, box *guess) {
 	tmp->vel[0] = 0;
 	tmp->vel[1] = 0;
 	tmp->vel[2] = 0;
-	tmp->r = s->r*7/4; // cube diagonal is sqrt(3), or approx 1.75
+	tmp->r = s->r*shapeDiagonalMultipliers[s->shape];
 	tmp->end = tmp->start + 15; // 1 second
 	tmp->data = s;
 	velbox_insert(guess, tmp);
@@ -71,7 +82,7 @@ static solid* solidDup(solid *s) {
 	return t;
 }
 
-solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex) {
+solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
 	solid *s = new solid();
 	gs->solids.add(s);
 	s->pos[0] = x;
@@ -80,11 +91,14 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	s->oldPos[0] = s->oldPos[1] = s->oldPos[2] = -1;
 	s->vel[0] = s->vel[1] = s->vel[2] = 0;
 	s->r = r;
+	s->shape = shape;
 	s->tex = tex;
 	s->rot[0] = FIXP;
 	s->rot[1] = 0;
 	s->rot[2] = 0;
 	s->rot[3] = 0;
+
+	solidValidate(s);
 
 	solidPutVb(s, b);
 	return s;
@@ -126,7 +140,7 @@ void runTick(gamestate *gs) {
 }
 
 void mkSolidAtPlayer(gamestate *gs, player *p, iquat r) {
-	solid *s = addSolid(gs, p->prox, p->pos[0], p->pos[1], p->pos[2], 1000, 4);
+	solid *s = addSolid(gs, p->prox, p->pos[0], p->pos[1], p->pos[2], 1000, 0, 4);
 	memcpy(s->rot, r, sizeof(iquat)); // Array types are weird in C
 }
 
@@ -225,6 +239,7 @@ static void transSolid(solid *s) {
 	transBlock(s->pos, sizeof(s->pos));
 	transBlock(s->vel, sizeof(s->vel));
 	trans64(&s->r);
+	trans32(&s->shape);
 	trans32(&s->tex);
 	transBlock(s->rot, sizeof(s->rot));
 	transWeakRef(&s->b, &boxSerizPtrs);
@@ -233,6 +248,11 @@ static void transSolid(solid *s) {
 		// but ideally nothing will need them before they are reset.
 		memset(s->oldPos, 0, sizeof(s->oldPos));
 		memset(s->oldRot, 0, sizeof(s->oldRot));
+
+		// Sanity / malicious data check.
+		// Doing our own serialization means we're responsible for avoiding array access issues...
+		solidValidate(s);
+
 		// Box and Solid have ptrs to each other, but only one dir gets
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
 		s->b->data = s;

@@ -13,11 +13,14 @@ struct player {
 	int tmp;
 };
 
+#define NUM_SHAPES 2
+
 struct solid : cloneable {
 	int64_t pos[3];
 	int64_t oldPos[3];
 	int64_t vel[3];
 	int64_t r;
+	int32_t shape;
 	int32_t tex;
 	iquat rot;
 	iquat oldRot; // This isn't serialized, and we don't care if it's copied. Should avoid using this until this solid has ticked!
@@ -34,7 +37,7 @@ struct gamestate {
 extern void resetPlayer(gamestate *gs, int i);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 
-extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t tex);
+extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex);
 extern void rmSolid(gamestate *gs, solid *s);
 
 extern void runTick(gamestate *gs);

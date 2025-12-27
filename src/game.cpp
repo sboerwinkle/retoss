@@ -56,9 +56,9 @@ gamestate* game_init2() {
 	gamestate *gs = (gamestate*)malloc(sizeof(gamestate));
 	init(gs);
 
-	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 2+32);
-	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 4);
-	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 4);
+	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 0, 2+32);
+	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 0, 4);
+	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 1, 4);
 	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
 	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
 
@@ -332,7 +332,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
-		drawCube(s, s->tex & 31, !!(s->tex & 32));
+		int mesh = s->shape + ((s->tex & 32) / 16); // jank, just hits the 3 cases we need atm
+		drawCube(s, s->tex & 31, mesh);
 	}
 
 	setup2d();
