@@ -30,7 +30,6 @@ static void updateTiming(timing *t, long nanos);
 static int mouseX = 0, mouseY = 0;
 static char mouseDown = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
-static char debugPrint;
 static char renderStats = 0;
 quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
@@ -96,7 +95,6 @@ void handleKey(int key, int action) {
 		shiftPressed = action;
 	} else if (action) {
 		if (key == GLFW_KEY_F3)		renderStats ^= 1;
-		else if (key == GLFW_KEY_X)	debugPrint = 1;
 		else if (key == GLFW_KEY_E) {
 			if (ctrlPressed) {
 				editMenuState = ~editMenuState;
@@ -339,11 +337,10 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	setup2d();
 	setup2dText();
+	if (main_typingLen >= 0) {
+		drawText(main_textBuffer, 1, 1);
+	}
 	char msg[20];
-	/*
-	snprintf(msg, 20, "Hello, World!1! %2d.", gs->vb_root->kids.num);
-	drawText(msg, 1, 1);
-	*/
 
 	player *p = &gs->players[myPlayer];
 	snprintf(msg, 20, "t: %5d", p->tmp);
@@ -383,12 +380,6 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		);
 		drawText(msg, 1, textAreaBounds[1]*2-8);
 	}
-
-
-	if (debugPrint) debugPrint = 0; // lol
-	// We'll do more stuff here eventually (again)!
-
-	// TODO: Render text chat buffer that main.cpp maintains
 }
 
 static void updateTiming(timing *t, long nanos) {

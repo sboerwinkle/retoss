@@ -35,9 +35,11 @@ static int myPlayer;
 // Text input / sending queued text is
 // something I'm putting in the "core"
 // engine. Probably all games need it.
-char textBuffer[TEXT_BUF_LEN];
-char textSendInd = 0;
+int main_typingLen = -1;
+char main_textBuffer[TEXT_BUF_LEN];
 queue<strbuf> outboundTextQueue;
+char loopbackCommandBuffer[TEXT_BUF_LEN];
+static char textSendInd = 0;
 
 struct {
 	int width, height;
@@ -55,10 +57,7 @@ static gamestate *renderedState = NULL;
 long renderStartNanos = 0;
 char manualGlFinish = 1;
 
-static int typingLen = -1;
-
 static char chatBuffer[TEXT_BUF_LEN];
-char loopbackCommandBuffer[TEXT_BUF_LEN];
 
 // Mostly, nobody outside this file should use `rootState`,
 // but it's helpful to have for debug prints somtimes.
@@ -255,7 +254,7 @@ void shareInputs() {
 	copyInputs();
 	if (textSendInd) {
 		textSendInd = 0;
-		strcpy(outboundTextQueue.add().items, textBuffer);
+		strcpy(outboundTextQueue.add().items, main_textBuffer);
 	}
 
 	mtx_unlock(sharedInputsMutex);
@@ -593,20 +592,20 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 	// Most keypresses don't do their usual function if we're
 	// typing. Key releases are fine though! This approach is
 	// simpler than clearing all the keys when typing starts.
-	if (typingLen >= 0 && action != GLFW_RELEASE) {
+	if (main_typingLen >= 0 && action != GLFW_RELEASE) {
 		// Some keys gain a function when typing, though.
 		// Should I permit GLFW_REPEAT here as well (mostly for backspace)?
 		if (action == GLFW_PRESS) {
 			if (key == GLFW_KEY_ESCAPE) {
-				typingLen = -1;
-			} else if (key == GLFW_KEY_BACKSPACE && typingLen) {
-				textBuffer[typingLen] = '\0';
-				textBuffer[typingLen-1] = '_';
-				typingLen--;
+				main_typingLen = -1;
+			} else if (key == GLFW_KEY_BACKSPACE && main_typingLen) {
+				main_textBuffer[main_typingLen] = '\0';
+				main_textBuffer[main_typingLen-1] = '_';
+				main_typingLen--;
 			} else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) {
-				textBuffer[typingLen] = '\0';
+				main_textBuffer[main_typingLen] = '\0';
 				textSendInd = 1;
-				typingLen = -1;
+				main_typingLen = -1;
 			}
 		}
 		return;
@@ -618,31 +617,31 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 }
 
 static void character_callback(GLFWwindow* window, unsigned int c) {
-	if (typingLen < 0) {
+	if (main_typingLen < 0) {
 		// Maybe we start typing, but nothing else
 		if (!textSendInd) {
-			char *const t = textBuffer;
+			char *const t = main_textBuffer;
 			if (c == 't') {
 				t[1] = '\0';
 				t[0] = '_';
-				typingLen = 0;
+				main_typingLen = 0;
 			} else if (c == '/') {
 				t[2] = '\0';
 				t[1] = '_';
 				t[0] = '/';
-				typingLen = 1;
+				main_typingLen = 1;
 			}
 		}
 		return;
 	}
 
-	char *const t = textBuffer;
+	char *const t = main_textBuffer;
 	// `c` is the unicode codepoint
-	if (c >= 0x20 && c <= 0xFE && typingLen+2 < TEXT_BUF_LEN) {
-		t[typingLen+2] = '\0';
-		t[typingLen+1] = '_';
-		t[typingLen] = c;
-		typingLen++;
+	if (c >= 0x20 && c <= 0xFE && main_typingLen+2 < TEXT_BUF_LEN) {
+		t[main_typingLen+2] = '\0';
+		t[main_typingLen+1] = '_';
+		t[main_typingLen] = c;
+		main_typingLen++;
 	}
 }
 
@@ -879,7 +878,7 @@ int main(int argc, char **argv) {
 
 	// Setup text buffers.
 	// We make it so the player automatically sends the "syncme" command on their first frame
-	textBuffer[TEXT_BUF_LEN-1] = '\0';
+	main_textBuffer[TEXT_BUF_LEN-1] = '\0';
 	strcpy(outboundTextQueue.add().items, "/syncme");
 	if (isLoader) ensurePrefsSent();
 

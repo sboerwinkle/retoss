@@ -10,6 +10,8 @@
 #define TEXT_BUF_LEN 200
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
 
+extern int main_typingLen;
+extern char main_textBuffer[TEXT_BUF_LEN];
 extern queue<strbuf> outboundTextQueue;
 extern char loopbackCommandBuffer[TEXT_BUF_LEN];
 
