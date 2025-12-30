@@ -36,6 +36,8 @@ quat quatCamRotation = {1,0,0,0};
 
 static char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
+// For now this is just for editing, will need to update it some if it becomes for other stuff too
+static int numberPressed = 0;
 
 struct {
 	char u, d, l, r;
@@ -94,11 +96,14 @@ void handleKey(int key, int action) {
 	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
 		shiftPressed = action;
 	} else if (action) {
-		if (key == GLFW_KEY_F3)		renderStats ^= 1;
-		else if (key == GLFW_KEY_E) {
+		if (key == GLFW_KEY_F3) {
+			renderStats ^= 1;
+		} else if (key == GLFW_KEY_E) {
 			if (ctrlPressed) {
 				editMenuState = ~editMenuState;
 			}
+		} else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9) { // We exclude 0 because it's less than 1 and I'm paranoid
+			numberPressed = key+1-GLFW_KEY_1;
 		}
 	}
 }
@@ -175,8 +180,12 @@ void copyInputs() {
 			cmd = "/dlVarInc";
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
 		}
+		if (numberPressed) {
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
+		}
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
+	numberPressed = 0;
 }
 
 // In theory I think this would let us have a dynamic size of input data per-frame.
@@ -274,20 +283,25 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		else dl_bake(NULL);
 		return 1;
 	}
+	if (isCmd(buf, "/hotbar")) {
+		if (buf[7]) dl_hotbar(buf+8);
+		else dl_hotbar("");
+		return 1;
+	}
 	return 0;
 }
 
-char customLoopbackCommand(gamestate *gs, char const * str) {
+char customLoopbackCommand(gamestate *gs, int myPlayer, char const * str) {
 	if (isCmd(str, "/dl")) {
 		if (!str[3]) {
 			puts("/dl requires an arg!");
 			return 1;
 		}
-		dl_processFile(str+4, gs);
+		dl_processFile(str+4, gs, myPlayer);
 		return 1;
 	}
 	if (isCmd(str, "/dlUpd")) {
-		dl_upd(gs);
+		dl_upd(gs, myPlayer);
 		return 1;
 	}
 	return 0;

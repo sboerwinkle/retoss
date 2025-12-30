@@ -272,7 +272,7 @@ static void processLoopbackCommand() {
 		syncData.num = 0;
 		syncData.add(BIN_CMD_SYNC);
 		serialize(rootState, &syncData);
-	} else if (!customLoopbackCommand(rootState, c)) {
+	} else if (!customLoopbackCommand(rootState, myPlayer, c)) {
 		printf("Unknown loopback command: %s\n", c);
 	}
 }

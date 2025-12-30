@@ -22,7 +22,7 @@ extern int playerInputs(player *p, list<char> const * data);
 //// Text command stuff ////
 
 extern char handleLocalCommand(char * buf, list<char> * outData);
-extern char customLoopbackCommand(gamestate *gs, char const * str);
+extern char customLoopbackCommand(gamestate *gs, int myPlayer, char const * str);
 extern char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char isMe, char isReal);
 extern char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal);
 extern void prefsToCmds(queue<strbuf> *cmds);

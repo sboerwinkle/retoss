@@ -7,6 +7,7 @@
 
 #include "gamestate.h"
 #include "bctx.h"
+#include "game_graphics.h"
 
 #include "dl.h"
 #include "dl_game.h"
@@ -18,6 +19,8 @@ static void *fileHandle = NULL;
 static void (*lvlUpdFn)(gamestate*) = NULL;
 static FILE* editEventsFifo;
 
+static gamestate *updGamestate = NULL;
+static player *updPlayer = NULL;
 static int updVarsVersion = 0;
 list<dl_updVar> dl_updVars;
 int dl_updVarSelected = 0;
@@ -72,6 +75,38 @@ static void updReset_post() {
 	mtx_unlock(dl_updVarMtx);
 }
 
+static void upd_pre(gamestate *gs, int myPlayer) {
+	bctx.reset(gs);
+	if (updGamestate) {
+		puts("ERROR: dl: `updGamestate` already set, what's up???");
+		exit(1);
+	}
+	updGamestate = gs;
+	updPlayer = &gs->players[myPlayer];
+}
+
+static void upd_post() {
+	updGamestate = NULL;
+}
+
+// Right now this always returns the same pointer,
+// which of course could cause problems. Maybe revisit this at some point.
+int64_t* look(int64_t dist) {
+	static offset result;
+	if (!updGamestate) {
+		puts("WARN: dl: `look` called outside of `lvlUpd`?");
+		range(i, 3) result[i] = 0;
+	} else {
+		float dirPlayer[3] = {0, 1, 0};
+		float dirWorld[3];
+		quat_apply(dirWorld, quatCamRotation, dirPlayer);
+		range(i, 3) {
+			result[i] = updPlayer->pos[i] + (int64_t)(dirWorld[i] * dist);
+		}
+	}
+	return result;
+}
+
 void dl_resetVars(int version) {
 	// Aside from modifications being illegal when the lock isn't held,
 	// this is also an operation that semantically only happens during
@@ -121,7 +156,7 @@ int64_t var(char const *name, int64_t val) {
 	return val;
 }
 
-void dl_processFile(char const *filename, gamestate *gs) {
+void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 	const int bufLen = 100;
 	char path[bufLen];
 	snprintf(path, bufLen, "./src/dl_tmp/%s", filename);
@@ -159,16 +194,18 @@ void dl_processFile(char const *filename, gamestate *gs) {
 	lvlUpdFn = (void (*)(gamestate*)) dlsym(fileHandle, "lvlUpd");
 	updReset_pre();
 	if (lvlUpdFn) {
-		bctx.reset(gs);
+		upd_pre(gs, myPlayer);
 		(*lvlUpdFn)(gs);
+		upd_post();
 	}
 	updReset_post();
 }
 
-void dl_upd(gamestate *gs) {
+void dl_upd(gamestate *gs, int myPlayer) {
 	if (lvlUpdFn) {
-		bctx.reset(gs);
+		upd_pre(gs, myPlayer);
 		(*lvlUpdFn)(gs);
+		upd_post();
 	}
 }
 
@@ -182,6 +219,12 @@ void dl_bake(char const *name) {
 		}
 	}
 	fputs("\n", editEventsFifo);
+	fflush(editEventsFifo);
+}
+
+void dl_hotbar(char const *name) {
+	if (!editEventsFifo) return;
+	fprintf(editEventsFifo, "/hotbar %s\n", name);
 	fflush(editEventsFifo);
 }
 
