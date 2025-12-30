@@ -40,7 +40,7 @@ static int editMouseAmt = 0, editMouseShiftAmt = 0;
 static int numberPressed = 0;
 
 struct {
-	char u, d, l, r;
+	char u, d, l, r, z, Z;
 } activeInputs = {}, sharedInputs = {};
 
 void game_init() {
@@ -91,6 +91,8 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_A)     activeInputs.l = action;
 	else if (key == GLFW_KEY_S)     activeInputs.d = action;
 	else if (key == GLFW_KEY_W)     activeInputs.u = action;
+	else if (key == GLFW_KEY_SPACE) activeInputs.z = action;
+	else if (key == GLFW_KEY_C)     activeInputs.Z = action;
 	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
 	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
@@ -197,9 +199,11 @@ void serializeInputs(char * dest) {
 	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
 	int32_t *p = (int32_t*) dest;
 
-	float keyboard_x = (float)(sharedInputs.r-sharedInputs.l);
-	float keyboard_y = (float)(sharedInputs.u-sharedInputs.d);
-	float dirKeyboard[3] = {keyboard_x, keyboard_y, 0};
+	float dirKeyboard[3] = {
+		(float)(sharedInputs.r-sharedInputs.l),
+		(float)(sharedInputs.u-sharedInputs.d),
+		(float)(sharedInputs.z-sharedInputs.Z),
+	};
 	float dirWorld[3];
 	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
 	range(i, 3) p[i] = 10*dirWorld[i];
