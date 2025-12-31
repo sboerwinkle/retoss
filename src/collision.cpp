@@ -128,3 +128,12 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 // Next up is probably figuring out how to collide something that has a number of spheres
 // with a whole nasty nested network of solids.
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
+
+// Thoughts about raycasting, which I'll have to be doing soon for edit selection
+// (and must not rely on floating-point math, since I'm probably going to need it for bullets too)
+// Basically I need a position and a velocity, and we can do the same trick as bittoss where we do
+// numer vs denom comparisons to keep a rolling best.
+// Then whichever solid (collides and) collides soonest is the result of our raycast.
+// Velocities we'll keep to FIXP, and positions we'll assume to be small-ish int64_t (so the product fits in int64_t)
+// Then the distance is just a straightforward `dot` (as already defined) (minus the face's offset),
+// and the speed is almost exactly the same except operating on two `unitvec` inputs (cast direction and face normal).

@@ -67,16 +67,19 @@ def bake(lines, last_src_name):
         if item == "\n":
             break
         parts = item.split(' ', 1)
-        value = int(parts[0])
-        name = parts[1][:-1] # Remove trailing newline
-        replacements[name] = str(value)
+        name = parts[0]
+        value = parts[1].strip()
+        replacements[name] = value
 
-    # This matches calls to the `var` function, assuming you don't nest `()` more than one layer deep inside.
+    # This matches calls to the `var` or `pvar` functions,
+    # assuming you don't nest `()` more than one layer deep inside.
     # If you need more, I'll have to start basically parsing C source for real lol
-    var_regex = r'\bvar\("([^"]*)"([^()]|\([^()]*\))*\)'
+    var_regex = r'\b(p?var\("([^"]*)")([^()]|\([^()]*\))*\)'
     def replace_func(m):
-        # Try to look up key, using whole match as a fallback.
-        return replacements.get(m.group(1), m.group(0))
+        key = m.group(2)
+        if key not in replacements:
+            return m.group(0) # No change
+        return f"{m.group(1)}, {replacements[key]})";
 
     segments = parse_src(last_src_name)
     for s in segments:

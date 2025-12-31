@@ -151,6 +151,13 @@ void iquat_applySm(offset dest, iquat q, offset const src) {
 		             + ysqk*q[2] + ysqi*q[0] ) / (FIXP/2);
 }
 
+void iquat_inv(iquat dest, iquat src) {
+	dest[0] = src[0];
+	dest[1] = -src[1];
+	dest[2] = -src[2];
+	dest[3] = -src[3];
+}
+
 void quat_print(quat t){
 	printf("%.2f %.2f %.2f %.2f\n", t[0],t[1],t[2],t[3]);
 }

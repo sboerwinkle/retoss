@@ -49,15 +49,11 @@ static void lvlWr_reset(gamestate *gs) {
 static void updReset_pre() {
 	mtx_lock(dl_updVarMtx);
 	updResetting = 1;
-
-	rangeconst(i, dl_updVars.num) {
-		dl_updVars[i].inUse = 0;
-	}
 }
 
 static void updReset_post() {
 	range(i, dl_updVars.num) {
-		if (!dl_updVars[i].inUse) {
+		if (!dl_updVars[i].seen) {
 			dl_updVars.rmAt(i);
 			i--;
 		}
@@ -66,7 +62,8 @@ static void updReset_post() {
 	if (!dl_updVars.num) {
 		dl_updVar *x = &dl_updVars.add();
 		strcpy(x->name, "[NONE]");
-		x->value = x->incr = x->inUse = 1;
+		x->value.integer = x->incr = x->seen = 1;
+		x->type = VAR_T_INT;
 	}
 
 	if (dl_updVarSelected >= dl_updVars.num) dl_updVarSelected = 0;
@@ -83,6 +80,10 @@ static void upd_pre(gamestate *gs, int myPlayer) {
 	}
 	updGamestate = gs;
 	updPlayer = &gs->players[myPlayer];
+
+	rangeconst(i, dl_updVars.num) {
+		dl_updVars[i].seen = 0;
+	}
 }
 
 static void upd_post() {
@@ -100,9 +101,17 @@ int64_t* look(int64_t dist) {
 		float dirPlayer[3] = {0, 1, 0};
 		float dirWorld[3];
 		quat_apply(dirWorld, quatCamRotation, dirPlayer);
+
+		// This is the offset from `bctx`'s position, but still with the world rotation (no rotation)
+		offset intermediate;
 		range(i, 3) {
-			result[i] = updPlayer->pos[i] + (int64_t)(dirWorld[i] * dist);
+			intermediate[i] = (int64_t)(dirWorld[i] * dist) + updPlayer->pos[i] - bctx.transf.pos[i];
 		}
+
+		// Convert `intermediate` to use `bctx`'s rotation
+		iquat invRot;
+		iquat_inv(invRot, bctx.transf.rot);
+		iquat_applySm(result, invRot, intermediate);
 	}
 	return result;
 }
@@ -119,16 +128,10 @@ void dl_resetVars(int version) {
 	}
 }
 
-// Unlike most non-static methods, we omit the "dl_" prefix.
-// This method has a super-short name since it's intended for use in
-// the dl'd source files for level editing.
-int64_t var(char const *name) { return var(name, 0); }
-
-int64_t var(char const *name, int64_t val) {
+static dl_updVar *findVarByName(char const *name) {
 	rangeconst(i, dl_updVars.num) {
 		if (!strncmp(name, dl_updVars[i].name, DL_VARNAME_LEN)) {
-			if (updResetting) dl_updVars[i].inUse = 1;
-			return dl_updVars[i].value;
+			return &dl_updVars[i];
 		}
 	}
 
@@ -140,20 +143,72 @@ int64_t var(char const *name, int64_t val) {
 		// look obsolete.
 		// (Also, we later added mutex locking on modifying that list!)
 		printf("Unexpected new var \"%s\"!\n", name);
-		return 0;
+		return NULL;
 	}
 	if (strlen(name) >= DL_VARNAME_LEN) {
 		printf("new var name \"%s\" is too long!\n", name);
-		return 0;
+		return NULL;
+	}
+	if (strchr(name, ' ')) {
+		// There's actually lots of stuff you shouldn't include -
+		// anything that requires a backslash escape -
+		// but spaces are maybe more common.
+		printf("new var name \"%s\" may not contain spaces!\n", name);
+		return NULL;
 	}
 
 	dl_updVar *x = &dl_updVars.add();
 	strcpy(x->name, name);
-	x->value = val;
+	x->seen = 0;
 	x->incr = 1;
-	x->inUse = 1;
+	x->type = VAR_T_UNSET;
 
-	return val;
+	return x;
+}
+
+// Unlike most non-static methods, we omit the "dl_" prefix.
+// This method has a super-short name since it's intended for use in
+// the dl'd source files for level editing.
+int64_t var(char const *name) { return var(name, 0); }
+
+int64_t var(char const *name, int64_t val) {
+	dl_updVar *v = findVarByName(name);
+
+	if (!v) return 0;
+
+	v->seen = 1;
+
+	if (v->type == VAR_T_UNSET) { // New var
+		v->type = VAR_T_INT;
+		v->value.integer = val;
+	}
+
+	return v->value.integer;
+}
+
+int64_t const * pvar(char const *name, offset const val) {
+	dl_updVar *v = findVarByName(name);
+
+	if (!v) return (offset const){0,0,0};
+
+	if (!v->seen) {
+		v->seen = 1;
+		// Store the reverse of the current buildContext's rotation,
+		// which we use for translating edit gestures into this coordinate system.
+		// This one is a floating-point quaternion, since it's only used for edit input
+		// (so we don't require reproducible math)
+		v->value.position.rot[0] = (double)bctx.transf.rot[0] / FIXP;
+		v->value.position.rot[1] = (double)-bctx.transf.rot[1] / FIXP;
+		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
+		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
+	}
+
+	if (v->type == VAR_T_UNSET) { // New var
+		v->type = VAR_T_POS;
+		memcpy(v->value.position.vec, val, sizeof(offset));
+	}
+
+	return v->value.position.vec;
 }
 
 void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
@@ -215,7 +270,17 @@ void dl_bake(char const *name) {
 	rangeconst(i, dl_updVars.num) {
 		dl_updVar &v = dl_updVars[i];
 		if (!name || !strcmp(name, v.name)) {
-			fprintf(editEventsFifo, "%ld %s\n", v.value, v.name);
+			if (v.type == VAR_T_INT) {
+				fprintf(editEventsFifo, "%s %ld\n", v.name, v.value.integer);
+			} else if (v.type == VAR_T_POS) {
+				fprintf(
+					editEventsFifo, "%s (offset const){%ld, %ld, %ld}\n",
+					v.name,
+					v.value.position.vec[0],
+					v.value.position.vec[1],
+					v.value.position.vec[2]
+				);
+			}
 		}
 	}
 	fputs("\n", editEventsFifo);

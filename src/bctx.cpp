@@ -80,7 +80,12 @@ void buildCtx::resel() {
 }
 
 void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
-	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], size*transf.scale/1000, shape, tex);
+	int64_t finalSize = size*transf.scale/1000;
+	if (finalSize <= 0) {
+		printf("bctx: Bad object size %ld\n", finalSize);
+		return;
+	}
+	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], finalSize, shape, tex);
 	memcpy(s->rot, transf.rot, sizeof(transf.rot));
 	gs->selection.add(s);
 	prevBox = s->b;

@@ -27,8 +27,10 @@ struct timing {
 static timing logicTiming = {0}, renderTiming = {0};
 static void updateTiming(timing *t, long nanos);
 
-static int mouseX = 0, mouseY = 0;
-static char mouseDown = 0;
+static char mouseGrabbed = 0;
+static char mouseDragMode = 0;
+static int mouseDragSize = 30, mouseDragSteps = 0;
+static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
 static char renderStats = 0;
 quat tmpGameRotation = {1,0,0,0};
@@ -51,11 +53,10 @@ void game_init() {
 	bctx_init();
 }
 
-// TODO gamestate init logic should be the responsibility of gamestate.cpp.
-//      `game_init2` can be responsible for level gen if it wants to,
-//      but not data integrity.
 gamestate* game_init2() {
 	gamestate *gs = (gamestate*)malloc(sizeof(gamestate));
+	// It's okay to do level gen in this method, but correct initialization of the gamestate
+	// is handled by gamestate.cpp (in this call)
 	init(gs);
 
 	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 0, 2+32);
@@ -104,38 +105,64 @@ void handleKey(int key, int action) {
 			if (ctrlPressed) {
 				editMenuState = ~editMenuState;
 			}
+		} else if (key == GLFW_KEY_ESCAPE) {
+			mouseGrab(0);
+			mouseGrabbed = 0;
 		} else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9) { // We exclude 0 because it's less than 1 and I'm paranoid
 			numberPressed = key+1-GLFW_KEY_1;
 		}
 	}
 }
 
-void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
-	int x = xpos;
-	int y = ypos;
-	if (mouseDown) {
-		float dx = x - mouseX;
-		float dy = y - mouseY;
-		float dist = sqrt(dx*dx + dy*dy);
-		float scale = mouseDown == 1 ? 0.002 : -0.0008;
-		float radians = dist * scale;
-		// Because of quaternion math, this represents a rotation of `radians*2`.
-		// We cap it at under a half rotation, after which I'm not sure my
-		// quaternions keep behaving haha
-		if (radians > 1.5) radians = 1.5;
-		float s = sin(radians);
-		// Positive X -> mouse to the right -> rotate about +Z
-		// Positive Y -> mouse down -> rotate around +X
+static void handleLook(double dx, double dy) {
+	float dist = sqrt(dx*dx + dy*dy);
+	float scale = -0.0008;
+	float radians = dist * scale;
+	// Because of quaternion math, this represents a rotation of `radians*2`.
+	// We cap it at under a half rotation, after which I'm not sure my
+	// quaternions keep behaving haha
+	if (radians > 1.5) radians = 1.5;
+	float s = sin(radians);
+	// (Not sure if the below notes are still right actually:)
+	// Positive X -> mouse to the right -> rotate about +Z
+	// Positive Y -> mouse down -> rotate around +X
 
-		quat r = {cos(radians), s*dy/dist, 0, s*dx/dist};
-		if (mouseDown == 1) {
-			quat_rotateBy(tmpGameRotation, r);
-			quat_norm(tmpGameRotation);
+	quat r = {cos(radians), (float)(s*dy/dist), 0, (float)(s*dx/dist)};
+	quat o;
+	quat_mult(o, r, quatCamRotation);
+	quat_norm(o);
+	memcpy(quatCamRotation, o, sizeof(quat));
+}
+
+static void handleDrag(double x, double y) {
+	if (mouseDragMode == 1) {
+		// Still need to pick a direction
+		if (fabs(x-mouseX) >= mouseDragSize) {
+			mouseDragMode = 2;
+		} else if (fabs(y-mouseY) >= mouseDragSize) {
+			mouseDragMode = 3;
 		} else {
-			quat o;
-			quat_mult(o, r, quatCamRotation);
-			quat_norm(o);
-			memcpy(quatCamRotation, o, sizeof(quat));
+			return;
+		}
+	}
+	// We know which direction we're looking at (X or Y)
+	double *a = mouseDragMode == 2 ? &mouseX : &mouseY;
+	double b = mouseDragMode == 2 ? x : y;
+	int steps = (b-*a)/mouseDragSize;
+	*a += mouseDragSize * steps;
+	mouseDragSteps += steps;
+}
+
+void cursor_position_callback(GLFWwindow *window, double x, double y) {
+	if (mouseGrabbed) {
+		if (mouseDragMode == 0) {
+			handleLook(x - mouseX, y - mouseY);
+		} else if (mouseDragMode == -1) {
+			// Don't look this frame, just update mouseX/mouseY
+			mouseDragMode = 0;
+		} else {
+			handleDrag(x, y);
+			return;
 		}
 	}
 	mouseX = x;
@@ -143,19 +170,37 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
 }
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
+	if (!mouseGrabbed && action == GLFW_PRESS) {
+		mouseGrab(1);
+		mouseGrabbed = 1;
+		return;
+	}
+	if (mouseDragMode > 0 && button == GLFW_MOUSE_BUTTON_LEFT && !action) {
+		if (editMenuState == 0 && mouseDragMode == 1) {
+			// Mouse wasn't actually dragged (this is just a click),
+			// and the edit menu is visible and at the top level.
+			// Go into the deeper level.
+			editMenuState = 1;
+		}
+		// Stop dragging the mouse.
+		// -1 is a short-lived state that prevents the view jumping.
+		mouseDragMode = -1;
+		return;
+	}
 	if (ctrlPressed && editMenuState >= 0) {
-		if (action != GLFW_PRESS) return;
-		// I used to have 3 states, but now it's just 2 so this looks funny lol
+		if (!action) return;
 		if (button == 0) {
-			if (editMenuState < 1) editMenuState++;
+			mouseDragMode = 1;
 		} else if (button == 1) {
-			if (editMenuState > 0) editMenuState--;
+			if (editMenuState == 1) editMenuState = 0;
 		}
 		return;
 	}
 
+	/*
 	if (action == GLFW_PRESS && (button == 0 || button == 1)) mouseDown = button+1;
 	else mouseDown = 0;
+	*/
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
 	if (ctrlPressed) {
@@ -163,7 +208,12 @@ void scroll_callback(GLFWwindow *window, double x, double y) {
 		else editMouseAmt += y;
 	}
 }
-void window_focus_callback(GLFWwindow *window, int focused) {}
+void window_focus_callback(GLFWwindow *window, int focused) {
+	if (!focused) {
+		mouseGrab(0);
+		mouseGrabbed = 0;
+	}
+}
 
 void copyInputs() {
 	// This matter a lot more if you're doing anything non-atomic writes,
@@ -175,7 +225,7 @@ void copyInputs() {
 		char const *cmd;
 		if (editMouseAmt) {
 			if (editMenuState == 0) cmd = "/dlVarSel";
-			else cmd = "/dlVarVal";
+			else cmd = "/v@+ 1";
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
 		}
 		if (editMouseShiftAmt && editMenuState == 1) {
@@ -188,6 +238,20 @@ void copyInputs() {
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
 	numberPressed = 0;
+
+	if (mouseDragSteps) {
+		if (mouseDragMode > 1) {
+			int axis;
+			if (mouseDragMode == 2) {
+				axis = 0;
+			} else {
+				axis = 2;
+				mouseDragSteps *= -1;
+			}
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/v@+ %d %d", axis, mouseDragSteps);
+		}
+		mouseDragSteps = 0;
+	}
 }
 
 // In theory I think this would let us have a dynamic size of input data per-frame.
@@ -238,13 +302,6 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		strcpy(loopbackCommandBuffer, buf);
 		return 1;
 	}
-	if (isCmd(buf, "/vars")) {
-		rangeconst(i, dl_updVars.num) {
-			dl_updVar &v = dl_updVars[i];
-			printf("%s: %ld\n", v.name, v.value);
-		}
-		return 1;
-	}
 	if (isCmd(buf, "/dlVarSel")) {
 		char const *pos = buf + 9;
 		int x;
@@ -255,14 +312,41 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		}
 		return 1;
 	}
-	if (isCmd(buf, "/dlVarVal")) {
-		char const *pos = buf + 9;
-		int x;
-		if (getNum(&pos, &x)) {
-			dl_updVar &v = dl_updVars[dl_updVarSelected];
-			v.value += x * v.incr;
-			strcpy(loopbackCommandBuffer, "/dlUpd");
+	if (isCmd(buf, "/v@+")) {
+		char const *pos = buf + 4;
+		int axis, amt;
+		if (!getNum(&pos, &axis) || !getNum(&pos, &amt)) {
+			puts("/v@+ requires 2 (numeric) args!");
+			return 1;
 		}
+		if (!(axis >= 0 && axis < 3)) {
+			puts("/v@+ invalid axis");
+			return 1;
+		}
+		dl_updVar &v = dl_updVars[dl_updVarSelected];
+		if (v.type == VAR_T_INT) {
+			v.value.integer += amt * v.incr;
+		} else if (v.type == VAR_T_POS) {
+			quat composedRotation;
+			quat_mult(composedRotation, quatCamRotation, v.value.position.rot);
+			float cameraSpace[3] = {0,0,0};
+			cameraSpace[axis] = 1;
+			float variableSpace[3];
+			quat_apply(variableSpace, composedRotation, cameraSpace);
+			int bestAxis = 0;
+			float bestComponent = 0;
+			int bestSign = 0;
+			range(i, 3) {
+				float component = fabs(variableSpace[i]);
+				if (component > bestComponent) {
+					bestComponent = component;
+					bestAxis = i;
+					bestSign = variableSpace[i] > 0 ? 1 : -1;
+				}
+			}
+			v.value.position.vec[bestAxis] += bestSign * v.incr * amt;
+		}
+		strcpy(loopbackCommandBuffer, "/dlUpd");
 		return 1;
 	}
 	if (isCmd(buf, "/dlVarInc")) {
@@ -374,7 +458,17 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		if (editMenuState == 0) {
 			rangeconst(i, dl_updVars.num) {
 				dl_updVar &v = dl_updVars[i];
-				snprintf(msg, 20, "%s: %ld", v.name, v.value);
+				if (v.type == VAR_T_INT) {
+					snprintf(msg, 20, "%s: %ld", v.name, v.value.integer);
+				} else if (v.type == VAR_T_POS) {
+					snprintf(
+						msg, 20, "%s: %ld, %ld, %ld",
+						v.name,
+						v.value.position.vec[0],
+						v.value.position.vec[1],
+						v.value.position.vec[2]
+					);
+				}
 				drawText(msg, 7, 1+7*(i+4));
 			}
 			drawText(">", 1, 1+7*(dl_updVarSelected+4));
@@ -382,7 +476,16 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 			dl_updVar &v = dl_updVars[dl_updVarSelected];
 			snprintf(msg, 20, "%s (+/-%ld)", v.name, v.incr);
 			drawText(msg, 7, 29);
-			snprintf(msg, 20, "%ld", v.value);
+			if (v.type == VAR_T_INT) {
+				snprintf(msg, 20, "%ld", v.value.integer);
+			} else if (v.type == VAR_T_POS) {
+				snprintf(
+					msg, 20, "%ld, %ld, %ld",
+					v.value.position.vec[0],
+					v.value.position.vec[1],
+					v.value.position.vec[2]
+				);
+			}
 			drawText(msg, 7, 36);
 		}
 		mtx_unlock(dl_updVarMtx);

@@ -33,6 +33,7 @@ extern void iquat_mult(iquat ret, iquat const a, iquat const b);
 extern void quat_apply(float dest[3], quat q, float src[3]);
 extern void iquat_apply(unitvec dest, iquat q, unitvec const src);
 extern void iquat_applySm(offset dest, iquat q, offset const src);
+extern void iquat_inv(iquat dest, iquat src);
 extern void quat_print(quat t);
 
 extern void mat4Multf(float* res, float* m1, float* m2);

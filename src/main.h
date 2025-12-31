@@ -19,8 +19,8 @@ extern char loopbackCommandBuffer[TEXT_BUF_LEN];
 // Need this for the types on some of the pointers we expose
 struct gamestate;
 
-extern void showMessage(gamestate const * const gs, char const * const msg);
-extern char isCmd(const char* input, const char *cmd);
-
 extern char globalRunning;
 extern gamestate *rootState;
+
+extern char isCmd(const char* input, const char *cmd);
+extern void mouseGrab(char grab);
