@@ -59,32 +59,26 @@ void quat_rotZ(quat ret, quat strt, float r){
 	quat_rotateBy(ret, tmp);
 }
 
-void quat_mult(quat ret, quat a, quat b){
+// We do our quaternion multiplications backwards from what I think is convention.
+// It makes sense for me that if I have a quaternion that converts vectors from
+// camera rotation to world rotation, and one that converts world rotation to item rotation,
+// then `camera->world` * `world->item` => `camera->item`.
+// These feels like the more natural way to compose rotations.
+// This is why args `a` and `b` are flipped.
+void quat_mult(quat ret, quat b, quat a){
 	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3]);
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2]);
 	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1]);
 	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0]);
 }
 
-void iquat_mult(iquat ret, iquat const a, iquat const b){
+void iquat_mult(iquat ret, iquat const b, iquat const a){
 	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3])/FIXP;
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2])/FIXP;
 	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1])/FIXP;
 	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0])/FIXP;
 }
 
-void iquat_mult(iquat ret, iquat a, iquat b){
-	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3])/FIXP;
-	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2])/FIXP;
-	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1])/FIXP;
-	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0])/FIXP;
-}
-
-// Making an `iquat` version of this one is an especial headache.
-// The trouble is that we're multiplying 3 values, which is not a
-// super fun FIXP time. The good news is that I'm going to assume
-// the I/O vectors are unit vectors (roughly enforced via type),
-// but the bad news is there's also a `*2` knocking around.
 void quat_apply(float dest[3], quat q, float src[3]) {
 	float x2sqj = src[0] * 2 * q[2];
 	float x2sqk = src[0] * 2 * q[3];

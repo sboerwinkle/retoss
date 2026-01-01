@@ -27,8 +27,8 @@ extern void quat_rotX(quat ret, quat strt, float r);
 extern void quat_rotY(quat ret, quat strt, float r);
 extern void quat_rotZ(quat ret, quat strt, float r);
 */
-extern void quat_mult(quat ret, quat a, quat b);
-extern void iquat_mult(iquat ret, iquat const a, iquat const b);
+extern void quat_mult(quat ret, quat b, quat a);
+extern void iquat_mult(iquat ret, iquat const b, iquat const a);
 
 extern void quat_apply(float dest[3], quat q, float src[3]);
 extern void iquat_apply(unitvec dest, iquat q, unitvec const src);

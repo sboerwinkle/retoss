@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "list.h"
 #include "matrix.h"
 
@@ -63,6 +65,65 @@ void buildCtx::pos(offset const v) {
 void buildCtx::rot(iquat const r) {
 	iquat_rotateBy(transf.rot, r);
 	iquat_norm(transf.rot);
+}
+
+void buildCtx::rot(int32_t yawAdj, int32_t pitchAdj, int32_t rollAdj) {
+	if (
+		yawAdj > FIXP ||
+		yawAdj < -FIXP ||
+		pitchAdj > FIXP ||
+		pitchAdj < -FIXP ||
+		rollAdj > FIXP ||
+		rollAdj < -FIXP
+	) {
+		// TODO: Put this in a `#ifndef NODEBUG` and `exit(1)`
+		//       once we have better validations other places
+		puts("Bad yaw/pitch/roll to `rot()`");
+		return;
+	}
+	// These "Adj" values are the sine (* FIXP) of half the rotation angle.
+	// We will need the cosine as well.
+	// This works fine so long as our rotations are always within +/- 180 deg,
+	// which means we're using the sine/cosine of something within +/- 90 deg
+	// (where the cosine is always positive)
+
+	// I don't want to do trig here, since level generation should (ideally) work the same
+	// across clients. I don't trust all computers to do trig exactly the same.
+	// However, I feel more comfortable about them finding the correct square root of an integer
+	// (at least, after truncation to an integer), so we do compute the cosines here.
+	// Note that I don't actually *know* if trig is bad and sqrt is good lol
+	int32_t yawCos =   sqrt(FIXP*FIXP-yawAdj*yawAdj);
+	int32_t pitchCos = sqrt(FIXP*FIXP-pitchAdj*pitchAdj);
+	int32_t rollCos =  sqrt(FIXP*FIXP-rollAdj*rollAdj);
+
+	iquat a,b,c;
+
+	a[0] = yawCos;
+	a[1] = 0;
+	a[2] = 0;
+	a[3] = yawAdj;
+
+	b[0] = pitchCos;
+	b[1] = pitchAdj;
+	b[2] = 0;
+	b[3] = 0;
+
+	iquat_mult(c, a, b);
+	// `c` is now the result of composing the first 2 rotations,
+	// but we still have one more to compose. We can re-use `a` and `b` now,
+	// however.
+
+	b[0] = rollCos;
+	b[1] = 0;
+	b[2] = rollAdj;
+	//b[3] still 0
+
+	iquat_mult(a, c, b);
+
+	// We actually haven't normalized at all here.
+	// We rely on the other `rot`'s normalization to
+	// be enough - which it probably is?
+	rot(a);
 }
 
 void buildCtx::scale(int32_t scale) {

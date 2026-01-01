@@ -129,7 +129,7 @@ static void handleLook(double dx, double dy) {
 
 	quat r = {cos(radians), (float)(s*dy/dist), 0, (float)(s*dx/dist)};
 	quat o;
-	quat_mult(o, r, quatCamRotation);
+	quat_mult(o, quatCamRotation, r);
 	quat_norm(o);
 	memcpy(quatCamRotation, o, sizeof(quat));
 }
