@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+#include <math.h>
 #include <stdio.h>
 
 #include "util.h"
@@ -160,7 +161,6 @@ static dl_updVar *findVarByName(char const *name) {
 	dl_updVar *x = &dl_updVars.add();
 	strcpy(x->name, name);
 	x->seen = 0;
-	x->incr = 1;
 	x->type = VAR_T_UNSET;
 
 	return x;
@@ -180,6 +180,7 @@ int64_t var(char const *name, int64_t val) {
 
 	if (v->type == VAR_T_UNSET) { // New var
 		v->type = VAR_T_INT;
+		v->incr = 1;
 		v->value.integer = val;
 	}
 
@@ -205,10 +206,37 @@ int64_t const * pvar(char const *name, offset const val) {
 
 	if (v->type == VAR_T_UNSET) { // New var
 		v->type = VAR_T_POS;
+		v->incr = 100;
 		memcpy(v->value.position.vec, val, sizeof(offset));
 	}
 
 	return v->value.position.vec;
+}
+
+int32_t const * rvar(char const *name) {
+	return rvar(name, (int32_t const[]){0,0,0});
+}
+
+int32_t const * rvar(char const *name, int32_t const val[3]) {
+	dl_updVar *v = findVarByName(name);
+
+	if (!v) return (int32_t const[]){0,0,0};
+
+	v->seen = 1;
+
+	if (v->type == VAR_T_UNSET) { // New var
+		v->type = VAR_T_ROT;
+		v->incr = 15;
+		memcpy(v->value.rotation.rotParams, val, sizeof(int32_t[3]));
+
+		range(i, 3) {
+			// Recall that the quaternion sin/cos are for *half the angle*
+			double halfRadians = asin((double)val[i]/FIXP);
+			v->value.rotation.angles[i] = round(halfRadians*2*180/M_PI);
+		}
+	}
+
+	return v->value.rotation.rotParams;
 }
 
 void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
@@ -280,6 +308,15 @@ void dl_bake(char const *name) {
 					v.value.position.vec[1],
 					v.value.position.vec[2]
 				);
+			} else if (v.type == VAR_T_ROT) {
+				fprintf(
+					editEventsFifo, "%s (int32_t const[]){%d, %d, %d}\n",
+					v.name,
+					v.value.rotation.rotParams[0],
+					v.value.rotation.rotParams[1],
+					v.value.rotation.rotParams[2]
+				);
+
 			}
 		}
 	}

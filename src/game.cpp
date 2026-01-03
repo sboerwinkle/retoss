@@ -228,7 +228,7 @@ void copyInputs() {
 			else cmd = "/v@+ 1";
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
 		}
-		if (editMouseShiftAmt && editMenuState == 1) {
+		if (editMouseShiftAmt) {
 			cmd = "/dlVarInc";
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
 		}
@@ -345,6 +345,17 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 				}
 			}
 			v.value.position.vec[bestAxis] += bestSign * v.incr * amt;
+		} else if (v.type == VAR_T_ROT) {
+			// Input system maps up-down as Z (axis 2) and scroll as Y (axis 1),
+			// but we want these two flipped for rotation inputs
+			// (e.g. up-down is pitch (axis 1))
+			if (axis > 0) axis = 3-axis;
+			int32_t angle = v.value.rotation.angles[axis];
+			angle += amt * v.incr;
+			while (angle >  180) angle -= 360;
+			while (angle < -180) angle += 360;
+			v.value.rotation.angles[axis] = angle;
+			v.value.rotation.rotParams[axis] = round(FIXP*sin((double)angle/2/180*M_PI));
 		}
 		strcpy(loopbackCommandBuffer, "/dlUpd");
 		return 1;
@@ -354,15 +365,27 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		int x;
 		if (getNum(&pos, &x)) {
 			dl_updVar &v = dl_updVars[dl_updVarSelected];
-			while (x > 0) {
-				x--;
-				v.incr *= 10;
+			if (v.type == VAR_T_ROT) {
+				// Only increments for rotations are 1/15/90.
+				// If you can do that more elegantly, go for it.
+				if (x > 0) {
+					if (x == 1 && v.incr < 15) v.incr = 15;
+					else v.incr = 90;
+				} else if (x < 0) {
+					if (x == -1 && v.incr > 15) v.incr = 15;
+					else v.incr = 1;
+				}
+			} else {
+				while (x > 0) {
+					x--;
+					v.incr *= 10;
+				}
+				while (x < 0) {
+					x++;
+					v.incr /= 10;
+				}
+				if (!v.incr) v.incr = 1;
 			}
-			while (x < 0) {
-				x++;
-				v.incr /= 10;
-			}
-			if (!v.incr) v.incr = 1;
 		}
 		return 1;
 	}
@@ -468,6 +491,14 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 						v.value.position.vec[1],
 						v.value.position.vec[2]
 					);
+				} else if (v.type == VAR_T_ROT) {
+					snprintf(
+						msg, 20, "%s: %d, %d, %d",
+						v.name,
+						v.value.rotation.angles[0],
+						v.value.rotation.angles[1],
+						v.value.rotation.angles[2]
+					);
 				}
 				drawText(msg, 7, 1+7*(i+4));
 			}
@@ -478,15 +509,24 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 			drawText(msg, 7, 29);
 			if (v.type == VAR_T_INT) {
 				snprintf(msg, 20, "%ld", v.value.integer);
+				drawText(msg, 7, 36);
 			} else if (v.type == VAR_T_POS) {
-				snprintf(
-					msg, 20, "%ld, %ld, %ld",
-					v.value.position.vec[0],
-					v.value.position.vec[1],
-					v.value.position.vec[2]
-				);
+				range(i, 3) {
+					snprintf(
+						msg, 20, "%ld",
+						v.value.position.vec[i]
+					);
+					drawText(msg, 7, 36 + 7*i);
+				}
+			} else if (v.type == VAR_T_ROT) {
+				range(i, 3) {
+					snprintf(
+						msg, 20, "%d",
+						v.value.rotation.angles[i]
+					);
+					drawText(msg, 7, 36 + 7*i);
+				}
 			}
-			drawText(msg, 7, 36);
 		}
 		mtx_unlock(dl_updVarMtx);
 	}

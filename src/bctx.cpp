@@ -62,26 +62,29 @@ void buildCtx::pos(offset const v) {
 }
 
 // Todo: Is this okay or backwards?
-void buildCtx::rot(iquat const r) {
+void buildCtx::rotQuat(iquat const r) {
 	iquat_rotateBy(transf.rot, r);
 	iquat_norm(transf.rot);
 }
 
-void buildCtx::rot(int32_t yawAdj, int32_t pitchAdj, int32_t rollAdj) {
+void buildCtx::rot(int32_t const rotParams[3]) {
+	int32_t yawSin   = rotParams[0];
+	int32_t pitchSin = rotParams[1];
+	int32_t rollSin  = rotParams[2];
 	if (
-		yawAdj > FIXP ||
-		yawAdj < -FIXP ||
-		pitchAdj > FIXP ||
-		pitchAdj < -FIXP ||
-		rollAdj > FIXP ||
-		rollAdj < -FIXP
+		yawSin > FIXP ||
+		yawSin < -FIXP ||
+		pitchSin > FIXP ||
+		pitchSin < -FIXP ||
+		rollSin > FIXP ||
+		rollSin < -FIXP
 	) {
 		// TODO: Put this in a `#ifndef NODEBUG` and `exit(1)`
 		//       once we have better validations other places
 		puts("Bad yaw/pitch/roll to `rot()`");
 		return;
 	}
-	// These "Adj" values are the sine (* FIXP) of half the rotation angle.
+	// These "Sin" values are the sine (* FIXP) of half the rotation angle.
 	// We will need the cosine as well.
 	// This works fine so long as our rotations are always within +/- 180 deg,
 	// which means we're using the sine/cosine of something within +/- 90 deg
@@ -92,19 +95,19 @@ void buildCtx::rot(int32_t yawAdj, int32_t pitchAdj, int32_t rollAdj) {
 	// However, I feel more comfortable about them finding the correct square root of an integer
 	// (at least, after truncation to an integer), so we do compute the cosines here.
 	// Note that I don't actually *know* if trig is bad and sqrt is good lol
-	int32_t yawCos =   sqrt(FIXP*FIXP-yawAdj*yawAdj);
-	int32_t pitchCos = sqrt(FIXP*FIXP-pitchAdj*pitchAdj);
-	int32_t rollCos =  sqrt(FIXP*FIXP-rollAdj*rollAdj);
+	int32_t yawCos   = sqrt(FIXP*FIXP-yawSin*yawSin);
+	int32_t pitchCos = sqrt(FIXP*FIXP-pitchSin*pitchSin);
+	int32_t rollCos  = sqrt(FIXP*FIXP-rollSin*rollSin);
 
 	iquat a,b,c;
 
 	a[0] = yawCos;
 	a[1] = 0;
 	a[2] = 0;
-	a[3] = yawAdj;
+	a[3] = yawSin;
 
 	b[0] = pitchCos;
-	b[1] = pitchAdj;
+	b[1] = pitchSin;
 	b[2] = 0;
 	b[3] = 0;
 
@@ -115,15 +118,15 @@ void buildCtx::rot(int32_t yawAdj, int32_t pitchAdj, int32_t rollAdj) {
 
 	b[0] = rollCos;
 	b[1] = 0;
-	b[2] = rollAdj;
+	b[2] = rollSin;
 	//b[3] still 0
 
 	iquat_mult(a, c, b);
 
 	// We actually haven't normalized at all here.
-	// We rely on the other `rot`'s normalization to
+	// We rely on `rotQuat`'s normalization to
 	// be enough - which it probably is?
-	rot(a);
+	rotQuat(a);
 }
 
 void buildCtx::scale(int32_t scale) {

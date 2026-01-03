@@ -3,6 +3,7 @@ enum {
 	VAR_T_UNSET,
 	VAR_T_INT,
 	VAR_T_POS,
+	VAR_T_ROT,
 };
 struct dl_updVar{
 	char name[DL_VARNAME_LEN];
@@ -15,6 +16,10 @@ struct dl_updVar{
 			offset vec;
 			quat rot;
 		} position;
+		struct {
+			int32_t rotParams[3];
+			int angles[3];
+		} rotation;
 	} value;
 };
 
@@ -27,6 +32,8 @@ extern void dl_resetVars(int version);
 extern int64_t var(char const *name);
 extern int64_t var(char const *name, int64_t val);
 extern int64_t const * pvar(char const *name, offset const val);
+extern int32_t const * rvar(char const *name);
+extern int32_t const * rvar(char const *name, int32_t const val[3]);
 
 extern void dl_processFile(char const *filename, gamestate *gs, int myPlayer);
 extern void dl_upd(gamestate *gs, int myPlayer);

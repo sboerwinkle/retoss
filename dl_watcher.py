@@ -71,10 +71,10 @@ def bake(lines, last_src_name):
         value = parts[1].strip()
         replacements[name] = value
 
-    # This matches calls to the `var` or `pvar` functions,
+    # This matches calls to the `var`/`pvar`/`rvar` functions,
     # assuming you don't nest `()` more than one layer deep inside.
     # If you need more, I'll have to start basically parsing C source for real lol
-    var_regex = r'\b(p?var\("([^"]*)")([^()]|\([^()]*\))*\)'
+    var_regex = r'\b([pr]?var\("([^"]*)")([^()]|\([^()]*\))*\)'
     def replace_func(m):
         key = m.group(2)
         if key not in replacements:
@@ -135,10 +135,15 @@ while True:
         print(f"Unknown command {repr(item)}")
         continue
     # Else it's probably from inotifywait, telling us a file changed
+    orig_item = item
     item = item.split(' ', 2)[2].strip()
     item = "src/dl_tmp/" + item
     if not (item.endswith(".c") or item.endswith(".cpp")):
         print(f"Ignored {repr(item)}")
+        # IDK why it's reporting a number as the filename,
+        # maybe it's the directory's write time being updated?
+        #if not '.' in item:
+        #    print(f"(debug: {repr(orig_item)})")
         continue
     last_src_name = item
     print(f"Building {repr(item)}")

@@ -22,8 +22,8 @@ struct buildCtx {
 
 	void pos(int64_t x, int64_t y, int64_t z);
 	void pos(offset const v);
-	void rot(iquat const r);
-	void rot(int32_t yawAdj, int32_t pitchAdj, int32_t rollAdj);
+	void rotQuat(iquat const r);
+	void rot(int32_t const rotParams[3]);
 	void scale(int32_t scale);
 
 	void resel();
