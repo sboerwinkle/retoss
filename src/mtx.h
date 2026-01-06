@@ -1,3 +1,5 @@
+#pragma once
+
 #include <pthread.h>
 
 #define mtx_lock(mtx) if (int __ret = pthread_mutex_lock(&mtx)) printf("Mutex lock failed with code %d\n", __ret)

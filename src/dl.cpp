@@ -22,19 +22,25 @@ static FILE* editEventsFifo;
 
 static gamestate *updGamestate = NULL;
 static player *updPlayer = NULL;
-static int updVarsVersion = 0;
-list<dl_updVar> dl_updVars;
-int dl_updVarSelected = 0;
+static list<dl_varGroup> varGroups;
+dl_varGroup *dl_selectedGroup;
+int dl_selectedVar = 0;
+
+static dl_varGroup *currentGroup = NULL;
 
 // Most of the functions here will be called only from the game thread,
 // so a lot of multithreading headaches are avoided.
 // This mutex is for the graphics thread, which needs to read some of this data for display.
-// During this period, resizing `dl_updVars` or updating `dl_updVar->name` is illegal.
-mtx_t dl_updVarMtx = MTX_INIT_EXPR;
-// Practically, this is the same thing as "is the mutex locked".
-// Only the game thread uses the functions that read/write this,
-// so no concerns about ensuring atomic writes etc.
-static char updResetting = 0;
+// During this period, updating anything with variable size (strings, lists) is forbidden.
+mtx_t dl_varMtx = MTX_INIT_EXPR;
+static char locked = 0;
+
+void dl_varGroup::init() {
+	vars.init();
+	seen = 1;
+	touched = 0;
+}
+void dl_varGroup::destroy() { vars.destroy(); }
 
 static void printDlError(char const *prefix) {
 	char const *msg = dlerror();
@@ -42,38 +48,27 @@ static void printDlError(char const *prefix) {
 	printf("%s: %s\n", prefix, msg);
 }
 
+static void addDummyForGroup(int i) {
+	dl_var *x = &varGroups[i].vars.add();
+	strcpy(x->name, "[NONE]");
+	x->value.integer = x->incr = x->seen = 1;
+	x->touched = 0;
+	x->type = VAR_T_INT;
+}
+
 static void lvlWr_reset(gamestate *gs) {
 	// May do more here eventually
 	prepareGamestateForLoad(gs, 0);
 }
 
-static void updReset_pre() {
-	mtx_lock(dl_updVarMtx);
-	updResetting = 1;
-}
+static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
+	// setup...
+	mtx_lock(dl_varMtx);
+	locked = 1;
 
-static void updReset_post() {
-	range(i, dl_updVars.num) {
-		if (!dl_updVars[i].seen) {
-			dl_updVars.rmAt(i);
-			i--;
-		}
-	}
+	int selectedGroupIndex = dl_selectedGroup - varGroups.items;
+	int origNumGroups = varGroups.num;
 
-	if (!dl_updVars.num) {
-		dl_updVar *x = &dl_updVars.add();
-		strcpy(x->name, "[NONE]");
-		x->value.integer = x->incr = x->seen = 1;
-		x->type = VAR_T_INT;
-	}
-
-	if (dl_updVarSelected >= dl_updVars.num) dl_updVarSelected = 0;
-
-	updResetting = 0;
-	mtx_unlock(dl_updVarMtx);
-}
-
-static void upd_pre(gamestate *gs, int myPlayer) {
 	bctx.reset(gs);
 	if (updGamestate) {
 		puts("ERROR: dl: `updGamestate` already set, what's up???");
@@ -82,13 +77,125 @@ static void upd_pre(gamestate *gs, int myPlayer) {
 	updGamestate = gs;
 	updPlayer = &gs->players[myPlayer];
 
-	rangeconst(i, dl_updVars.num) {
-		dl_updVars[i].seen = 0;
+	// We do this even when not `isFirstLoad` because some things
+	// (like positions) like to know when they're encountered the first time,
+	// and `seen` is a good way to know that.
+	rangeconst(i, varGroups.num) {
+		dl_varGroup &g = varGroups[i];
+		g.seen = 0;
+		rangeconst(j, g.vars.num) g.vars[j].seen = 0;
 	}
+
+	gp("");
+
+	// Run the fn...
+	if (lvlUpdFn) {
+		(*lvlUpdFn)(gs);
+	}
+
+	// If the file was modified, then anything that we didn't see in this pass
+	// we will assume no longer exists.
+	if (isFirstLoad) {
+		// And if we added something, select that group!
+		if (varGroups.num > origNumGroups) {
+			selectedGroupIndex = origNumGroups;
+			dl_selectedVar = 0;
+		}
+		range(i, varGroups.num) {
+			if (!varGroups[i].seen) {
+				if (selectedGroupIndex > i) selectedGroupIndex--;
+				else if (selectedGroupIndex == i) selectedGroupIndex = 0;
+
+				varGroups[i].destroy();
+				varGroups.rmAt(i);
+				i--;
+				continue;
+			}
+			list<dl_var> &vars = varGroups[i].vars;
+			range(j, vars.num) {
+				if (!vars[j].seen) {
+					vars.rmAt(j);
+					j--;
+				}
+			}
+		}
+		if (!varGroups.num) {
+			puts("ERROR: dl: Somehow, no groups seen (should always see "" group)");
+			exit(1);
+		}
+	}
+
+	currentGroup = NULL;
+	updPlayer = NULL;
+	updGamestate = NULL;
+
+	dl_selectedGroup = &varGroups[selectedGroupIndex];
+
+	// We might have empty groups not because variables are removed,
+	// but because a new group can be added (with no variables)
+	rangeconst(i, varGroups.num) {
+		if (!varGroups[i].vars.num) addDummyForGroup(i);
+	}
+
+	if (dl_selectedVar >= dl_selectedGroup->vars.num) dl_selectedVar = 0;
+
+	locked = 0;
+	mtx_unlock(dl_varMtx);
 }
 
-static void upd_post() {
-	updGamestate = NULL;
+static dl_varGroup *findGroup(char const *name) {
+	rangeconst(i, varGroups.num) {
+		if (!strcmp(varGroups[i].name, name)) return &varGroups[i];
+	}
+	return NULL;
+}
+
+void gp(char const* groupName) {
+	if (!locked) {
+		puts("ERROR: dl: gp: must be locked");
+		return;
+	}
+
+	dl_varGroup *existing = findGroup(groupName);
+	if (existing) {
+		currentGroup = existing;
+		currentGroup->seen = 1;
+		return;
+	}
+
+	if (strlen(groupName) >= DL_VARNAME_LEN) {
+		printf("WARN: dl: gp: Group name '%s' is too long\n", groupName);
+		return;
+	}
+	if (strchr(groupName, ' ')) {
+		// Same rationale as "no spaces in var names"
+		printf("WARN: dl: gp: New group name \"%s\" may not contain spaces!\n", groupName);
+		return;
+	}
+
+	currentGroup = &varGroups.add();
+	currentGroup->init();
+	strcpy(currentGroup->name, groupName);
+}
+
+// TODO fix header def'ns
+void dl_selectGp(char const* groupName) {
+	if (locked) {
+		puts("ERROR: dl: dl_selectGp: must not be locked");
+		exit(1);
+	}
+
+	dl_varGroup *existing = findGroup(groupName);
+	if (!existing) {
+		printf("WARN: dl: dl_selectGp: No group with name '%s'\n", groupName);
+		return;
+	}
+
+	// No function calls in here, so no need to set `locked`
+	mtx_lock(dl_varMtx);
+	dl_selectedGroup = existing;
+	dl_selectedVar = 0;
+	mtx_unlock(dl_varMtx);
 }
 
 // Right now this always returns the same pointer,
@@ -117,35 +224,18 @@ int64_t* look(int64_t dist) {
 	return result;
 }
 
-void dl_resetVars(int version) {
-	// Aside from modifications being illegal when the lock isn't held,
-	// this is also an operation that semantically only happens during
-	// a reset to `lvlUpdFn`.
-	if (!updResetting) return;
+static dl_var *findVarByName(char const *name) {
+	if (!currentGroup) return NULL;
 
-	if (version != updVarsVersion) {
-		dl_updVars.num = 0;
-		updVarsVersion = version;
-	}
-}
+	list<dl_var> &vars = currentGroup->vars;
 
-static dl_updVar *findVarByName(char const *name) {
-	rangeconst(i, dl_updVars.num) {
-		if (!strncmp(name, dl_updVars[i].name, DL_VARNAME_LEN)) {
-			return &dl_updVars[i];
+	rangeconst(i, vars.num) {
+		if (!strcmp(name, vars[i].name)) {
+			return &vars[i];
 		}
 	}
 
 	// Register new var
-	if (!updResetting) {
-		// We could allow new vars here, but it's bad practice, better to fail fast.
-		// Trouble is that any vars that can be found dynamically will also be scrubbed
-		// when we reload the dl file, since they won't show up in the pass and will
-		// look obsolete.
-		// (Also, we later added mutex locking on modifying that list!)
-		printf("Unexpected new var \"%s\"!\n", name);
-		return NULL;
-	}
 	if (strlen(name) >= DL_VARNAME_LEN) {
 		printf("new var name \"%s\" is too long!\n", name);
 		return NULL;
@@ -153,14 +243,20 @@ static dl_updVar *findVarByName(char const *name) {
 	if (strchr(name, ' ')) {
 		// There's actually lots of stuff you shouldn't include -
 		// anything that requires a backslash escape -
-		// but spaces are maybe more common.
+		// but spaces are probably the most likely troublemaker.
 		printf("new var name \"%s\" may not contain spaces!\n", name);
 		return NULL;
 	}
 
-	dl_updVar *x = &dl_updVars.add();
+	// `currentGroup != NULL` implies that we are locked,
+	// so we can go resizing lists if we need to.
+	dl_var *x = &vars.add();
 	strcpy(x->name, name);
-	x->seen = 0;
+	x->seen = 1;
+	// Vars default to touched so that any weird expressions (esp. `look`) get rewritten as constants.
+	// May change this later.
+	x->touched = 1;
+	currentGroup->touched = 1;
 	x->type = VAR_T_UNSET;
 
 	return x;
@@ -172,9 +268,9 @@ static dl_updVar *findVarByName(char const *name) {
 int64_t var(char const *name) { return var(name, 0); }
 
 int64_t var(char const *name, int64_t val) {
-	dl_updVar *v = findVarByName(name);
+	dl_var *v = findVarByName(name);
 
-	if (!v) return 0;
+	if (!v) return val;
 
 	v->seen = 1;
 
@@ -188,9 +284,9 @@ int64_t var(char const *name, int64_t val) {
 }
 
 int64_t const * pvar(char const *name, offset const val) {
-	dl_updVar *v = findVarByName(name);
+	dl_var *v = findVarByName(name);
 
-	if (!v) return (offset const){0,0,0};
+	if (!v) return val;
 
 	if (!v->seen) {
 		v->seen = 1;
@@ -218,9 +314,9 @@ int32_t const * rvar(char const *name) {
 }
 
 int32_t const * rvar(char const *name, int32_t const val[3]) {
-	dl_updVar *v = findVarByName(name);
+	dl_var *v = findVarByName(name);
 
-	if (!v) return (int32_t const[]){0,0,0};
+	if (!v) return val;
 
 	v->seen = 1;
 
@@ -275,29 +371,26 @@ void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 	}
 
 	lvlUpdFn = (void (*)(gamestate*)) dlsym(fileHandle, "lvlUpd");
-	updReset_pre();
-	if (lvlUpdFn) {
-		upd_pre(gs, myPlayer);
-		(*lvlUpdFn)(gs);
-		upd_post();
-	}
-	updReset_post();
+	processUpd(gs, myPlayer, 1);
 }
 
 void dl_upd(gamestate *gs, int myPlayer) {
-	if (lvlUpdFn) {
-		upd_pre(gs, myPlayer);
-		(*lvlUpdFn)(gs);
-		upd_post();
-	}
+	processUpd(gs, myPlayer, 0);
 }
 
-void dl_bake(char const *name) {
+// TODO "/bake" logic in watcher.py
+void dl_bake() {
 	if (!editEventsFifo) return;
 	fputs("/bake\n", editEventsFifo);
-	rangeconst(i, dl_updVars.num) {
-		dl_updVar &v = dl_updVars[i];
-		if (!name || !strcmp(name, v.name)) {
+	rangeconst(i, varGroups.num) {
+		dl_varGroup &g = varGroups[i];
+		if (!g.touched) continue;
+		g.touched = 0;
+		fprintf(editEventsFifo, "gp %s\n", g.name);
+		rangeconst(j, g.vars.num) {
+			dl_var &v = g.vars[j];
+			if (!v.touched) continue;
+			v.touched = 0;
 			if (v.type == VAR_T_INT) {
 				fprintf(editEventsFifo, "%s %ld\n", v.name, v.value.integer);
 			} else if (v.type == VAR_T_POS) {
@@ -316,9 +409,9 @@ void dl_bake(char const *name) {
 					v.value.rotation.rotParams[1],
 					v.value.rotation.rotParams[2]
 				);
-
 			}
 		}
+		fputs("\n", editEventsFifo);
 	}
 	fputs("\n", editEventsFifo);
 	fflush(editEventsFifo);
@@ -331,9 +424,18 @@ void dl_hotbar(char const *name) {
 }
 
 void dl_init() {
-	dl_updVars.init();
-	updReset_pre();
-	updReset_post();
+	varGroups.init();
+
+	locked = 1; // This is a lie, but it is true that we're not going to have mutex contention at this time!
+	gp("");
+	if (varGroups.num != 1) {
+		puts("ERROR: dl: startup assertion failed");
+		exit(1);
+	}
+	addDummyForGroup(0);
+	dl_selectedGroup = &varGroups[0];
+	locked = 0;
+
 	editEventsFifo = fopen("edit_events.fifo", "w");
 	if (!editEventsFifo) {
 		// TODO shouldn't assume everyone is using an edit setup,
@@ -344,5 +446,7 @@ void dl_init() {
 
 void dl_destroy() {
 	if (editEventsFifo) fclose(editEventsFifo);
-	dl_updVars.destroy();
+
+	rangeconst(i, varGroups.num) varGroups[i].destroy();
+	varGroups.destroy();
 }

@@ -306,9 +306,9 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		char const *pos = buf + 9;
 		int x;
 		if (getNum(&pos, &x)) {
-			int num = dl_updVars.num;
+			int num = dl_selectedGroup->vars.num;
 			// Flip sign on x, since we display them top-to-bottom
-			dl_updVarSelected = ((dl_updVarSelected-x)%num+num)%num;
+			dl_selectedVar = ((dl_selectedVar-x)%num+num)%num;
 		}
 		return 1;
 	}
@@ -323,7 +323,9 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 			puts("/v@+ invalid axis");
 			return 1;
 		}
-		dl_updVar &v = dl_updVars[dl_updVarSelected];
+		dl_selectedGroup->touched = 1;
+		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
+		v.touched = 1;
 		if (v.type == VAR_T_INT) {
 			v.value.integer += amt * v.incr;
 		} else if (v.type == VAR_T_POS) {
@@ -364,7 +366,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		char const *pos = buf + 9;
 		int x;
 		if (getNum(&pos, &x)) {
-			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
 			if (v.type == VAR_T_ROT) {
 				// Only increments for rotations are 1/15/90.
 				// If you can do that more elegantly, go for it.
@@ -390,8 +392,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		return 1;
 	}
 	if (isCmd(buf, "/bake")) {
-		if (buf[5]) dl_bake(buf+6);
-		else dl_bake(NULL);
+		dl_bake();
 		return 1;
 	}
 	if (isCmd(buf, "/hotbar")) {
@@ -477,10 +478,11 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	drawText(msg, 1, 22);
 
 	if (editMenuState >= 0) {
-		mtx_lock(dl_updVarMtx);
+		mtx_lock(dl_varMtx);
 		if (editMenuState == 0) {
-			rangeconst(i, dl_updVars.num) {
-				dl_updVar &v = dl_updVars[i];
+			list<dl_var> &vars = dl_selectedGroup->vars;
+			rangeconst(i, vars.num) {
+				dl_var &v = vars[i];
 				if (v.type == VAR_T_INT) {
 					snprintf(msg, 20, "%s: %ld", v.name, v.value.integer);
 				} else if (v.type == VAR_T_POS) {
@@ -502,9 +504,9 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 				}
 				drawText(msg, 7, 1+7*(i+4));
 			}
-			drawText(">", 1, 1+7*(dl_updVarSelected+4));
+			drawText(">", 1, 1+7*(dl_selectedVar+4));
 		} else {
-			dl_updVar &v = dl_updVars[dl_updVarSelected];
+			dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
 			snprintf(msg, 20, "%s (+/-%ld)", v.name, v.incr);
 			drawText(msg, 7, 29);
 			if (v.type == VAR_T_INT) {
@@ -528,7 +530,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 				}
 			}
 		}
-		mtx_unlock(dl_updVarMtx);
+		mtx_unlock(dl_varMtx);
 	}
 
 	if (renderStats) {

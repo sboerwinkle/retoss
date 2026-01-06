@@ -7,6 +7,11 @@ if ! [ -p edit_events.fifo ]; then
 	fi;
 fi;
 
+if ! ( mount | grep dl_tmp ); then
+	echo "dl_tmp isn't a mount, are you sure you want to do this?";
+	exit;
+fi;
+
 inotifywait -m -e CLOSE_WRITE ./src/dl_tmp > edit_events.fifo &
 # Probably a better way to do this?
 inotify_pid="$(jobs -p)";

@@ -60,21 +60,34 @@ def parse_src(filename):
     segment_break()
     return ret
 
-def bake(lines, last_src_name):
-    replacements = {}
-    while True:
-        item = next(lines)
-        if item == "\n":
-            break
-        parts = item.split(' ', 1)
-        name = parts[0]
-        value = parts[1].strip()
-        replacements[name] = value
+gp_re = re.compile(r'\bgp\("([^"]*)')
+empty_gp_re = re.compile(r'\bgp\(\)')
+# This matches calls to the `var`/`pvar`/`rvar` functions,
+# assuming you don't nest `()` more than one layer deep inside.
+# If you need more, I'll have to start basically parsing C source for real lol
+var_re = re.compile(r'\b([pr]?var\("([^"]*)")([^()]|\([^()]*\))*\)')
 
-    # This matches calls to the `var`/`pvar`/`rvar` functions,
-    # assuming you don't nest `()` more than one layer deep inside.
-    # If you need more, I'll have to start basically parsing C source for real lol
-    var_regex = r'\b([pr]?var\("([^"]*)")([^()]|\([^()]*\))*\)'
+def get_gp(line):
+    m = gp_re.search(line)
+    if m is None:
+        return None
+    return m.group(1)
+
+def bake(lines, last_src_name):
+    group_replacements = {}
+    while (item := next(lines)) != "\n":
+        parts = item.split(' ', 1)
+        if parts[0] != 'gp':
+            raise Exception(f"parts[0] should be \"gp\", not {repr(parts[0])}")
+        replacements = {}
+        group_replacements[parts[1].strip()] = replacements
+        while (item := next(lines)) != "\n":
+            parts = item.split(' ', 1)
+            name = parts[0]
+            value = parts[1].strip()
+            replacements[name] = value
+    replacements = group_replacements.get("", {})
+
     def replace_func(m):
         key = m.group(2)
         if key not in replacements:
@@ -84,7 +97,12 @@ def bake(lines, last_src_name):
     segments = parse_src(last_src_name)
     for s in segments:
         if isinstance(s, NormalSegment):
-            s.lines = [re.sub(var_regex, replace_func, l) for l in s.lines]
+            for i in range(len(s.lines)):
+                l = s.lines[i]
+                g = get_gp(l)
+                if g is not None:
+                    replacements = group_replacements.get(g, {})
+                s.lines[i] = var_re.sub(replace_func, l)
 
     # Flatten out segment lists
     result_lines = [l for s in segments for l in s.lines]
@@ -117,6 +135,44 @@ def hotbar(name, last_src_name):
     with open(last_src_name, 'w') as f:
         f.writelines(result_lines)
 
+def check_src(filename):
+    segments = parse_src(filename)
+    empty_gps = []
+    largest_gp = -1
+    for s in segments:
+        if isinstance(s, NormalSegment):
+            for i in range(len(s.lines)):
+                l = s.lines[i]
+                if empty_gp_re.search(l):
+                    empty_gps.append((s, i))
+                gp = get_gp(l)
+                if gp is not None:
+                    try:
+                        numeric = int(gp)
+                        if numeric > largest_gp:
+                            largest_gp = numeric
+                    except ValueError:
+                        # Other (non-numeric) group names are totally fine
+                        pass
+
+    modified = False
+    # Maybe we'll do other modifications in the future, idk
+    for (seg, line) in empty_gps:
+        modified = True
+        largest_gp += 1
+        seg.lines[line] = empty_gp_re.sub(f'gp("{largest_gp}")', seg.lines[line])
+
+    if modified:
+        print(f"Rewriting {repr(filename)}")
+        # Flatten out segment lists
+        result_lines = [l for s in segments for l in s.lines]
+        with open(filename, 'w') as f:
+            f.writelines(result_lines)
+        # inotifywait will let us know that something was written, so compiling now would just duplicate.
+    else:
+        print(f"Building {repr(filename)}")
+        subprocess.run(["./dl_build.sh", filename])
+
 lines = stdin_to_generator()
 
 last_src_name = None
@@ -146,5 +202,4 @@ while True:
         #    print(f"(debug: {repr(orig_item)})")
         continue
     last_src_name = item
-    print(f"Building {repr(item)}")
-    subprocess.run(["./dl_build.sh", item])
+    check_src(last_src_name)
