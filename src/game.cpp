@@ -549,6 +549,13 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 				}
 			}
 		}
+
+		{
+			char const *gpName = dl_selectedGroup->name;
+			int len = strlen(gpName);
+			drawText(gpName, textAreaBounds[0]*2-5*len, 1);
+		}
+
 		mtx_unlock(dl_varMtx);
 	}
 
