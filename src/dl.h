@@ -52,6 +52,7 @@ extern int32_t const * rvar(char const *name, int32_t const val[3]);
 
 extern void dl_processFile(char const *filename, gamestate *gs, int myPlayer);
 extern void dl_upd(gamestate *gs, int myPlayer);
+extern void dl_lookAtGp(gamestate *gs, int myPlayer);
 extern void dl_bake();
 extern void dl_hotbar(char const *name);
 

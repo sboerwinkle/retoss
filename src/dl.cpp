@@ -9,6 +9,7 @@
 #include "gamestate.h"
 #include "bctx.h"
 #include "game_graphics.h"
+#include "collision.h"
 
 #include "dl.h"
 #include "dl_game.h"
@@ -27,6 +28,11 @@ dl_varGroup *dl_selectedGroup;
 int dl_selectedVar = 0;
 
 static dl_varGroup *currentGroup = NULL;
+
+static dl_varGroup *lookAtGp_winner;
+static fraction lookAtGp_best;
+static offset lookAtGp_origin;
+static unitvec lookAtGp_dir;
 
 // Most of the functions here will be called only from the game thread,
 // so a lot of multithreading headaches are avoided.
@@ -56,9 +62,22 @@ static void addDummyForGroup(int i) {
 	x->type = VAR_T_INT;
 }
 
+static void lookAtGp_test(solid *s) {
+	if (raycast(&lookAtGp_best, s, lookAtGp_origin, lookAtGp_dir)) {
+		lookAtGp_winner = currentGroup;
+	}
+}
+
 static void lvlWr_reset(gamestate *gs) {
 	// May do more here eventually
 	prepareGamestateForLoad(gs, 0);
+}
+
+// This should only run in code where the mutex is locked.
+// I don't check `locked` because that means I can be lazy in a couple places and not set it :)
+// I crave a language that lets me describe these constraints and enforce them statically.
+static void selectedVarFix() {
+	if (dl_selectedVar >= dl_selectedGroup->vars.num) dl_selectedVar = 0;
 }
 
 static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
@@ -137,7 +156,7 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 		if (!varGroups[i].vars.num) addDummyForGroup(i);
 	}
 
-	if (dl_selectedVar >= dl_selectedGroup->vars.num) dl_selectedVar = 0;
+	selectedVarFix();
 
 	locked = 0;
 	mtx_unlock(dl_varMtx);
@@ -178,7 +197,6 @@ void gp(char const* groupName) {
 	strcpy(currentGroup->name, groupName);
 }
 
-// TODO fix header def'ns
 void dl_selectGp(char const* groupName) {
 	if (locked) {
 		puts("ERROR: dl: dl_selectGp: must not be locked");
@@ -191,11 +209,18 @@ void dl_selectGp(char const* groupName) {
 		return;
 	}
 
-	// No function calls in here, so no need to set `locked`
+	// No function calls in here that care about `locked`, so no need to set it.
 	mtx_lock(dl_varMtx);
 	dl_selectedGroup = existing;
-	dl_selectedVar = 0;
+	selectedVarFix();
 	mtx_unlock(dl_varMtx);
+}
+
+static void getLookUnitvec(unitvec dest) {
+	float dirPlayer[3] = {0, 1, 0};
+	float dirWorld[3];
+	quat_apply(dirWorld, quatCamRotation, dirPlayer);
+	range(i, 3) dest[i] = FIXP*dirWorld[i];
 }
 
 // Right now this always returns the same pointer,
@@ -206,14 +231,13 @@ int64_t* look(int64_t dist) {
 		puts("WARN: dl: `look` called outside of `lvlUpd`?");
 		range(i, 3) result[i] = 0;
 	} else {
-		float dirPlayer[3] = {0, 1, 0};
-		float dirWorld[3];
-		quat_apply(dirWorld, quatCamRotation, dirPlayer);
+		unitvec dirWorld;
+		getLookUnitvec(dirWorld);
 
 		// This is the offset from `bctx`'s position, but still with the world rotation (no rotation)
 		offset intermediate;
 		range(i, 3) {
-			intermediate[i] = (int64_t)(dirWorld[i] * dist) + updPlayer->pos[i] - bctx.transf.pos[i];
+			intermediate[i] = dirWorld[i]*dist/FIXP + updPlayer->pos[i] - bctx.transf.pos[i];
 		}
 
 		// Convert `intermediate` to use `bctx`'s rotation
@@ -378,7 +402,31 @@ void dl_upd(gamestate *gs, int myPlayer) {
 	processUpd(gs, myPlayer, 0);
 }
 
-// TODO "/bake" logic in watcher.py
+void dl_lookAtGp(gamestate *gs, int myPlayer) {
+	lookAtGp_winner = NULL;
+	// I think I could probably get this to be +Inf instead,
+	// but since my bootleg `Inf`s compare weirdly with each
+	// other, I'd have to adjust some of the raycasting code
+	// to avoid that case. This very large number works just
+	// as well for our purposes.
+	lookAtGp_best = (fraction){.numer = INT64_MAX, .denom = 1};
+	memcpy(lookAtGp_origin, gs->players[myPlayer].pos, sizeof(lookAtGp_origin));
+	getLookUnitvec(lookAtGp_dir);
+
+	bctx.solidCallback = lookAtGp_test;
+	processUpd(gs, myPlayer, 0);
+	bctx.solidCallback = NULL;
+
+	if (lookAtGp_winner) {
+		// Re-locking this right after `processUpd` is a bit silly (we *just* had this lock),
+		// but this part doesn't really need to be performant.
+		mtx_lock(dl_varMtx);
+		dl_selectedGroup = lookAtGp_winner;
+		selectedVarFix();
+		mtx_unlock(dl_varMtx);
+	}
+}
+
 void dl_bake() {
 	if (!editEventsFifo) return;
 	fputs("/bake\n", editEventsFifo);

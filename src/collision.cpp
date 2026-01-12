@@ -1,6 +1,8 @@
 #include "gamestate.h"
 #include "matrix.h"
 
+#include "collision.h"
+
 struct shapeSpec {
 	int const numFaces;
 	unitvec const *facings;
@@ -51,6 +53,10 @@ shapeSpec shapeSpecs[2] = {
 // Assumes `o` isn't, like, super-duper big
 static int64_t dot(offset const o, unitvec const v) {
 	return (o[0]*v[0] + o[1]*v[1] + o[2]*v[2])/FIXP;
+}
+
+static int32_t dot(unitvec const a, unitvec const b) {
+	return (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])/FIXP;
 }
 
 // This is suuper lazy, and starts to behave real weird if things are spinning too fast.
@@ -129,11 +135,45 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 // with a whole nasty nested network of solids.
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
 
-// Thoughts about raycasting, which I'll have to be doing soon for edit selection
-// (and must not rely on floating-point math, since I'm probably going to need it for bullets too)
-// Basically I need a position and a velocity, and we can do the same trick as bittoss where we do
-// numer vs denom comparisons to keep a rolling best.
-// Then whichever solid (collides and) collides soonest is the result of our raycast.
-// Velocities we'll keep to FIXP, and positions we'll assume to be small-ish int64_t (so the product fits in int64_t)
-// Then the distance is just a straightforward `dot` (as already defined) (minus the face's offset),
-// and the speed is almost exactly the same except operating on two `unitvec` inputs (cast direction and face normal).
+// Be aware that +/-Inf == +/-Inf and NaN == anything under this definition.
+// However, +/-Inf compare correctly with rationals, so that's nice.
+char fraction::lt(fraction const &other) const {
+	return numer*other.denom < other.numer*denom;
+	//#define lt(a,b) (a.numer*b.denom < b.numer*a.denom)
+}
+
+char raycast(fraction *best, solid *s, offset origin, unitvec dir) {
+	offset vWorld;
+	range(i, 3) vWorld[i] = s->pos[i] - origin[i];
+	imat rot;
+	imatFromIquatInv(rot, s->rot);
+	offset vSolid;
+	imat_applySm(vSolid, rot, vWorld);
+	unitvec dirSolid;
+	imat_apply(dirSolid, rot, dir);
+
+	fraction lower = {.numer = 0, .denom = 1};
+	fraction upper = *best;
+	shapeSpec &sh = shapeSpecs[s->shape];
+	range(i, sh.numFaces) {
+		int32_t const *norm = sh.facings[i];
+		fraction frac = {
+			// Todo both addends contain a `/FIXP`, could probably factor that out if I care?
+			.numer = dot(vSolid, norm) + s->r*sh.distances[i]/FIXP,
+			.denom = dot(dirSolid, norm)
+		};
+		if (frac.denom < 0) {
+			frac.denom *= -1;
+			frac.numer *= -1;
+			if (lower.lt(frac)) lower = frac;
+			else continue;
+		} else {
+			if (frac.lt(upper)) upper = frac;
+			else continue;
+		}
+		if (!lower.lt(upper)) return 0;
+	}
+	// We got to the end and didn't exit for any reason, probably we're a winner
+	*best = lower;
+	return 1;
+}

@@ -1,5 +1,9 @@
 #include "matrix.h"
 
+#include "gamestate.h"
+
+typedef void (*solidConsumer)(solid*);
+
 struct buildTransform {
 	offset pos;
 	iquat rot;
@@ -12,6 +16,7 @@ struct buildCtx {
 	gamestate *gs;
 	box *prevBox;
 	char selecting;
+	solidConsumer solidCallback;
 
 	void reset(gamestate *gs);
 	void complete();

@@ -153,11 +153,13 @@ void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
 	memcpy(s->rot, transf.rot, sizeof(transf.rot));
 	gs->selection.add(s);
 	prevBox = s->b;
+	if (solidCallback) (*solidCallback)(s);
 }
 
 void bctx_init() {
 	bctx.transformStack.init();
 	bctx.gs = NULL;
+	bctx.solidCallback = NULL;
 }
 void bctx_destroy() {
 	bctx.transformStack.destroy();

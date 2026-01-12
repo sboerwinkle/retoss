@@ -38,6 +38,9 @@ quat quatCamRotation = {1,0,0,0};
 
 static char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
+// TODO Really clumsy to have these `char`s that translate to commands;
+//      should just have a queue of commands we can move over while `mtx`-locked.
+static char doLookGp = 0;
 // For now this is just for editing, will need to update it some if it becomes for other stuff too
 static int numberPressed = 0;
 
@@ -104,6 +107,10 @@ void handleKey(int key, int action) {
 		} else if (key == GLFW_KEY_E) {
 			if (ctrlPressed) {
 				editMenuState = ~editMenuState;
+			}
+		} else if (key == GLFW_KEY_F) {
+			if (ctrlPressed) {
+				doLookGp = 1;
 			}
 		} else if (key == GLFW_KEY_ESCAPE) {
 			mouseGrab(0);
@@ -235,9 +242,13 @@ void copyInputs() {
 		if (numberPressed) {
 			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
 		}
+		if (doLookGp) {
+			strcpy(loopbackCommandBuffer, "/lookAtGp");
+		}
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
 	numberPressed = 0;
+	doLookGp = 0;
 
 	if (mouseDragSteps) {
 		if (mouseDragMode > 1) {
@@ -391,6 +402,10 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		}
 		return 1;
 	}
+	if (!strncmp(buf, "/gp ", 4)) {
+		dl_selectGp(buf+4);
+		return 1;
+	}
 	if (isCmd(buf, "/bake")) {
 		dl_bake();
 		return 1;
@@ -414,6 +429,10 @@ char customLoopbackCommand(gamestate *gs, int myPlayer, char const * str) {
 	}
 	if (isCmd(str, "/dlUpd")) {
 		dl_upd(gs, myPlayer);
+		return 1;
+	}
+	if (isCmd(str, "/lookAtGp")) {
+		dl_lookAtGp(gs, myPlayer);
 		return 1;
 	}
 	return 0;

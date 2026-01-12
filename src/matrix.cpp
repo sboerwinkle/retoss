@@ -246,6 +246,11 @@ void imat_applySm(offset dest, imat rot, offset const src) {
 	dest[1] = (src[0]*rot[1] + src[1]*rot[4] + src[2]*rot[7])/FIXP;
 	dest[2] = (src[0]*rot[2] + src[1]*rot[5] + src[2]*rot[8])/FIXP;
 }
+void imat_apply(unitvec dest, imat rot, unitvec const src) {
+	dest[0] = (src[0]*rot[0] + src[1]*rot[3] + src[2]*rot[6])/FIXP;
+	dest[1] = (src[0]*rot[1] + src[1]*rot[4] + src[2]*rot[7])/FIXP;
+	dest[2] = (src[0]*rot[2] + src[1]*rot[5] + src[2]*rot[8])/FIXP;
+}
 
 void imatFromIquat(int32_t *M, iquat rot) {
 	// All the operations on components of `rot`
