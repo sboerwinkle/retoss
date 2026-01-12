@@ -43,9 +43,18 @@ public:
 	void qsort(Comparator<T> &comp);
 	char sorted() const;
 
+	// min-heap stuff (AI generated, manually reviewed)
+	// Assumes `<` is defined for `T`
+	void heap_push(const T &itm);
+	T heap_pop();
+	void heapify();
+
 private:
 	void qsort(int low, int high);
 	void qsort(Comparator<T> &comp, int low, int high);
+
+	void heap_siftUp(int ix);
+	void heap_siftDown(int ix);
 };
 
 template <typename T>
@@ -330,4 +339,57 @@ char list<T>::sorted() const {
 		prev = n;
 	}
 	return 1;
+}
+
+template <typename T>
+void list<T>::heap_push(const T &itm) {
+	add(itm);
+	heap_siftUp(num - 1);
+}
+
+template <typename T>
+T list<T>::heap_pop() {
+	// caller is expected to ensure non-empty heap
+	T result = items[0];
+	items[0] = items[num - 1];
+	num--;
+	heap_siftDown(0);
+	return result;
+}
+
+template <typename T>
+void list<T>::heapify() {
+	// build heap in-place
+	for (int i = (num / 2) - 1; i >= 0; i--) heap_siftDown(i);
+}
+
+template <typename T>
+void list<T>::heap_siftUp(int ix) {
+	while (ix > 0) {
+		int parent = (ix - 1) / 2;
+		if (!(items[ix] < items[parent])) break;
+		T tmp = items[parent];
+		items[parent] = items[ix];
+		items[ix] = tmp;
+		ix = parent;
+	}
+}
+
+template <typename T>
+void list<T>::heap_siftDown(int ix) {
+	while (1) {
+		int left = 2 * ix + 1;
+		if (left >= num) break;
+		// Find smallest child
+		int small = left;
+		int right = left + 1;
+		if (right < num && items[right] < items[left]) small = right;
+		// Verify smallest child is smaller than us
+		if (!(items[small] < items[ix])) break;
+		// Switch places and repeat one layer down
+		T tmp = items[ix];
+		items[ix] = items[small];
+		items[small] = tmp;
+		ix = small;
+	}
 }
