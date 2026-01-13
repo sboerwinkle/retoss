@@ -482,6 +482,15 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 
 	setup2d();
+
+	// Crosshair:
+	// Want a pixel to be 1/256 of vertical screen space (so +/-128)
+	centeredGrid2d(128);
+	// We've got it on the "font" texture for now
+	selectTex2d(1, 64, 64);
+	// src coords+size, dest coords
+	sprite2d(0, 59, 5, 5, -2.5, -2.5);
+
 	setup2dText();
 	if (main_typingLen >= 0) {
 		drawText(main_textBuffer, 1, 1);
@@ -553,7 +562,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		{
 			char const *gpName = dl_selectedGroup->name;
 			int len = strlen(gpName);
-			drawText(gpName, textAreaBounds[0]*2-5*len, 1);
+			drawText(gpName, displayAreaBounds[0]*2-5*len, 1);
 		}
 
 		mtx_unlock(dl_varMtx);
@@ -568,7 +577,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 			100*renderTiming.minNanos/totalNanos,
 			100*renderTiming.maxNanos/totalNanos
 		);
-		drawText(msg, 1, textAreaBounds[1]*2-8);
+		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
 }
 

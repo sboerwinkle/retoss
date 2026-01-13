@@ -29,7 +29,7 @@ static void populateSpriteVertexData();
 int displayWidth = 0;
 int displayHeight = 0;
 float scaleX, scaleY;
-float textAreaBounds[2];
+float displayAreaBounds[2];
 
 static char startupFailed = 0;
 static GLuint main_prog;
@@ -48,7 +48,7 @@ static GLint u_main_texoffset;
 
 static GLint u_spr_size;
 static GLint u_spr_scale;
-static GLint u_spr_offset;
+static GLint u_spr_screen_offset;
 static GLint u_spr_tex_scale;
 static GLint u_spr_tex_offset;
 
@@ -222,7 +222,7 @@ void initGraphics() {
 	// sprite_prog uniforms
 	u_spr_size = glGetUniformLocation(sprite_prog, "u_size");
 	u_spr_scale = glGetUniformLocation(sprite_prog, "u_scale");
-	u_spr_offset = glGetUniformLocation(sprite_prog, "u_offset");
+	u_spr_screen_offset = glGetUniformLocation(sprite_prog, "u_offset");
 	u_spr_tex_scale = glGetUniformLocation(sprite_prog, "u_tex_scale");
 	u_spr_tex_offset = glGetUniformLocation(sprite_prog, "u_tex_offset");
 
@@ -431,56 +431,64 @@ void setup2d() {
 	glEnable(GL_BLEND);
 }
 
+// Can make variants of this -
+// what dimension(s) to specify,
+// whether to assume a square grid,
+// where to put the origin, etc.
+// This assumes a square grid with the origin at the center, and accepts the Y size.
+void centeredGrid2d(float boundsY) {
+	// TODO I'm flipping this because I think I have a "front face" issue...
+	displayAreaBounds[1] = -boundsY;
+	displayAreaBounds[0] = boundsY*displayWidth/displayHeight;
+	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], 1.0/displayAreaBounds[1]);
+}
+
+// `texW` and `texH` are the full width/height of the texture, in pixels.
+void selectTex2d(int tex, int texW, int texH) {
+#ifndef NODEBUG
+	// TODO this needs to be enforced when we deserialize stuff
+	//      (really it needs to be enforced as a custom type but whatever)
+	if (tex < 0 || tex >= NUM_TEXS) {
+		printf("Invalid tex: %d\n", tex);
+		exit(1);
+	}
+#endif
+	glBindTexture(GL_TEXTURE_2D, textures[tex]);
+	glUniform2f(u_spr_tex_scale, 1.0/texW, 1.0/texH);
+}
+
+void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float y) {
+	glUniform2f(u_spr_tex_offset, spr_off_x, spr_off_y);
+	glUniform2f(u_spr_size, spr_w, spr_h);
+	glUniform2f(u_spr_screen_offset, x, y);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+}
+
 void setup2dText() {
+	// This part I *could* convert to a call to `centeredGrid2d`,
+	// but this code pre-dates that function. It wouldn't be a
+	// drop-in replacement, so I'm leaving it be for now.
 	float textSize = 4;
-	textAreaBounds[0] = displayWidth/2.0/textSize;
-	textAreaBounds[1] = displayHeight/2.0/textSize;
+	displayAreaBounds[0] = displayWidth/2.0/textSize;
+	displayAreaBounds[1] = displayHeight/2.0/textSize;
 	// We put (0,0) in the upper-left of the letter, at least for now.
 	// That means we need Y to increase downwards on the screen, so we flip that axis here.
-	glUniform2f(u_spr_scale, 1.0/textAreaBounds[0], -1.0/textAreaBounds[1]);
+	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], -1.0/displayAreaBounds[1]);
+
 	// Our texture is 64x64, and I belive tex coords go 0-1
 	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
 }
 
-void setup2dSprites() {
-	// TODO: All old code from the Climber clone.
-	//       Perhaps useful as a reference, but outdated.
-
-	// This one depends on the size of the texture.
-	// Might consider shrinking this a few percent to fix issues at borders,
-	// but I'd have to think about a bunch of stuff.
-	glUniform2f(u_spr_tex_scale, 1.0/64, -1.0/64);
-	scaleY = 1.0/256; // *exp(zoomLvl*0.2);
-	scaleX = scaleY*displayHeight/displayWidth;
-	glUniform2f(u_spr_scale, scaleX, scaleY);
-	// For now all our rendered sprites are the same size, so we can set this in advance.
-	glUniform2f(u_spr_size, 8, 8);
-
-}
-
-void drawSprite(int cameraX, int cameraY, int sprX, int sprY) {
-	// Will need to revisit this at some point,
-	// I think there are some uniforms that are no longer set as this expects.
-
-	// Coordinates on the spritesheet
-	glUniform2f(u_spr_tex_offset, 12+20*sprX, 12+20*sprY);
-	glUniform2f(
-		u_spr_offset,
-		cameraX,
-		cameraY
-	);
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
-}
-
 void drawText(char const* str, int x, int y) {
 	// Text is 4x6, stride is 5x7, and the copied piece is 5x8 (including blank pixels above, below, and to the right).
 
-	float cursorX = -textAreaBounds[0]+x;
-	float cursorY = -textAreaBounds[1]+y;
+	float cursorX = -displayAreaBounds[0]+x;
+	float cursorY = -displayAreaBounds[1]+y;
 	// Each letter has a blank column copied to the right, but the first blank column (to the left) is done manually.
 	glUniform2f(u_spr_size, 1, 8);
-	glUniform2f(u_spr_offset, cursorX, cursorY);
+	glUniform2f(u_spr_screen_offset, cursorX, cursorY);
 	cursorX++;
 	glUniform2f(u_spr_tex_offset, 0, 0);
 	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
@@ -491,7 +499,7 @@ void drawText(char const* str, int x, int y) {
 		int letter = str[idx];
 		if (!letter) return;
 
-		glUniform2f(u_spr_offset, cursorX, cursorY);
+		glUniform2f(u_spr_screen_offset, cursorX, cursorY);
 		cursorX += 5;
 
 		letter -= 32;
