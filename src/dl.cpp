@@ -409,7 +409,7 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	// other, I'd have to adjust some of the raycasting code
 	// to avoid that case. This very large number works just
 	// as well for our purposes.
-	lookAtGp_best = (fraction){.numer = INT64_MAX, .denom = 1};
+	lookAtGp_best = (fraction){.numer = INT64_MAX/FIXP, .denom = 1};
 	memcpy(lookAtGp_origin, gs->players[myPlayer].pos, sizeof(lookAtGp_origin));
 	getLookUnitvec(lookAtGp_dir);
 
@@ -417,6 +417,9 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	processUpd(gs, myPlayer, 0);
 	bctx.solidCallback = NULL;
 
+	// TODO!! This is a big damn mess, since groups can be reallocated on the fly.
+	//        Usually it's not as big a deal, but it could be a big mess here.
+	//        Should track it by name or smthng.
 	if (lookAtGp_winner) {
 		// Re-locking this right after `processUpd` is a bit silly (we *just* had this lock),
 		// but this part doesn't really need to be performant.
