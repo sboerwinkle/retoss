@@ -29,7 +29,7 @@ int dl_selectedVar = 0;
 
 static dl_varGroup *currentGroup = NULL;
 
-static dl_varGroup *lookAtGp_winner;
+static char lookAtGp_winner[DL_VARNAME_LEN];
 static fraction lookAtGp_best;
 static offset lookAtGp_origin;
 static unitvec lookAtGp_dir;
@@ -64,7 +64,7 @@ static void addDummyForGroup(int i) {
 
 static void lookAtGp_test(solid *s) {
 	if (raycast(&lookAtGp_best, s, lookAtGp_origin, lookAtGp_dir)) {
-		lookAtGp_winner = currentGroup;
+		strcpy(lookAtGp_winner, currentGroup->name);
 	}
 }
 
@@ -407,7 +407,7 @@ void dl_upd(gamestate *gs, int myPlayer) {
 }
 
 void dl_lookAtGp(gamestate *gs, int myPlayer) {
-	lookAtGp_winner = NULL;
+	lookAtGp_winner[0] = '\0';
 	// I think I could probably get this to be +Inf instead,
 	// but since my bootleg `Inf`s compare weirdly with each
 	// other, I'd have to adjust some of the raycasting code
@@ -421,17 +421,16 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	processUpd(gs, myPlayer, 0);
 	bctx.solidCallback = NULL;
 
-	// TODO!! This is a big damn mess, since groups can be reallocated on the fly.
-	//        Usually it's not as big a deal, but it could be a big mess here.
-	//        Should track it by name or smthng.
-	if (lookAtGp_winner) {
-		// Re-locking this right after `processUpd` is a bit silly (we *just* had this lock),
-		// but this part doesn't really need to be performant.
-		mtx_lock(dl_varMtx);
-		dl_selectedGroup = lookAtGp_winner;
-		selectedVarFix();
-		mtx_unlock(dl_varMtx);
+	// Re-locking this right after `processUpd` is a bit silly (we *just* had this lock),
+	// but this part doesn't really need to be performant.
+	mtx_lock(dl_varMtx);
+	dl_selectedGroup = findGroup(lookAtGp_winner);
+	if (!dl_selectedGroup) {
+		puts("ERROR: That's really not supposed to happen");
+		dl_selectedGroup = &varGroups[0];
 	}
+	selectedVarFix();
+	mtx_unlock(dl_varMtx);
 }
 
 void dl_bake() {
