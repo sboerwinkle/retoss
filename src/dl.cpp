@@ -307,6 +307,10 @@ int64_t var(char const *name, int64_t val) {
 	return v->value.integer;
 }
 
+int64_t const * pvar(char const *name) {
+	return pvar(name, (int64_t const[]){0,0,0});
+}
+
 int64_t const * pvar(char const *name, offset const val) {
 	dl_var *v = findVarByName(name);
 
