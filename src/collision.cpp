@@ -9,7 +9,7 @@ struct shapeSpec {
 	int32_t const *distances;
 };
 
-shapeSpec shapeSpecs[2] = {
+shapeSpec shapeSpecs[3] = {
 	{
 		.numFaces = 6,
 		.facings = (unitvec const []){
@@ -47,7 +47,26 @@ shapeSpec shapeSpecs[2] = {
 			FIXP/8,
 			FIXP/8,
 		}
-	}
+	},
+	{
+		.numFaces = 6,
+		.facings = (unitvec const []){
+			{ FIXP,     0,     0},
+			{-FIXP,     0,     0},
+			{    0,  FIXP,     0},
+			{    0, -FIXP,     0},
+			{    0,     0,  FIXP},
+			{    0,     0, -FIXP}
+		},
+		.distances = (int32_t const []){
+			FIXP/8,
+			FIXP/8,
+			FIXP,
+			FIXP,
+			FIXP/8,
+			FIXP/8,
+		}
+	},
 };
 
 // Assumes `o` isn't, like, super-duper big

@@ -477,7 +477,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
-		int mesh = s->shape + ((s->tex & 32) / 16); // jank, just hits the 3 cases we need atm
+		int mesh = s->shape + (s->tex & 32); // jank, just hits the cases we need atm
 		drawCube(s, s->tex & 31, mesh);
 	}
 

@@ -54,7 +54,10 @@ static GLint u_spr_tex_offset;
 
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
-static int vtxIdx_cubeOneFace = -1, vtxIdx_slabOneFace = -1, vtxIdx_cubeSixFace = -1;
+static int vtxIdx_cubeOneFace = -1;
+static int vtxIdx_slabOneFace = -1;
+static int vtxIdx_poleOneFace = -1;
+static int vtxIdx_cubeSixFace = -1;
 
 static float matWorldToScreen[16];
 static int64_t *camPos;
@@ -249,6 +252,8 @@ void initGraphics() {
 	populateCubeVertexData(&vtxData, 1, 1, 1);
 	vtxIdx_slabOneFace = vtxData.num / 8; // 8 is our "stride", I think it's called
 	populateCubeVertexData(&vtxData, 1, 1, 1.0/8);
+	vtxIdx_poleOneFace = vtxData.num / 8;
+	populateCubeVertexData(&vtxData, 1.0/8, 1, 1.0/8);
 	vtxIdx_cubeSixFace = vtxData.num / 8;
 	populateCubeVertexData2(&vtxData);
 
@@ -414,6 +419,8 @@ void drawCube(solid *s, int tex, int mesh) {
 		vertexIndex = vtxIdx_cubeOneFace;
 	} else if (mesh == 1) {
 		vertexIndex = vtxIdx_slabOneFace;
+	} else if (mesh == 2) {
+		vertexIndex = vtxIdx_poleOneFace;
 	} else {
 		vertexIndex = vtxIdx_cubeSixFace;
 	}

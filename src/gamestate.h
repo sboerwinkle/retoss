@@ -13,7 +13,7 @@ struct player {
 	int tmp;
 };
 
-#define NUM_SHAPES 2
+#define NUM_SHAPES 3
 
 struct solid : cloneable {
 	int64_t pos[3];

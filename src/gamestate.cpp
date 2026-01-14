@@ -28,8 +28,9 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 }
 
 // cube diagonal is sqrt(3), or approx 1.75 (=7/4)
-// square diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
-static double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2};
+// slab diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
+// pole diagonal is like really close to 1 once you do the math
+static double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2, 33.0f/32};
 
 static void solidValidate(solid *s) {
 	if (s->shape < 0 || s->shape >= NUM_SHAPES) {
