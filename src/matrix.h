@@ -46,6 +46,7 @@ extern void imatFromIquatInv(imat M, iquat rot);
 
 extern void imat_applySm(offset dest, imat rot, offset const src);
 extern void imat_apply(unitvec dest, imat rot, unitvec const src);
+extern void imat_flipRot(imat rot);
 
 extern void matEmbiggen(float M[16], float in[9], float x, float y, float z);
 

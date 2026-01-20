@@ -251,6 +251,20 @@ void imat_apply(unitvec dest, imat rot, unitvec const src) {
 	dest[1] = (src[0]*rot[1] + src[1]*rot[4] + src[2]*rot[7])/FIXP;
 	dest[2] = (src[0]*rot[2] + src[1]*rot[5] + src[2]*rot[8])/FIXP;
 }
+void imat_flipRot(imat rot) {
+	int32_t tmp;
+	tmp = rot[1];
+	rot[1] = rot[3];
+	rot[3] = tmp;
+
+	tmp = rot[2];
+	rot[2] = rot[6];
+	rot[6] = tmp;
+
+	tmp = rot[5];
+	rot[5] = rot[7];
+	rot[7] = tmp;
+}
 
 void imatFromIquat(int32_t *M, iquat rot) {
 	// All the operations on components of `rot`
