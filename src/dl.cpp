@@ -171,7 +171,9 @@ static dl_varGroup *findGroup(char const *name) {
 
 void gp(char const* groupName) {
 	if (!locked) {
-		puts("ERROR: dl: gp: must be locked");
+		// Used to have an error here, but now this is just
+		// the case where a level is being loaded outside of editing.
+		//puts("ERROR: dl: gp: must be locked");
 		return;
 	}
 
@@ -488,6 +490,7 @@ void dl_init() {
 	}
 	addDummyForGroup(0);
 	dl_selectedGroup = &varGroups[0];
+	currentGroup = NULL; // Have to reset this after our call to `gp` earlier
 	locked = 0;
 
 	editEventsFifo = fopen("edit_events.fifo", "w");

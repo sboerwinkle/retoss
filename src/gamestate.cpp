@@ -7,6 +7,7 @@
 #include "gamestate.h"
 
 #include "collision.h"
+#include "player.h"
 
 static list<box**> lateResolveVbClones;
 static list<void*> queryResults;
@@ -115,15 +116,22 @@ void rmSolid(gamestate *gs, solid *s) {
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
-	range(i, 3) p->vel[i] += p->inputs[i];
+	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
+	p->vel[2] -= 16; // gravity
+
 	offset dest;
 	range(i, 3) dest[i] = p->pos[i] + p->vel[i];
+
 	queryResults.num = 0;
-	p->prox = velbox_query(p->prox, p->pos, p->vel, 1000, &queryResults);
+	p->prox = velbox_query(p->prox, p->pos, p->vel, 4000, &queryResults);
+	unitvec forceDir;
+	offset contactVel;
 	rangeconst(j, queryResults.num) {
 		solid *s = (solid*) queryResults[j];
-		collide_check(p, dest, 200, s);
+		int64_t dist = collide_check(p, dest, 1600, s, forceDir, contactVel);
+		if (dist) pl_phys_standard(forceDir, contactVel, dist, dest, p);
 	}
+
 	memcpy(p->pos, dest, sizeof(dest));
 }
 

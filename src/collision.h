@@ -8,5 +8,5 @@ struct fraction {
 	char lt(fraction const &other) const;
 };
 
-extern void collide_check(player *p, offset dest, int32_t radius, solid *s);
+extern int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out);
 extern char raycast(fraction *best, solid *s, offset origin, unitvec dir);

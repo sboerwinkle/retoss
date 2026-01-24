@@ -15,6 +15,7 @@
 #include "dl.h"
 #include "dl_game.h"
 #include "bctx.h"
+#include "lv.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -33,8 +34,9 @@ static int mouseDragSize = 30, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
 static char renderStats = 0;
-quat tmpGameRotation = {1,0,0,0};
 quat quatCamRotation = {1,0,0,0};
+// "dome" as distinct from 6DoF free-look. Felt descriptive to me.
+static double domeYaw = 0, domePitch = 0;
 
 static char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
@@ -62,11 +64,14 @@ gamestate* game_init2() {
 	// is handled by gamestate.cpp (in this call)
 	init(gs);
 
+	lv_playground(gs);
+	/*
 	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 0, 2+32);
 	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 0, 4);
 	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 1, 4);
 	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
 	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
+	*/
 
 	return gs;
 }
@@ -122,8 +127,25 @@ void handleKey(int key, int action) {
 }
 
 static void handleLook(double dx, double dy) {
+	quat o;
+
+	// dome look stuff
+	domeYaw   += dx*-0.0016;
+	domePitch += dy*-0.0016;
+	while (domeYaw >  M_PI) domeYaw -= 2*M_PI;
+	while (domeYaw < -M_PI) domeYaw += 2*M_PI;
+	if (domePitch > M_PI_2) domePitch = M_PI_2;
+	else if (domePitch < -M_PI_2) domePitch = -M_PI_2;
+	// Now construct and apply our quats
+	double y = domeYaw/2;
+	double p = domePitch/2;
+	quat yawRot = {(float)cos(y), 0, 0, (float)sin(y)};
+	quat pitchRot = {(float)cos(p), (float)sin(p), 0, 0};
+	quat_mult(o, yawRot, pitchRot);
+
+	/* Free-look stuff. I'm kinda proud of this, keeping it in!
 	float dist = sqrt(dx*dx + dy*dy);
-	float scale = -0.0008;
+	float scale = -0.0008; // This negation was a later addition, need to factor it through
 	float radians = dist * scale;
 	// Because of quaternion math, this represents a rotation of `radians*2`.
 	// We cap it at under a half rotation, after which I'm not sure my
@@ -135,8 +157,10 @@ static void handleLook(double dx, double dy) {
 	// Positive Y -> mouse down -> rotate around +X
 
 	quat r = {cos(radians), (float)(s*dy/dist), 0, (float)(s*dx/dist)};
-	quat o;
 	quat_mult(o, quatCamRotation, r);
+	*/
+
+	// Common cleanup stuff
 	quat_norm(o);
 	memcpy(quatCamRotation, o, sizeof(quat));
 }
@@ -280,8 +304,20 @@ void serializeInputs(char * dest) {
 		(float)(sharedInputs.z-sharedInputs.Z),
 	};
 	float dirWorld[3];
-	quat_apply(dirWorld, quatCamRotation, dirKeyboard);
-	range(i, 3) p[i] = 10*dirWorld[i];
+
+	// free-look stuff
+	//quat_apply(dirWorld, quatCamRotation, dirKeyboard);
+
+	// dome-look stuff
+	{
+		double c = cos(domeYaw);
+		double s = sin(domeYaw);
+		dirWorld[0] = c*dirKeyboard[0] - s*dirKeyboard[1];
+		dirWorld[1] = c*dirKeyboard[1] + s*dirKeyboard[0];
+		dirWorld[2] = dirKeyboard[2];
+	}
+
+	range(i, 3) p[i] = FIXP*dirWorld[i];
 
 	if (watch_dlFlag.load(std::memory_order::acquire)) {
 		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);

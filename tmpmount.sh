@@ -1,12 +1,12 @@
 #!/bin/bash
 
-if [ -n "$(ls -A ./src/dl_tmp)" ]; then
-	echo "dl_tmp not empty, aborting";
+if ( mount | grep dl_tmp ); then
+	echo "Looks like there's an existing mount, aborting";
 	exit;
 fi;
 
-if ( mount | grep dl_tmp ); then
-	echo "Looks like there's an existing mount, aborting";
+if [ -n "$(ls -A ./src/dl_tmp)" ]; then
+	echo "dl_tmp not empty, aborting";
 	exit;
 fi;
 

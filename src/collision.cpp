@@ -71,27 +71,7 @@ shapeSpec shapeSpecs[3] = {
 	},
 };
 
-// Assumes `o` isn't, like, super-duper big
-static int64_t dot(offset const o, unitvec const v) {
-	return (o[0]*v[0] + o[1]*v[1] + o[2]*v[2])/FIXP;
-}
-
-static int32_t dot(unitvec const a, unitvec const b) {
-	return (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])/FIXP;
-}
-
-// I'm not sure if this is right-handed or left-handed,
-// but it doesn't matter for our purposes.
-static void cross(unitvec output, unitvec const a, unitvec const b) {
-	output[0] = (a[1]*b[2]-b[1]*a[2])/FIXP;
-	output[1] = (a[2]*b[0]-b[2]*a[0])/FIXP;
-	output[2] = (a[0]*b[1]-b[0]*a[1])/FIXP;
-}
-
-// This is suuper lazy, and starts to behave real weird if things are spinning too fast.
-// However, it should be good enough, I hope!
-// I'll have to see what I can do about keeping some of this pre-calculated if possible...
-void collide_check(player *p, offset dest, int32_t radius, solid *s) {
+int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
 	offset v1raw;
 	range(i, 3) v1raw[i] = p->pos[i] - s->oldPos[i];
 	offset v2raw;
@@ -158,7 +138,7 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 
 		if (d1 >= radius && d2 >= radius) {
 			// No hit, this is our "early exit"
-			return;
+			return 0;
 		}
 		if (d1 > best) {
 			// Winner is the one that starts out furthest away
@@ -242,15 +222,20 @@ void collide_check(player *p, offset dest, int32_t radius, solid *s) {
 	{
 		offset o;
 		range(i, 3) o[i] = v1[i] - magicPt[i];
-		int64_t magEst = abs(o[0]) + abs(o[1]) + abs(o[2]);
+		//printf("%ld, %ld ?\n", magicPt[0], magicPt[2]);
+		//printf("%ld, %ld, %ld :(\n", o[0], o[1], o[2]);
+		int64_t magEst = labs(o[0]) + labs(o[1]) + labs(o[2]);
 		range(i, 3) o[i] = o[i]*FIXP/magEst;
 		// Haha actually, I am a little worried about the consistency of large sqrts haha
 		int32_t dist = sqrt(o[0]*o[0] + o[1]*o[1] + o[2]*o[2]);
 		range(i, 3) sampleNorm[i] = o[i]*FIXP/dist;
+		//printf("%d, %d, %d :)\n", sampleNorm[0], sampleNorm[1], sampleNorm[2]);
 	}
 foundSampleNorm:;
 	offset o;
-	range(i, 3) o[i] = sampleNorm[i] * -radius / FIXP;
+	// We want this calculation to round *away* from 0. The wacky second term accomplishes that,
+	// but I may make it more readable later. Goal is to help with edge weirdness.
+	range(i, 3) o[i] = (sampleNorm[i]*-radius - ((sampleNorm[i]>>31)|1)*(FIXP-1)) / FIXP;
 	range(i, 3) v1[i] += o[i];
 	range(i, 3) v2[i] += o[i];
 
@@ -264,13 +249,15 @@ foundSampleNorm:;
 		int64_t d1 = dot(v1, norm) - limit;
 		int64_t d2 = dot(v2, norm) - limit;
 
-		if (d1 >= 0) {
-			if (d2 >= 0) return;
+		// Previously `== 0` was in the first (`lower`) branch; now it's in the second branch.
+		// Goal is to help with edge weirdness.
+		if (d1 > 0) {
+			if (d2 > 0) return 0;
 			int32_t t = FIXP*d1/(d1-d2);
 			if (t > lower) lower = t;
 			else continue;
 		} else {
-			if (d2 < 0) continue;
+			if (d2 <= 0) continue;
 			// This still works out to be between 0-FIXP since we flip
 			// the sign on numer & denom compared to the other branch.
 			int32_t t = FIXP*d1/(d1-d2);
@@ -279,35 +266,39 @@ foundSampleNorm:;
 		}
 		// No hit.
 		// The "equals" case is ambiguous; we choose to interpret as "no hit".
-		if (lower >= upper) return;
+		if (lower >= upper) return 0;
 	}
 
 	// Okay! All that rigamarole later, we still haven't
 	// returned, so the answer is "yes, we have a hit".
 	range(i, 3) o[i] = magicPt[i] - v2[i];
 	int64_t dist = dot(o, sampleNorm);
-	if (dist <= 0) return; // We started inside but have already left.
+	if (dist <= 0) return 0; // We started inside but have already left.
+	/* {
+		range(i, 3) o[i] = magicPt[i] - v1[i];
+		int64_t tmp = dot(o, sampleNorm);
+		printf("Hm, %ld -> %ld\n", tmp, dist);
+	} */
 
 	// We need forward rotations, not inverse rotations, for this part.
 	imat_flipRot(rot1);
 	imat_flipRot(rot2);
-	unitvec forceDir;
-	imat_apply(forceDir, rot2, sampleNorm);
-	range(i, 3) dest[i] += dist*forceDir[i]/FIXP;
 
+	imat_apply(forceDir_out, rot2, sampleNorm);
+	vec_norm(forceDir_out);
 	// We're done with v1/v2 by now,
 	// and I need them to figure out
 	// how much `magicPt`'s rotation 
 	// changes the contact velocity.
 	imat_applySm(v1, rot1, magicPt);
 	imat_applySm(v2, rot2, magicPt);
+	range(i, 3) if (v1[i] != v2[i]) puts("woah"); // tmp
+	range(i, 3) if (s->vel[i] != 0) puts("oof"); // tmp
 	// For now the other thing is a player (a sphere that doesn't spin),
 	// so its contact point doesn't matter.
-	range(i, 3) o[i] = s->vel[i] - p->vel[i] + v2[i] - v1[i];
-	int64_t impulse = dot(o, forceDir);
-	if (impulse > 0) {
-		range(i, 3) p->vel[i] += impulse*forceDir[i]/FIXP;
-	}
+	range(i, 3) contactVel_out[i] = p->vel[i] - s->vel[i] + v1[i] - v2[i];
+
+	return dist;
 }
 
 // Next up is probably figuring out how to collide something that has a number of spheres

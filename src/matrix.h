@@ -18,6 +18,7 @@ typedef int32_t unitvec[3];
 typedef int32_t imat[9];
 typedef int64_t offset[3];
 
+extern void vec_norm(unitvec v);
 extern void quat_norm(quat t);
 extern void iquat_norm(iquat x);
 extern void quat_rotateBy(quat x, quat rot);
@@ -44,8 +45,8 @@ extern void mat4FromQuat(float* M, quat rot);
 extern void mat3FromIquat(float *M, iquat rot);
 extern void imatFromIquatInv(imat M, iquat rot);
 
-extern void imat_applySm(offset dest, imat rot, offset const src);
-extern void imat_apply(unitvec dest, imat rot, unitvec const src);
+extern void imat_applySm(offset dest, imat const rot, offset const src);
+extern void imat_apply(unitvec dest, imat const rot, unitvec const src);
 extern void imat_flipRot(imat rot);
 
 extern void matEmbiggen(float M[16], float in[9], float x, float y, float z);
@@ -53,3 +54,9 @@ extern void matEmbiggen(float M[16], float in[9], float x, float y, float z);
 extern void mat4Transf(float* res, float x, float y, float z);
 
 extern void perspective(float* m, float invSlopeX, float invSlopeY, float zNear);
+
+extern int64_t dot(offset const o, unitvec const v);
+extern int32_t dot(unitvec const a, unitvec const b);
+extern void cross(unitvec output, unitvec const a, unitvec const b);
+extern void bound64(offset v, int32_t bound);
+extern void bound26(int32_t v[3], int32_t bound);

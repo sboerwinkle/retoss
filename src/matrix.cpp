@@ -1,13 +1,22 @@
 /////////////////////////////////
-// Most work by mboerwinkle,
-// modified by sboerwinkle
+// Authors: mboerwinkle, sboerwinkle
 /////////////////////////////////
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "util.h"
+
 #include "matrix.h"
+
+void vec_norm(unitvec v) {
+	// See comments about integer sqrt in `iquat_norm` (which was written first)
+	int32_t len = sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+	v[0] = v[0]*FIXP/len;
+	v[1] = v[1]*FIXP/len;
+	v[2] = v[2]*FIXP/len;
+}
 
 void quat_norm(quat t){
 	// If this `sqrt` call is too expensive for you, you could
@@ -241,12 +250,12 @@ void imatFromIquatInv(imat M, iquat rot) {
 
 // 'Sm' is because we assume the input offset is small enough (approx. 500 Jupiters across at 1000 units/m)
 // that the multiplications can be performed safely within int64_t
-void imat_applySm(offset dest, imat rot, offset const src) {
+void imat_applySm(offset dest, imat const rot, offset const src) {
 	dest[0] = (src[0]*rot[0] + src[1]*rot[3] + src[2]*rot[6])/FIXP;
 	dest[1] = (src[0]*rot[1] + src[1]*rot[4] + src[2]*rot[7])/FIXP;
 	dest[2] = (src[0]*rot[2] + src[1]*rot[5] + src[2]*rot[8])/FIXP;
 }
-void imat_apply(unitvec dest, imat rot, unitvec const src) {
+void imat_apply(unitvec dest, imat const rot, unitvec const src) {
 	dest[0] = (src[0]*rot[0] + src[1]*rot[3] + src[2]*rot[6])/FIXP;
 	dest[1] = (src[0]*rot[1] + src[1]*rot[4] + src[2]*rot[7])/FIXP;
 	dest[2] = (src[0]*rot[2] + src[1]*rot[5] + src[2]*rot[8])/FIXP;
@@ -335,4 +344,59 @@ void perspective(float* m, float invSlopeX, float invSlopeY, float zNear) {
 	m[13] =  0;
 	m[14] = -2*zNear + tmp_debug_offset;
 	m[15] =  tmp_debug_offset;
+}
+
+// Assumes `o` isn't, like, super-duper big
+int64_t dot(offset const o, unitvec const v) {
+	return (o[0]*v[0] + o[1]*v[1] + o[2]*v[2])/FIXP;
+}
+
+int32_t dot(unitvec const a, unitvec const b) {
+	return (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])/FIXP;
+}
+
+void cross(unitvec output, unitvec const a, unitvec const b) {
+	output[0] = (a[1]*b[2]-b[1]*a[2])/FIXP;
+	output[1] = (a[2]*b[0]-b[2]*a[0])/FIXP;
+	output[2] = (a[0]*b[1]-b[0]*a[1])/FIXP;
+}
+
+// `bound` should fit in (I believe) 25 bits?
+// If you need a bigger bound, use a different function (presumably that pre-scales stuff?).
+// If you're not sure on the bound's size, write both functions and then a wrapper to choose one.
+void bound64(offset v, int32_t bound) {
+	int64_t magEst = labs(v[0]) + labs(v[1]) + labs(v[2]);
+	// True magnitude will be between `magEst` and `magEst/2` (actually magEst/1.732)
+	if (magEst <= bound) return;
+	int64_t d;
+	if (magEst < bound*2) {
+		// At this point we're still not sure if it needs truncation or not, so we have to check.
+		// However, it should be small enough that we can do the sqrt safely.
+		int64_t d_sq = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+		d = sqrt(d_sq);
+		if (d <= bound) return;
+	} else {
+		// We lose precision here, but I'm not too torn up about it.
+		// We assume all offsets can be safely multiplied by FIXP (without overflow),
+		// so we use that to get some scaling.
+		range(i,3) v[0] = v[0]*FIXP/magEst;
+		int64_t d_sq = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+		d = sqrt(d_sq);
+		// No "are we within bounds" check:
+		// We just scaled the vector (so it tells us nothing),
+		// plus we already know we're out-of-bounds just from `magEst`.
+	}
+	// Either way we got here, we know `v[i]*bound` fits in 64 bits.
+	range(i, 3) v[i] = v[i]*bound/d;
+}
+
+// Some conservative back-of-napkin math means a 26-bit signed number
+// can be squared and still represented exactly by a `double`.
+// I'm going to assume that this means we have consistent `sqrt` across
+// platforms up to that point.
+void bound26(int32_t v[3], int32_t bound) {
+	int64_t d_sq = (int64_t)v[0]*v[0] + (int64_t)v[1]*v[1] + (int64_t)v[2]*v[2];
+	if (d_sq <= (int64_t)bound*bound) return;
+	int64_t d = sqrt(d_sq);
+	range(i, 3) v[i] = v[i]*bound/d;
 }
