@@ -379,7 +379,7 @@ void bound64(offset v, int32_t bound) {
 		// We lose precision here, but I'm not too torn up about it.
 		// We assume all offsets can be safely multiplied by FIXP (without overflow),
 		// so we use that to get some scaling.
-		range(i,3) v[0] = v[0]*FIXP/magEst;
+		range(i,3) v[i] = v[i]*FIXP/magEst;
 		int64_t d_sq = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 		d = sqrt(d_sq);
 		// No "are we within bounds" check:

@@ -61,7 +61,6 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	// won't always equal its velocity, so we can't
 	// rely on that fact.
 	if (normalForce <= 0) return;
-	//printf("%03d, %03d, %03d (%03ld)\r", desiredChange[0], desiredChange[1], desiredChange[2], normalForce);
 
 	offset impulse;
 	range(i, 3) impulse[i] = normalForce*forceDir[i]/FIXP;
