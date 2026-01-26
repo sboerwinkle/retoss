@@ -83,7 +83,7 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 
 	// Todo Could add friction here, would need to work out specifics.
 	//      (so stopping is faster than starting)
-#define SPEED 400
+#define SPEED 200
 	bound64(landSpeed, SPEED);
 	// Spatial types are usually in 64-bit integers,
 	// but this one in particular is computed from

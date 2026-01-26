@@ -117,18 +117,18 @@ void rmSolid(gamestate *gs, solid *s) {
 
 static void playerUpdate(gamestate *gs, player *p) {
 	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
-	p->vel[2] -= 16; // gravity
+	p->vel[2] -= 8; // gravity
 
 	offset dest;
 	range(i, 3) dest[i] = p->pos[i] + p->vel[i];
 
 	queryResults.num = 0;
-	p->prox = velbox_query(p->prox, p->pos, p->vel, 4000, &queryResults);
+	p->prox = velbox_query(p->prox, p->pos, p->vel, 2000, &queryResults);
 	unitvec forceDir;
 	offset contactVel;
 	rangeconst(j, queryResults.num) {
 		solid *s = (solid*) queryResults[j];
-		int64_t dist = collide_check(p, dest, 1600, s, forceDir, contactVel);
+		int64_t dist = collide_check(p, dest, 800, s, forceDir, contactVel);
 		if (dist) pl_phys_standard(forceDir, contactVel, dist, dest, p);
 	}
 

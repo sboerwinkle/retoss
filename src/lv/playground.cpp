@@ -6,7 +6,7 @@
 
 extern void lv_playground(gamestate *gs) {
 	bctx.reset(gs);
-	bctx.scale(4000);
+	bctx.scale(2000);
 	//bctx.resel();
 
 	bctx.push();
