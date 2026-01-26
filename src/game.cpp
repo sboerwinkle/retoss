@@ -509,12 +509,20 @@ void prefsToCmds(queue<strbuf> *cmds) {
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	updateTiming(&renderTiming, drawingNanos);
-	setupFrame(gs->players[myPlayer].pos);
+
+	player *p = &gs->players[myPlayer];
+	offset frameCenter;
+	{
+		int64_t *p1 = p->oldPos;
+		int64_t *p2 = p->pos;
+		range(i, 3) frameCenter[i] = p1[i] + (int64_t)(interpRatio*(p2[i]-p1[i]));
+	}
+	setupFrame(frameCenter);
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
 		int mesh = s->shape + (s->tex & 32); // jank, just hits the cases we need atm
-		drawCube(s, s->tex & 31, mesh);
+		drawCube(s, s->tex & 31, mesh, interpRatio);
 	}
 
 	setup2d();
@@ -533,7 +541,6 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 	char msg[20];
 
-	player *p = &gs->players[myPlayer];
 	snprintf(msg, 20, "t: %5d", p->tmp);
 	drawText(msg, 1, 8);
 	snprintf(msg, 20, "(%5ld,%5ld,%5ld)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);

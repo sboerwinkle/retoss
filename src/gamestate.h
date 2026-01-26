@@ -7,6 +7,7 @@
 
 struct player {
 	int64_t pos[3];
+	int64_t oldPos[3];
 	int64_t vel[3];
 	int32_t inputs[3];
 	box *prox;

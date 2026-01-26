@@ -385,13 +385,14 @@ void setupFrame(int64_t *_camPos) {
 	camPos = _camPos;
 }
 
-void drawCube(solid *s, int tex, int mesh) {
+void drawCube(solid *s, int tex, int mesh, float interpRatio) {
 	// Will need scaling (and mottling) eventually
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
 		return;
 	}
 	// The rotation of the thing itself (used for lighting).
+	// Todo: Use `interpRatio` here somehow.
 	GLfloat rot_data[9];
 	mat3FromIquat(rot_data, s->rot);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
@@ -400,7 +401,7 @@ void drawCube(solid *s, int tex, int mesh) {
 	range(i, 9) rot_data[i] *= s->r;
 	float matWorld[16];
 	float translate[3];
-	range(i, 3) translate[i] = s->pos[i] - camPos[i];
+	range(i, 3) translate[i] = s->oldPos[i] - camPos[i] + interpRatio*(s->pos[i] - s->oldPos[i]);
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`

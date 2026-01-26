@@ -6,7 +6,7 @@ extern float displayAreaBounds[2];
 extern void initGraphics();
 
 extern void setupFrame(int64_t *_camPos);
-extern void drawCube(solid *s, int tex, int mesh);
+extern void drawCube(solid *s, int tex, int mesh, float interpRatio);
 
 extern void setup2d();
 

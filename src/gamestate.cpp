@@ -15,6 +15,7 @@ static list<void*> queryResults;
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
 		.pos={0,0,0},
+		.oldPos={-1,-1,-1},
 		.vel={0,0,0},
 		.inputs={0,0,0},
 		.prox=gs->vb_root,
@@ -116,6 +117,7 @@ void rmSolid(gamestate *gs, solid *s) {
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
+	memcpy(p->oldPos, p->pos, sizeof(p->pos));
 	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
 	p->vel[2] -= 8; // gravity
 
@@ -172,6 +174,11 @@ static void resolveVbClones() {
 	}
 }
 
+static void playerDupCleanup(player *p) {
+	p->prox = (box*)p->prox->clone.ptr;
+	range(i, 3) p->oldPos[i] = -1;
+}
+
 gamestate* dup(gamestate *orig) {
 	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
 	ret->players.init(orig->players);
@@ -195,7 +202,7 @@ gamestate* dup(gamestate *orig) {
 	resolveVbClones();
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
-		p->prox = (box*)p->prox->clone.ptr;
+		playerDupCleanup(p);
 	}
 
 	return ret;
@@ -279,6 +286,9 @@ static void transAllSolids(gamestate *gs) {
 static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->pos[i]);
 	range(i, 3) trans64(&p->vel[i]);
+	if (seriz_reading) {
+		range(i, 3) p->oldPos[i] = -1;
+	}
 }
 
 /* Unused
