@@ -5,6 +5,8 @@
 
 #include "collision.h"
 
+#include "main.h" // Just for `debug` computation, need to know if we're in the rootState
+
 struct shapeSpec {
 	int const numFaces;
 	unitvec const *facings;
@@ -176,6 +178,7 @@ int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec 
 		}
 	}
 
+	//char debug = 0;
 	unitvec sampleNorm;
 	if (best == 1) {
 		// Only one face required adjusting, so we don't need to do any math to get the
@@ -210,26 +213,31 @@ int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec 
 	}
 
 	if (best != 1) {
+		/*{
+			int64_t tmp = p - rootState->players.items;
+			if (tmp >= 0 && tmp < rootState->players.num) debug = 1;
+		}*/
+		//if (debug) printf("w: %d %d %d\n", winner1, winner2, winner3);
 		// Oh boy, the most fun.
 		unitvec v3;
 		cross(v3, sh.facings[winner1], sh.facings[winner2]);
 		int32_t dot_prod = dot(v3, sh.facings[winner3]);
 		// This one seems way too simple, but I think it's correct??
-		range(i, 3) magicPt[i] += best*v3[i]/dot_prod;
+		range(i, 3) magicPt[i] -= best*v3[i]/dot_prod;
 	}
 
 	// Then we've got to actually to do the scaling to get our test point.
 	{
 		offset o;
 		range(i, 3) o[i] = v1[i] - magicPt[i];
-		//printf("%ld, %ld ?\n", magicPt[0], magicPt[2]);
-		//printf("%ld, %ld, %ld :(\n", o[0], o[1], o[2]);
+		//if (debug) printf("%ld, %ld, %ld ?\n", magicPt[0], magicPt[1], magicPt[2]);
+		//if (debug) printf("%ld, %ld, %ld :(\n", o[0], o[1], o[2]);
 		int64_t magEst = labs(o[0]) + labs(o[1]) + labs(o[2]);
 		range(i, 3) o[i] = o[i]*FIXP/magEst;
 		// Haha actually, I am a little worried about the consistency of large sqrts haha
 		int32_t dist = sqrt(o[0]*o[0] + o[1]*o[1] + o[2]*o[2]);
 		range(i, 3) sampleNorm[i] = o[i]*FIXP/dist;
-		//printf("%d, %d, %d :)\n", sampleNorm[0], sampleNorm[1], sampleNorm[2]);
+		//if (debug) printf("%d, %d, %d :)\n", sampleNorm[0], sampleNorm[1], sampleNorm[2]);
 	}
 foundSampleNorm:;
 	offset o;
@@ -274,11 +282,11 @@ foundSampleNorm:;
 	range(i, 3) o[i] = magicPt[i] - v2[i];
 	int64_t dist = dot(o, sampleNorm);
 	if (dist <= 0) return 0; // We started inside but have already left.
-	/* {
+	/*if (debug) {
 		range(i, 3) o[i] = magicPt[i] - v1[i];
 		int64_t tmp = dot(o, sampleNorm);
 		printf("Hm, %ld -> %ld\n", tmp, dist);
-	} */
+	}*/
 
 	// We need forward rotations, not inverse rotations, for this part.
 	imat_flipRot(rot1);
