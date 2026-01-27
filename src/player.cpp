@@ -96,6 +96,15 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	}
 	//printf("%03d, %03d, %03d (%03ld)\r", desiredChange[0], desiredChange[1], desiredChange[2], normalForce);
 	fflush(stdout);
+	if (p->inputs[2] > 0) { // Jumping. We let you do one of 2 kinds because we're so nice
+		if (dot(desire, forceDir) > 0) {
+			// Jump away from surface
+			range(i, 3) desiredChange[i] += forceDir[i]*150/FIXP;
+		} else if (forceDir[2] > 0) {
+			// Jump up
+			desiredChange[2] += 150;
+		}
+	}
 	range(i, 3) p->vel[i] += desiredChange[i];
 	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
 }
