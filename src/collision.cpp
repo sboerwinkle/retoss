@@ -75,9 +75,9 @@ shapeSpec shapeSpecs[3] = {
 
 int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
 	offset v1raw;
-	range(i, 3) v1raw[i] = p->pos[i] - s->oldPos[i];
+	range(i, 3) v1raw[i] = p->m.pos[i] - s->m.oldPos[i];
 	offset v2raw;
-	range(i, 3) v2raw[i] = dest[i] - s->pos[i];
+	range(i, 3) v2raw[i] = dest[i] - s->m.pos[i];
 
 	// I think converting these to `imat`s and then using them once each
 	// is probably less efficient than just using the direct quaternion-application
@@ -86,7 +86,7 @@ int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec 
 	//  or if we cache rotations of big things or something, idk)
 	imat rot1, rot2;
 	imatFromIquatInv(rot1, s->oldRot);
-	imatFromIquatInv(rot2, s->rot);
+	imatFromIquatInv(rot2, s->m.rot);
 
 	offset v1, v2;
 	imat_applySm(v1, rot1, v1raw);
@@ -322,9 +322,9 @@ char fraction::lt(fraction const &other) const {
 
 char raycast(fraction *best, solid *s, offset origin, unitvec dir) {
 	offset vWorld;
-	range(i, 3) vWorld[i] = s->pos[i] - origin[i];
+	range(i, 3) vWorld[i] = s->m.pos[i] - origin[i];
 	imat rot;
-	imatFromIquatInv(rot, s->rot);
+	imatFromIquatInv(rot, s->m.rot);
 	offset vSolid;
 	imat_applySm(vSolid, rot, vWorld);
 	unitvec dirSolid;

@@ -14,12 +14,14 @@ static list<void*> queryResults;
 
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
-		.pos={0,0,0},
-		.oldPos={-1,-1,-1},
+		.m={
+			.pos={0,0,0},
+			.oldPos={-1,-1,-1},
+			.rot={FIXP,0,0,0},
+		},
 		.vel={0,0,0},
 		.inputs={0,0,0},
 		.prox=gs->vb_root,
-		.tmp=0,
 	};
 }
 
@@ -44,7 +46,7 @@ static void solidValidate(solid *s) {
 static void solidPutVb(solid *s, box *guess) {
 	box *tmp = velbox_alloc();
 	s->b = tmp;
-	memcpy(tmp->pos, s->pos, sizeof(s->pos));
+	memcpy(tmp->pos, s->m.pos, sizeof(s->m.pos));
 	tmp->vel[0] = 0;
 	tmp->vel[1] = 0;
 	tmp->vel[2] = 0;
@@ -56,9 +58,9 @@ static void solidPutVb(solid *s, box *guess) {
 }
 
 static void solidUpdate(gamestate *gs, solid *s) {
-	memcpy(s->oldPos, s->pos, sizeof(s->pos));
+	memcpy(s->m.oldPos, s->m.pos, sizeof(s->m.pos));
 	// For stuff that doesn't spin, we could maybe just set this up after de-seriz and cloning.
-	memcpy(s->oldRot, s->rot, sizeof(s->rot));
+	memcpy(s->oldRot, s->m.rot, sizeof(s->m.rot));
 
 	// The only other thing we're doing is updating our velbox,
 	// so if it's still valid for long enough we leave it alone.
@@ -77,7 +79,7 @@ static solid* solidDup(solid *s) {
 	// Not stictly necessary - dup'd states are never the canon state,
 	// but the idea is that we don't want to rely on oldPos until the
 	// thing in question has ticked this frame.
-	t->oldPos[0] = t->oldPos[1] = t->oldPos[2] = -1;
+	t->m.oldPos[0] = t->m.oldPos[1] = t->m.oldPos[2] = -1;
 
 	s->clone.ptr = t;
 	lateResolveVbClones.add(&t->b);
@@ -88,18 +90,18 @@ static solid* solidDup(solid *s) {
 solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
 	solid *s = new solid();
 	gs->solids.add(s);
-	s->pos[0] = x;
-	s->pos[1] = y;
-	s->pos[2] = z;
-	s->oldPos[0] = s->oldPos[1] = s->oldPos[2] = -1;
+	s->m.pos[0] = x;
+	s->m.pos[1] = y;
+	s->m.pos[2] = z;
+	s->m.oldPos[0] = s->m.oldPos[1] = s->m.oldPos[2] = -1;
 	s->vel[0] = s->vel[1] = s->vel[2] = 0;
 	s->r = r;
 	s->shape = shape;
 	s->tex = tex;
-	s->rot[0] = FIXP;
-	s->rot[1] = 0;
-	s->rot[2] = 0;
-	s->rot[3] = 0;
+	s->m.rot[0] = FIXP;
+	s->m.rot[1] = 0;
+	s->m.rot[2] = 0;
+	s->m.rot[3] = 0;
 
 	solidValidate(s);
 
@@ -117,15 +119,15 @@ void rmSolid(gamestate *gs, solid *s) {
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
-	memcpy(p->oldPos, p->pos, sizeof(p->pos));
+	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
 	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
 	p->vel[2] -= 8; // gravity
 
 	offset dest;
-	range(i, 3) dest[i] = p->pos[i] + p->vel[i];
+	range(i, 3) dest[i] = p->m.pos[i] + p->vel[i];
 
 	queryResults.num = 0;
-	p->prox = velbox_query(p->prox, p->pos, p->vel, 2000, &queryResults);
+	p->prox = velbox_query(p->prox, p->m.pos, p->vel, 2000, &queryResults);
 	unitvec forceDir;
 	offset contactVel;
 	rangeconst(j, queryResults.num) {
@@ -134,7 +136,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 		if (dist) pl_phys_standard(forceDir, contactVel, dist, dest, p);
 	}
 
-	memcpy(p->pos, dest, sizeof(dest));
+	memcpy(p->m.pos, dest, sizeof(dest));
 }
 
 void runTick(gamestate *gs) {
@@ -150,9 +152,9 @@ void runTick(gamestate *gs) {
 	velbox_completeTick(gs->vb_root);
 }
 
-void mkSolidAtPlayer(gamestate *gs, player *p, iquat r) {
-	solid *s = addSolid(gs, p->prox, p->pos[0], p->pos[1], p->pos[2], 1000, 0, 4);
-	memcpy(s->rot, r, sizeof(iquat)); // Array types are weird in C
+void mkSolidAtPlayer(gamestate *gs, player *p) {
+	solid *s = addSolid(gs, p->prox, p->m.pos[0], p->m.pos[1], p->m.pos[2], 1000, 0, 4);
+	memcpy(s->m.rot, p->m.rot, sizeof(iquat)); // Array types are weird in C
 }
 
 // I'm thinking `isSync` may be unused forever, but we can leave it for now (forever)
@@ -176,7 +178,7 @@ static void resolveVbClones() {
 
 static void playerDupCleanup(player *p) {
 	p->prox = (box*)p->prox->clone.ptr;
-	range(i, 3) p->oldPos[i] = -1;
+	range(i, 3) p->m.oldPos[i] = -1;
 }
 
 gamestate* dup(gamestate *orig) {
@@ -252,17 +254,17 @@ static void transBlock(void *mem, int len) {
 }
 
 static void transSolid(solid *s) {
-	transBlock(s->pos, sizeof(s->pos));
+	transBlock(s->m.pos, sizeof(s->m.pos));
 	transBlock(s->vel, sizeof(s->vel));
 	trans64(&s->r);
 	trans32(&s->shape);
 	trans32(&s->tex);
-	transBlock(s->rot, sizeof(s->rot));
+	transBlock(s->m.rot, sizeof(s->m.rot));
 	transWeakRef(&s->b, &boxSerizPtrs);
 	if (seriz_reading) {
 		// Some fields that we want consistently initialized,
 		// but ideally nothing will need them before they are reset.
-		memset(s->oldPos, 0, sizeof(s->oldPos));
+		memset(s->m.oldPos, 0, sizeof(s->m.oldPos));
 		memset(s->oldRot, 0, sizeof(s->oldRot));
 
 		// Sanity / malicious data check.
@@ -284,10 +286,11 @@ static void transAllSolids(gamestate *gs) {
 }
 
 static void transPlayer(player *p) {
-	range(i, 3) trans64(&p->pos[i]);
+	range(i, 3) trans64(&p->m.pos[i]);
 	range(i, 3) trans64(&p->vel[i]);
+	range(i, 4) trans32(&p->m.rot[i]);
 	if (seriz_reading) {
-		range(i, 3) p->oldPos[i] = -1;
+		range(i, 3) p->m.oldPos[i] = -1;
 	}
 }
 

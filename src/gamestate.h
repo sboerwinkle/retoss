@@ -5,25 +5,27 @@
 #include "box.h"
 #include "cloneable.h"
 
-struct player {
+struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];
+	iquat rot;
+};
+
+struct player {
+	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
 	box *prox;
-	int tmp;
 };
 
 #define NUM_SHAPES 3
 
 struct solid : cloneable {
-	int64_t pos[3];
-	int64_t oldPos[3];
 	int64_t vel[3];
 	int64_t r;
 	int32_t shape;
 	int32_t tex;
-	iquat rot;
+	mover m;
 	iquat oldRot; // This isn't serialized, and we don't care if it's copied. Should avoid using this until this solid has ticked!
 	box *b;
 };
@@ -43,7 +45,7 @@ extern void rmSolid(gamestate *gs, solid *s);
 
 extern void runTick(gamestate *gs);
 
-extern void mkSolidAtPlayer(gamestate *gs, player *p, iquat r);
+extern void mkSolidAtPlayer(gamestate *gs, player *p);
 
 extern gamestate* dup(gamestate *orig);
 extern void prepareGamestateForLoad(gamestate *gs, char isSync);

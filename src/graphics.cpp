@@ -385,7 +385,7 @@ void setupFrame(int64_t *_camPos) {
 	camPos = _camPos;
 }
 
-void drawCube(solid *s, int tex, int mesh, float interpRatio) {
+void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio) {
 	// Will need scaling (and mottling) eventually
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
@@ -394,14 +394,14 @@ void drawCube(solid *s, int tex, int mesh, float interpRatio) {
 	// The rotation of the thing itself (used for lighting).
 	// Todo: Use `interpRatio` here somehow.
 	GLfloat rot_data[9];
-	mat3FromIquat(rot_data, s->rot);
+	mat3FromIquat(rot_data, m->rot);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
 	// Add in scaling / translation...
-	range(i, 9) rot_data[i] *= s->r;
+	range(i, 9) rot_data[i] *= scale;
 	float matWorld[16];
 	float translate[3];
-	range(i, 3) translate[i] = s->oldPos[i] - camPos[i] + interpRatio*(s->pos[i] - s->oldPos[i]);
+	range(i, 3) translate[i] = m->oldPos[i] - camPos[i] + interpRatio*(m->pos[i] - m->oldPos[i]);
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`
@@ -412,7 +412,7 @@ void drawCube(solid *s, int tex, int mesh, float interpRatio) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, s->r/1000);
+	glUniform1f(u_main_texscale, scale/1000);
 	glUniform2f(u_main_texoffset, 0, 0);
 
 	int32_t vertexIndex;

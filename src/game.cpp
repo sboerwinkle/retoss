@@ -293,7 +293,7 @@ void copyInputs() {
 // In practice we don't use that, partly because anything that *might* winds up
 // being better implemented as a command, which ensures delivery (even if late,
 // or stacked up with commands from other frames).
-int getInputsSize() { return 3*sizeof(int32_t); }
+int getInputsSize() { return 7*sizeof(int32_t); }
 void serializeInputs(char * dest) {
 	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
 	int32_t *p = (int32_t*) dest;
@@ -318,6 +318,7 @@ void serializeInputs(char * dest) {
 	}
 
 	range(i, 3) p[i] = FIXP*dirWorld[i];
+	range(i, 4) p[3+i] = quatCamRotation[i]*FIXP;
 
 	if (watch_dlFlag.load(std::memory_order::acquire)) {
 		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
@@ -331,14 +332,17 @@ int playerInputs(player *p, list<char> const * data) {
 	//      Does this handle players that have never yet sent anything?
 	//      Because that's maybe something we need to handle,
 	//      like if we don't properly init `inputs`...
-	if (data->num < 12) {
+	if (data->num < 7*(int)sizeof(int32_t)) {
 		range(i, 3) p->inputs[i] = 0;
+		p->m.rot[0] = FIXP;
+		range(i, 3) p->m.rot[i+1] = 0;
 		return 0;
 	}
 
 	int32_t *ptr = (int32_t*)(data->items);
 	range(i, 3) p->inputs[i] = ptr[i];
-	return 12;
+	range(i, 4) p->m.rot[i] = ptr[3+i];
+	return 7*sizeof(int32_t);
 }
 
 
@@ -480,14 +484,8 @@ char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char i
 
 char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) {
 	if (isCmd(str, "/c")) {
-		// We're restricting this to only run for ourselves to artificially force a desync.
-		// Also we don't have player camera direction as part of tracked state, so we
-		// actually can't do it in synchrony right now.
-		if (isMe) {
-			iquat objectRotation;
-			range(i, 4) objectRotation[i] = FIXP*quatCamRotation[i];
-			mkSolidAtPlayer(gs, p, objectRotation);
-		}
+		// I have no idea if this works correctly lol
+		mkSolidAtPlayer(gs, p);
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.
@@ -513,8 +511,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	player *p = &gs->players[myPlayer];
 	offset frameCenter;
 	{
-		int64_t *p1 = p->oldPos;
-		int64_t *p2 = p->pos;
+		int64_t *p1 = p->m.oldPos;
+		int64_t *p2 = p->m.pos;
 		range(i, 3) frameCenter[i] = p1[i] + (int64_t)(interpRatio*(p2[i]-p1[i]));
 	}
 	setupFrame(frameCenter);
@@ -522,7 +520,16 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
 		int mesh = s->shape + (s->tex & 32); // jank, just hits the cases we need atm
-		drawCube(s, s->tex & 31, mesh, interpRatio);
+		drawCube(&s->m, s->r, s->tex & 31, mesh, interpRatio);
+	}
+
+	rangeconst(i, gs->players.num) {
+		if (i == myPlayer) continue;
+		player *p2 = &gs->players[i];
+		int64_t radius = 800;
+		int sprite = 3;
+		int mesh = 32;
+		drawCube(&p2->m, radius, sprite, mesh, interpRatio);
 	}
 
 	setup2d();
@@ -541,13 +548,14 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 	char msg[20];
 
-	snprintf(msg, 20, "t: %5d", p->tmp);
-	drawText(msg, 1, 8);
+	/*
 	snprintf(msg, 20, "(%5ld,%5ld,%5ld)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);
-	drawText(msg, 1, 15);
+	drawText(msg, 1, 8);
 	snprintf(msg, 20, "r %6ld", p->prox->r);
-	drawText(msg, 1, 22);
+	drawText(msg, 1, 15);
+	*/
 
+	// Can move all this up the screen some if I want to, the debug stuff above it is gone for now
 	if (editMenuState >= 0) {
 		mtx_lock(dl_varMtx);
 		if (editMenuState == 0) {

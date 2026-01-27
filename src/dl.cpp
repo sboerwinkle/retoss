@@ -239,7 +239,7 @@ int64_t* look(int64_t dist) {
 		// This is the offset from `bctx`'s position, but still with the world rotation (no rotation)
 		offset intermediate;
 		range(i, 3) {
-			intermediate[i] = dirWorld[i]*dist/FIXP + updPlayer->pos[i] - bctx.transf.pos[i];
+			intermediate[i] = dirWorld[i]*dist/FIXP + updPlayer->m.pos[i] - bctx.transf.pos[i];
 		}
 
 		// Convert `intermediate` to use `bctx`'s rotation
@@ -416,7 +416,7 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	// to avoid that case. This very large number works just
 	// as well for our purposes.
 	lookAtGp_best = (fraction){.numer = INT64_MAX/FIXP, .denom = 1};
-	memcpy(lookAtGp_origin, gs->players[myPlayer].pos, sizeof(lookAtGp_origin));
+	memcpy(lookAtGp_origin, gs->players[myPlayer].m.pos, sizeof(lookAtGp_origin));
 	getLookUnitvec(lookAtGp_dir);
 
 	bctx.solidCallback = lookAtGp_test;
