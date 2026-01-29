@@ -9,7 +9,6 @@
 #include "collision.h"
 #include "player.h"
 
-static list<box**> lateResolveVbClones;
 static list<void*> queryResults;
 
 void resetPlayer(gamestate *gs, int i) {
@@ -82,7 +81,8 @@ static solid* solidDup(solid *s) {
 	t->m.oldPos[0] = t->m.oldPos[1] = t->m.oldPos[2] = -1;
 
 	s->clone.ptr = t;
-	lateResolveVbClones.add(&t->b);
+	t->b = (box*)(s->b->clone.ptr);
+	t->b->data = t;
 
 	return t;
 }
@@ -169,13 +169,6 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	setupPlayers(gs, numPlayers);
 }
 
-static void resolveVbClones() {
-	rangeconst(i, lateResolveVbClones.num) {
-		box **b = lateResolveVbClones[i];
-		*b = (box*)(*b)->clone.ptr;
-	}
-}
-
 static void playerDupCleanup(player *p) {
 	p->prox = (box*)p->prox->clone.ptr;
 	range(i, 3) p->m.oldPos[i] = -1;
@@ -185,7 +178,7 @@ gamestate* dup(gamestate *orig) {
 	gamestate *ret = (gamestate*)malloc(sizeof(gamestate));
 	ret->players.init(orig->players);
 
-	lateResolveVbClones.num = 0;
+	ret->vb_root = velbox_dup(orig->vb_root);
 
 	ret->solids.init(orig->solids.num);
 	ret->solids.num = orig->solids.num;
@@ -199,9 +192,6 @@ gamestate* dup(gamestate *orig) {
 		ret->selection[i] = (solid*) orig->selection[i]->clone.ptr;
 	}
 
-	ret->vb_root = velbox_dup(orig->vb_root);
-
-	resolveVbClones();
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
 		playerDupCleanup(p);
@@ -362,11 +352,9 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 }
 
 void gamestate_init() {
-	lateResolveVbClones.init();
 	queryResults.init();
 }
 
 void gamestate_destroy() {
 	queryResults.destroy();
-	lateResolveVbClones.destroy();
 }

@@ -707,13 +707,6 @@ static box* dup(box *b) {
 	ret->inUse = b->inUse;
 	ret->depth = b->depth;
 
-	// Haha this line won't compile yet, we'll need more typing
-	// Either way, it assumes any data pointers have already
-	// been dup'd.
-	// Todo maybe a silly optimization, but we could have some other magic "nothing" data ptr
-	//      which points to itself in clone.ptr, which saves us an unpredictable branch here...
-	if (b->data) ret->data = b->data->clone.ptr;
-
 	b->clone.ptr = ret;
 
 	ret->kids.setMaxUp(b->kids.num+2); // Todo there's got to be a better way
