@@ -63,7 +63,7 @@ static void addDummyForGroup(int i) {
 }
 
 static void lookAtGp_test(solid *s) {
-	if (raycast(&lookAtGp_best, s, lookAtGp_origin, lookAtGp_dir)) {
+	if (raycast(&lookAtGp_best, &s->m, lookAtGp_origin, lookAtGp_dir)) {
 		strcpy(lookAtGp_winner, currentGroup->name);
 	}
 }

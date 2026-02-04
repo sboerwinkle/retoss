@@ -361,6 +361,12 @@ void cross(unitvec output, unitvec const a, unitvec const b) {
 	output[2] = (a[0]*b[1]-b[0]*a[1])/FIXP;
 }
 
+void cross(float output[3], float const a[3], float const b[3]) {
+	output[0] = a[1]*b[2]-b[1]*a[2];
+	output[1] = a[2]*b[0]-b[2]*a[0];
+	output[2] = a[0]*b[1]-b[0]*a[1];
+}
+
 // `bound` should fit in (I believe) 25 bits?
 // If you need a bigger bound, use a different function (presumably that pre-scales stuff?).
 // If you're not sure on the bound's size, write both functions and then a wrapper to choose one.
@@ -399,4 +405,10 @@ void bound26(int32_t v[3], int32_t bound) {
 	if (d_sq <= (int64_t)bound*bound) return;
 	int64_t d = sqrt(d_sq);
 	range(i, 3) v[i] = v[i]*bound/d;
+}
+
+// Be aware that +/-Inf == +/-Inf and NaN == anything under this definition.
+// However, +/-Inf compare correctly with rationals, so that's nice.
+char fraction::lt(fraction const &other) const {
+	return numer*other.denom < other.numer*denom;
 }

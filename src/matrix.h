@@ -2,6 +2,7 @@
 // Most work by mboerwinkle,
 // modified by sboerwinkle
 /////////////////////////////////
+#pragma once
 
 #include <stdint.h>
 
@@ -17,6 +18,15 @@ typedef int32_t iquat[4];
 typedef int32_t unitvec[3];
 typedef int32_t imat[9];
 typedef int64_t offset[3];
+
+struct fraction {
+	int64_t numer;
+	// Not sure what the type should be here. `denom` should probably come from a unitvec (so within FIXP),
+	// but we're going to be doing lots of multiplications against `numer` so I assume it's faster to keep
+	// it in the same type?
+	int64_t denom;
+	char lt(fraction const &other) const;
+};
 
 extern void vec_norm(unitvec v);
 extern void quat_norm(quat t);
@@ -58,5 +68,6 @@ extern void perspective(float* m, float invSlopeX, float invSlopeY, float zNear)
 extern int64_t dot(offset const o, unitvec const v);
 extern int32_t dot(unitvec const a, unitvec const b);
 extern void cross(unitvec output, unitvec const a, unitvec const b);
+extern void cross(float output[3], float const a[3], float const b[3]);
 extern void bound64(offset v, int32_t bound);
 extern void bound26(int32_t v[3], int32_t bound);

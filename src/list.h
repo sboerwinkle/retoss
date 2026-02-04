@@ -223,6 +223,7 @@ void list<T>::s_rm(const T &itm) {
 
 template <typename T>
 void list<T>::rmAt(int ix) {
+	// TODO memmove?
 	for (ix++; ix < num; ix++) items[ix-1] = items[ix];
 	num--;
 }

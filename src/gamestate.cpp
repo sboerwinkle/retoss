@@ -10,6 +10,7 @@
 #include "player.h"
 
 static list<void*> queryResults;
+static list<box*> tmpPlayerBoxes;
 
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
@@ -17,6 +18,7 @@ void resetPlayer(gamestate *gs, int i) {
 			.pos={0,0,0},
 			.oldPos={-1,-1,-1},
 			.rot={FIXP,0,0,0},
+			.type=T_PLAYER,
 		},
 		.vel={0,0,0},
 		.inputs={0,0,0},
@@ -36,9 +38,9 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 static double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2, 33.0f/32};
 
 static void solidValidate(solid *s) {
-	if (s->shape < 0 || s->shape >= NUM_SHAPES) {
-		printf("Invalid shape %d!!\n", s->shape);
-		s->shape = 0;
+	if (s->m.type < 0 || s->m.type >= NUM_SHAPES) {
+		printf("Invalid shape type %d!!\n", s->m.type);
+		s->m.type = 0;
 	}
 }
 
@@ -49,9 +51,9 @@ static void solidPutVb(solid *s, box *guess) {
 	tmp->vel[0] = 0;
 	tmp->vel[1] = 0;
 	tmp->vel[2] = 0;
-	tmp->r = s->r*shapeDiagonalMultipliers[s->shape];
+	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type];
 	tmp->end = tmp->start + 15; // 1 second
-	tmp->data = s;
+	tmp->data = &s->m;
 	velbox_insert(guess, tmp);
 
 }
@@ -82,7 +84,7 @@ static solid* solidDup(solid *s) {
 
 	s->clone.ptr = t;
 	t->b = (box*)(s->b->clone.ptr);
-	t->b->data = t;
+	t->b->data = &t->m;
 
 	return t;
 }
@@ -94,9 +96,9 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	s->m.pos[1] = y;
 	s->m.pos[2] = z;
 	s->m.oldPos[0] = s->m.oldPos[1] = s->m.oldPos[2] = -1;
+	s->m.type = shape;
 	s->vel[0] = s->vel[1] = s->vel[2] = 0;
 	s->r = r;
-	s->shape = shape;
 	s->tex = tex;
 	s->m.rot[0] = FIXP;
 	s->m.rot[1] = 0;
@@ -131,23 +133,59 @@ static void playerUpdate(gamestate *gs, player *p) {
 	unitvec forceDir;
 	offset contactVel;
 	rangeconst(j, queryResults.num) {
-		solid *s = (solid*) queryResults[j];
-		int64_t dist = collide_check(p, dest, 800, s, forceDir, contactVel);
+		// Todo: We are blindly assuming this mover is part of a solid.
+		//       It's a safe bet for now, since we only keep players in the
+		//       velbox space briefly (and not right now), but it's brittle.
+		solid *s = solidFromMover(queryResults[j]);
+		int64_t dist = collide_check(p, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel);
 		if (dist) pl_phys_standard(forceDir, contactVel, dist, dest, p);
 	}
 
 	memcpy(p->m.pos, dest, sizeof(dest));
 }
 
+static void playerAddBoxes(gamestate *gs) {
+	tmpPlayerBoxes.num = 0;
+	rangeconst(i, gs->players.num) {
+		player &p = gs->players[i];
+
+		box *tmp = velbox_alloc();
+		memcpy(tmp->pos, p.m.oldPos, sizeof(tmp->pos));
+		range(j, 3) tmp->vel[j] = p.m.pos[j] - p.m.oldPos[j];
+		// TODO define for SHAPE_CUBE (=0)
+		tmp->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
+		tmp->end = tmp->start + 1; // TODO verify this is correct - I think it is?
+		tmp->data = &p.m;
+		velbox_insert(p.prox, tmp);
+		tmpPlayerBoxes.add(tmp);
+	}
+}
+
+static void playerRmBoxes(gamestate *gs) {
+	rangeconst(i, tmpPlayerBoxes.num) {
+		velbox_remove(tmpPlayerBoxes[i]);
+	}
+}
+
 void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
+
 	rangeconst(i, gs->solids.num) {
 		solidUpdate(gs, gs->solids[i]);
 	}
-
 	range(i, gs->players.num) {
 		playerUpdate(gs, &gs->players[i]);
 	}
+
+	while(gs->trails.num && gs->trails[0].expiry <= vb_now) {
+		gs->trails.rmAt(0);
+	}
+
+	playerAddBoxes(gs);
+	range(i, gs->players.num) {
+		pl_postStep(gs, &gs->players[i]);
+	}
+	playerRmBoxes(gs);
 
 	velbox_completeTick(gs->vb_root);
 }
@@ -192,6 +230,9 @@ gamestate* dup(gamestate *orig) {
 		ret->selection[i] = (solid*) orig->selection[i]->clone.ptr;
 	}
 
+	// Nothing special in the trail data, we can just copy it all
+	ret->trails.init(orig->trails);
+
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
 		playerDupCleanup(p);
@@ -204,11 +245,13 @@ void init(gamestate *gs) {
 	gs->players.init();
 	gs->selection.init();
 	gs->solids.init();
+	gs->trails.init();
 	gs->vb_root = velbox_getRoot();
 }
 
 void cleanup(gamestate *gs) {
 	velbox_freeRoot(gs->vb_root);
+	gs->trails.destroy();
 	rangeconst(i, gs->solids.num) {
 		delete gs->solids[i];
 	}
@@ -247,7 +290,7 @@ static void transSolid(solid *s) {
 	transBlock(s->m.pos, sizeof(s->m.pos));
 	transBlock(s->vel, sizeof(s->vel));
 	trans64(&s->r);
-	trans32(&s->shape);
+	trans32(&s->m.type);
 	trans32(&s->tex);
 	transBlock(s->m.rot, sizeof(s->m.rot));
 	transWeakRef(&s->b, &boxSerizPtrs);
@@ -272,6 +315,20 @@ static void transAllSolids(gamestate *gs) {
 	rangeconst(i, gs->solids.num) {
 		if (seriz_reading) gs->solids[i] = new solid();
 		transSolid(gs->solids[i]);
+	}
+}
+
+static void transTrail(trail *tr) {
+	transBlock(tr->origin, sizeof(tr->origin));
+	transBlock(tr->dir, sizeof(tr->dir));
+	trans64(&tr->len);
+	trans32(&tr->expiry);
+}
+
+static void transTrails(gamestate *gs) {
+	transItemCount(&gs->trails);
+	rangeconst(i, gs->trails.num) {
+		transTrail(&gs->trails[i]);
 	}
 }
 
@@ -323,6 +380,7 @@ void serialize(gamestate *gs, list<char> *data) {
 	velbox_trans(gs->vb_root);
 	transAllSolids(gs);
 	// We don't bother with the selection for now
+	transTrails(gs);
 
 	write8(gs->players.num);
 	range(i, gs->players.num) {
@@ -340,6 +398,7 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	velbox_trans(gs->vb_root);
 	transAllSolids(gs);
 	// We don't bother with the selection for now
+	transTrails(gs);
 
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.
@@ -353,8 +412,10 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 
 void gamestate_init() {
 	queryResults.init();
+	tmpPlayerBoxes.init();
 }
 
 void gamestate_destroy() {
+	tmpPlayerBoxes.init();
 	queryResults.destroy();
 }

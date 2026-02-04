@@ -14,6 +14,6 @@ L_GLFW3="`pkg-config --libs glfw3 libpng` -ldl"
 # `-ldl` is included again since I also use it myself, separate from GLFW3.
 DL_STUFF="-rdynamic -ldl"
 
-g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-truncation -O2 -g $DL_STUFF "$@" \
+g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-truncation -Wno-invalid-offsetof -O2 -g $DL_STUFF "$@" \
 	src/*.cpp src/*.c src/lv/*.cpp src/lv/*.c \
 	$L_GLFW3 -pthread -lm -lGL -o game

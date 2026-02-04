@@ -1,4 +1,5 @@
 #include "gamestate.h"
+#include "bcast.h"
 
 #include "player.h"
 
@@ -107,4 +108,40 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	}
 	range(i, 3) p->vel[i] += desiredChange[i];
 	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
+}
+
+void pl_postStep(gamestate *gs, player *p) {
+	// TODO Actually figure out input for this, not just on a timer lol
+	if (vb_now % 15) return;
+
+	// Todo: Surely we'll need this more often, right? Save it somewhere?
+	unitvec look;
+	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
+
+	fraction const limit = {.numer = 100'000, .denom = FIXP};
+	// Todo: I think this may be a bit sloppy at the moment, since a box that's a suitable
+	//       parent for something that large will necessarily be bigger than we need.
+	//       Might be able to improve this with a small velbox tweak involving `minParentR`.
+	box *queryArea = velbox_findParent(p->prox, p->m.oldPos, p->vel, limit.numer);
+	bcast_start(queryArea, look, p->m.oldPos);
+	fraction time;
+	mover *result;
+	do {
+		result = bcast(&time, look, p->m.oldPos);
+	} while (result == &p->m);
+	// Usually we'd then actually *do something* with whatever we hit,
+	// but in this case we really don't care too much!
+	// Except we do care about the range restriction bit.
+	if (!result) {
+		time = limit;
+	} else if (limit.lt(time)) {
+		time = limit;
+		result = NULL;
+	}
+
+	trail &tr = gs->trails.add();
+	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
+	memcpy(tr.dir, look, sizeof(unitvec));
+	tr.len = time.numer*FIXP/time.denom;
+	tr.expiry = vb_now + 45; // 3 sec, roughly
 }

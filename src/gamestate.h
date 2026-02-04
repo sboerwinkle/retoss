@@ -1,14 +1,20 @@
 #pragma once
 
+#include <stddef.h> // Just need this for `offsetof`, but I'm betting it's pretty big...
+// TODO: Homebrew `offsetof`, it's not that bad if you look it up
+
 #include "list.h"
 #include "matrix.h"
 #include "box.h"
 #include "cloneable.h"
 
+#define PLAYER_SHAPE_RADIUS 800
+
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];
 	iquat rot;
+	int type;
 };
 
 struct player {
@@ -19,21 +25,31 @@ struct player {
 };
 
 #define NUM_SHAPES 3
+#define T_PLAYER 32
 
+#define solidFromMover(x) ((solid*)((char*)(x) - offsetof(solid, m)))
 struct solid : cloneable {
+	mover m;
 	int64_t vel[3];
 	int64_t r;
-	int32_t shape;
 	int32_t tex;
-	mover m;
 	iquat oldRot; // This isn't serialized, and we don't care if it's copied. Should avoid using this until this solid has ticked!
 	box *b;
+};
+
+// Todo Could make this copy-on-write (since we never write it) to save a little effort on gamestate duplication
+struct trail {
+	offset origin;
+	unitvec dir;
+	int64_t len;
+	int32_t expiry;
 };
 
 struct gamestate {
 	list<player> players;
 	list<solid*> solids;
 	list<solid*> selection;
+	list<trail> trails;
 	box *vb_root;
 };
 

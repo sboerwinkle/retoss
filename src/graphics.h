@@ -8,6 +8,9 @@ extern void initGraphics();
 extern void setupFrame(int64_t *_camPos);
 extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio);
 
+extern void setupTransparent();
+extern void drawTrail(offset const start, unitvec const dir, int64_t len);
+
 extern void setup2d();
 
 extern void centeredGrid2d(float boundsY);

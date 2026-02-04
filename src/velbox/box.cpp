@@ -506,22 +506,29 @@ static void writeQueryResults(box *b, box *target, list<void*> *results) {
 	}
 }
 
+static void buildThing(box *thing, INT pos[DIMS], INT vel[DIMS], INT r) {
+	thing->r = r;
+	thing->start = vb_now;
+	thing->end = vb_now+1;
+	memcpy(thing->pos, pos, sizeof(thing->pos));
+	memcpy(thing->vel, vel, sizeof(thing->vel));
+}
+
+box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r) {
+	box thing;
+	buildThing(&thing, pos, vel, r);
+	// Verified that `findParent` (and downstream methods) do not need more
+	// than the fields provided above.
+	return findParent(guess, &thing);
+}
+
 // Returns the box that was actually used (suitable for the next `guess`).
 // Results are added to the end of `results`, though the user is expected
 // to do their own verification if each is eligible (i.e. may contain
 // false positives).
 box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results) {
-	box thing = {
-		.r = r,
-		.start = vb_now,
-		.end = vb_now+1,
-	};
-	range(i, DIMS) {
-		thing.pos[i] = pos[i];
-		thing.vel[i] = vel[i];
-	}
-	// Verified that `findParent` (and downstream methods) do not need more
-	// than the fields provided above.
+	box thing;
+	buildThing(&thing, pos, vel, r);
 	box *p = findParent(guess, &thing);
 	p->inUse = 1;
 	rangeconst(i, p->intersects.num) {

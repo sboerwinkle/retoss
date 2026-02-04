@@ -16,6 +16,7 @@
 #include "dl_game.h"
 #include "bctx.h"
 #include "lv.h"
+#include "bcast.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -56,6 +57,7 @@ void game_init() {
 	gamestate_init();
 	dl_init();
 	bctx_init();
+	bcast_init();
 }
 
 gamestate* game_init2() {
@@ -78,6 +80,7 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	bcast_destroy();
 	bctx_destroy();
 	dl_destroy();
 	gamestate_destroy();
@@ -519,7 +522,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
-		int mesh = s->shape + (s->tex & 32); // jank, just hits the cases we need atm
+		int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
 		drawCube(&s->m, s->r, s->tex & 31, mesh, interpRatio);
 	}
 
@@ -530,6 +533,12 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		int sprite = 3;
 		int mesh = 32;
 		drawCube(&p2->m, radius, sprite, mesh, interpRatio);
+	}
+
+	setupTransparent();
+	rangeconst(i, gs->trails.num) {
+		trail &tr = gs->trails[i];
+		drawTrail(tr.origin, tr.dir, tr.len);
 	}
 
 	setup2d();

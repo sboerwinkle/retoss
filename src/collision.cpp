@@ -92,7 +92,7 @@ int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec 
 	imat_applySm(v1, rot1, v1raw);
 	imat_applySm(v2, rot2, v2raw);
 
-	shapeSpec &sh = shapeSpecs[s->shape];
+	shapeSpec &sh = shapeSpecs[s->m.type];
 	int winner1 = 0;
 	int64_t best = INT64_MIN;
 	//int64_t winnerDepth = 0;
@@ -313,31 +313,35 @@ foundSampleNorm:;
 // with a whole nasty nested network of solids.
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
 
-// Be aware that +/-Inf == +/-Inf and NaN == anything under this definition.
-// However, +/-Inf compare correctly with rationals, so that's nice.
-char fraction::lt(fraction const &other) const {
-	return numer*other.denom < other.numer*denom;
-	//#define lt(a,b) (a.numer*b.denom < b.numer*a.denom)
-}
-
-char raycast(fraction *best, solid *s, offset origin, unitvec dir) {
+char raycast(fraction *best, mover *m, offset const origin, unitvec const dir) {
 	offset vWorld;
-	range(i, 3) vWorld[i] = s->m.pos[i] - origin[i];
+	range(i, 3) vWorld[i] = m->pos[i] - origin[i];
 	imat rot;
-	imatFromIquatInv(rot, s->m.rot);
+	imatFromIquatInv(rot, m->rot);
 	offset vSolid;
 	imat_applySm(vSolid, rot, vWorld);
 	unitvec dirSolid;
 	imat_apply(dirSolid, rot, dir);
 
+	int shape;
+	int64_t r;
+	if (m->type & T_PLAYER) {
+		shape = 0;
+		r = PLAYER_SHAPE_RADIUS;
+	} else {
+		shape = m->type;
+		solid *s = solidFromMover(m);
+		r = s->r;
+	}
+
 	fraction lower = {.numer = 0, .denom = 1};
 	fraction upper = *best;
-	shapeSpec &sh = shapeSpecs[s->shape];
+	shapeSpec &sh = shapeSpecs[shape];
 	range(i, sh.numFaces) {
 		int32_t const *norm = sh.facings[i];
 		fraction frac = {
 			// Todo both addends contain a `/FIXP`, could probably factor that out if I care?
-			.numer = dot(vSolid, norm) + s->r*sh.distances[i]/FIXP,
+			.numer = dot(vSolid, norm) + r*sh.distances[i]/FIXP,
 			.denom = dot(dirSolid, norm)
 		};
 		if (frac.denom < 0) {

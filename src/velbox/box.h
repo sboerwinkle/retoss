@@ -67,7 +67,6 @@ struct sect {
 
 struct box : cloneable {
 	// Should not exceed INT_MAX/2 (so it can be safely added to itself)
-	// Note for non-fish boxes, this will always be the same for all axes
 	INT r;
 
 	INT pos[DIMS];
@@ -85,7 +84,8 @@ struct box : cloneable {
 	// Could have "type" here directly, but the advantage is if it's just one field,
 	// we can just have `list<foo*>` as the way potential intersects are returned
 	// from a query!
-	cloneable *data;
+	// TODO How is this type not #define'd??
+	void *data;
 };
 
 extern list<box*> boxSerizPtrs;
@@ -93,6 +93,7 @@ extern list<box*> boxSerizPtrs;
 extern box* velbox_alloc();
 
 extern void velbox_remove(box *o);
+extern box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r);
 extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results);
 extern void velbox_insert(box *guess, box *n);
 

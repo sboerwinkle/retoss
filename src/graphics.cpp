@@ -16,12 +16,14 @@
 #include "graphics.h"
 #include "graphics_callbacks.h"
 
-#define NUM_TEXS 6
+#define NUM_TEXS 7
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
-char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png"};
+#define TEX_TRAIL 6
+char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png", "trail.png"};
 GLuint textures[NUM_TEXS];
 
+static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
@@ -58,8 +60,10 @@ static int vtxIdx_cubeOneFace = -1;
 static int vtxIdx_slabOneFace = -1;
 static int vtxIdx_poleOneFace = -1;
 static int vtxIdx_cubeSixFace = -1;
+static int vtxIdx_pane = -1;
 
 static float matWorldToScreen[16];
+static float frameLook[3];
 static int64_t *camPos;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
@@ -256,6 +260,8 @@ void initGraphics() {
 	populateCubeVertexData(&vtxData, 1.0/8, 1, 1.0/8);
 	vtxIdx_cubeSixFace = vtxData.num / 8;
 	populateCubeVertexData2(&vtxData);
+	vtxIdx_pane = vtxData.num / 8;
+	populatePaneVertexData(&vtxData);
 
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
@@ -317,8 +323,7 @@ void initGraphics() {
 
 	glClearColor(0.2, 0.2, 0.2, 1);
 
-	// I think these settings stick around, but they don't "apply" until
-	// we enable GL_BLEND.
+	// I think these settings stick around, but they don't "apply" until we enable GL_BLEND.
 	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
 	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
 	glBlendEquation(GL_FUNC_ADD);
@@ -351,10 +356,13 @@ void setupFrame(int64_t *_camPos) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
+	glDepthMask(1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// Some settings differ from the 2D drawing state.
+	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);
+	// I guess I just have this off to make rendering 3D stuff slightly faster?
+	// We shouldn't have any transparent parts in our 3D textures, so it shouldn't matter.
 	glDisable(GL_BLEND);
 
 	float matWorldToCam[16];
@@ -365,6 +373,9 @@ void setupFrame(int64_t *_camPos) {
 	quatWorldToCam[2] *= -1;
 	quatWorldToCam[3] *= -1;
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
+	frameLook[0] = matWorldToCam[1];
+	frameLook[1] = matWorldToCam[4];
+	frameLook[2] = matWorldToCam[7];
 
 	// Todo I'm sure I'm wasting some multiplications here.
 	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
@@ -431,12 +442,52 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio) {
 	glDrawArrays(GL_TRIANGLES, vertexIndex, 36);
 }
 
+void setupTransparent() {
+	glDepthMask(0);
+	glEnable(GL_BLEND);
+	// If this phase is only used for drawing trails,
+	// we can move some of the setup stuff to be here instead
+	// (and do it once, instead of 1 per trail)
+}
+
+void drawTrail(offset const start, unitvec const dir, int64_t len) {
+	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
+	glUniform1f(u_main_texscale, 1);
+	glUniform2f(u_main_texoffset, 0, 0); // Not sure, maybe this is already set?
+	// We skip `u_main_rot` - it's just for lighting,
+	// and the "pane" mesh's normals are all 0 anyway.
+
+	float forward[3];
+	range(i, 3) forward[i] = (float)dir[i]*len/(FIXP*2);
+	float fdir[3];
+	range(i, 3) fdir[i] = dir[i]*((float)300/FIXP); // `300` here determines trail width in world coords?
+	float sideways[3];
+	cross(sideways, frameLook, fdir);
+	// I could probably normalize `sideways` if I cared, but the point is I don't.
+	// Okay, at this point I have all the stuff I need!
+
+	// TODO Could declare this in such a way that I'm writing
+	//      directly into this matrix as I do my math.
+	float matWorld[16] = {
+		sideways[0], sideways[1], sideways[2], 0,
+		0, 0, 0, 0,
+		forward[0], forward[1], forward[2], 0,
+		start[0]+forward[0], start[1]+forward[1], start[2]+forward[2], 1
+	};
+
+	// And finally apply the transform we computed during `setupFrame`
+	float matScreen[16];
+	mat4Multf(matScreen, matWorldToScreen, matWorld);
+	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
+
+	glDrawArrays(GL_TRIANGLES, vtxIdx_pane, 6);
+}
+
 void setup2d() {
 	glUseProgram(sprite_prog);
 	glBindVertexArray(vaos[1]);
 
 	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
 }
 
 // Can make variants of this -
@@ -543,6 +594,20 @@ void drawHudRect(double x, double y, double w, double h, float *color) {
         data->add(s); \
         data->add(t); \
 // END vtx
+
+static void populatePaneVertexData(list<GLfloat> *data) {
+	// Hm. This may change later, but for now I'm not going to put normal data
+	// on these vertexes. That's just for lighting, and currently we're only
+	// using this shape for bullet trails (which shouldn't be lit)
+	GLfloat L = -1, R = 1;
+	GLfloat D = -1, U = 1;
+	vtx(L, 0, U, 0, 0, 0, 0, 0);
+	vtx(L, 0, D, 0, 0, 0, 0, 1);
+	vtx(R, 0, U, 0, 0, 0, 1, 0);
+	vtx(R, 0, D, 0, 0, 0, 1, 1);
+	vtx(R, 0, U, 0, 0, 0, 1, 0);
+	vtx(L, 0, D, 0, 0, 0, 0, 1);
+}
 
 // This handles the single-textured "cube" and "slab" meshes,
 // and will probably handle a "rod"/"pillar" at some point as well
