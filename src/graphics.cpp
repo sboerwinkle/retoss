@@ -63,6 +63,7 @@ static int vtxIdx_cubeSixFace = -1;
 static int vtxIdx_pane = -1;
 
 static float matWorldToScreen[16];
+// lol actually unused at the moment, may come back later
 static float frameLook[3];
 static int64_t *camPos;
 
@@ -374,14 +375,14 @@ void setupFrame(int64_t *_camPos) {
 	quatWorldToCam[3] *= -1;
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
 	frameLook[0] = matWorldToCam[1];
-	frameLook[1] = matWorldToCam[4];
-	frameLook[2] = matWorldToCam[7];
+	frameLook[1] = matWorldToCam[5];
+	frameLook[2] = matWorldToCam[9];
 
 	// Todo I'm sure I'm wasting some multiplications here.
 	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
 	//      we do, we know some of the values are constants like 0 or 1 going in.
 
-	// This is the same no matter what (or where) we're rending, so I can do that here...
+	// This is the same no matter what (or where) we're rendering, so I can do that here...
 	float matPersp[16];
 	float fovThingIdk = 1/0.7;
 	perspective(
@@ -456,24 +457,29 @@ void drawTrail(offset const start, unitvec const dir, int64_t len) {
 	glUniform2f(u_main_texoffset, 0, 0); // Not sure, maybe this is already set?
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.
+	float matWorld[16];
+	float * const sideways = matWorld;
+	// Our "trail" mesh doesn't have any nonzero Y components, so we don't bother with `matWorld+4`.
+	float * const forward = matWorld+8;
+	float * const translate = matWorld+12;
+	// Fill in the other spaces in the matrix...
+	matWorld[3] = 0;
+	matWorld[4] = matWorld[5] = matWorld[6] = matWorld[7] = 0;
+	matWorld[11] = 0;
+	matWorld[15] = 1;
 
-	float forward[3];
 	range(i, 3) forward[i] = (float)dir[i]*len/(FIXP*2);
+	range(i, 3) translate[i] = start[i]-camPos[i]+forward[i];
+	// There's a reason I have to normalize `forward` here,
+	// but I can't articulate it properly right now lol covid
 	float fdir[3];
-	range(i, 3) fdir[i] = dir[i]*((float)300/FIXP); // `300` here determines trail width in world coords?
-	float sideways[3];
-	cross(sideways, frameLook, fdir);
-	// I could probably normalize `sideways` if I cared, but the point is I don't.
-	// Okay, at this point I have all the stuff I need!
-
-	// TODO Could declare this in such a way that I'm writing
-	//      directly into this matrix as I do my math.
-	float matWorld[16] = {
-		sideways[0], sideways[1], sideways[2], 0,
-		0, 0, 0, 0,
-		forward[0], forward[1], forward[2], 0,
-		start[0]+forward[0], start[1]+forward[1], start[2]+forward[2], 1
-	};
+	range(i, 3) fdir[i] = dir[i]*((float)0.2/FIXP); // scale factor here relates to distance from trail
+	cross(sideways, translate, fdir);
+	float magnitude = sideways[0]*sideways[0] + sideways[1]*sideways[1] + sideways[2]*sideways[2];
+	if (magnitude > 200*200) {
+		float x = 200/sqrt(magnitude);
+		range(i, 3) sideways[i] *= x;
+	}
 
 	// And finally apply the transform we computed during `setupFrame`
 	float matScreen[16];
