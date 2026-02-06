@@ -473,11 +473,11 @@ void drawTrail(offset const start, unitvec const dir, int64_t len) {
 	// There's a reason I have to normalize `forward` here,
 	// but I can't articulate it properly right now lol covid
 	float fdir[3];
-	range(i, 3) fdir[i] = dir[i]*((float)0.2/FIXP); // scale factor here relates to distance from trail
+	range(i, 3) fdir[i] = dir[i]*(0.5/FIXP); // scale factor here relates to distance from trail
 	cross(sideways, translate, fdir);
 	float magnitude = sideways[0]*sideways[0] + sideways[1]*sideways[1] + sideways[2]*sideways[2];
-	if (magnitude > 200*200) {
-		float x = 200/sqrt(magnitude);
+	if (magnitude > 30*30) {
+		float x = 30/sqrt(magnitude);
 		range(i, 3) sideways[i] *= x;
 	}
 
@@ -608,11 +608,11 @@ static void populatePaneVertexData(list<GLfloat> *data) {
 	GLfloat L = -1, R = 1;
 	GLfloat D = -1, U = 1;
 	vtx(L, 0, U, 0, 0, 0, 0, 0);
-	vtx(L, 0, D, 0, 0, 0, 0, 1);
+	vtx(L, 0, D, 0, 0, 0, 0, 0);
 	vtx(R, 0, U, 0, 0, 0, 1, 0);
-	vtx(R, 0, D, 0, 0, 0, 1, 1);
+	vtx(R, 0, D, 0, 0, 0, 1, 0);
 	vtx(R, 0, U, 0, 0, 0, 1, 0);
-	vtx(L, 0, D, 0, 0, 0, 0, 1);
+	vtx(L, 0, D, 0, 0, 0, 0, 0);
 }
 
 // This handles the single-textured "cube" and "slab" meshes,
