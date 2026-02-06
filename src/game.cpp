@@ -348,6 +348,28 @@ int playerInputs(player *p, list<char> const * data) {
 	return 7*sizeof(int32_t);
 }
 
+static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
+	quat composedRotation;
+	quat_mult(composedRotation, quatCamRotation, v->value.position.rot);
+	float cameraSpace[3] = {0,0,0};
+	cameraSpace[axis] = 1;
+	float variableSpace[3];
+	quat_apply(variableSpace, composedRotation, cameraSpace);
+	int bestAxis = 0;
+	float bestComponent = 0;
+	int bestSign = 0;
+	range(i, 3) {
+		float component = fabs(variableSpace[i]);
+		if (component > bestComponent) {
+			bestComponent = component;
+			bestAxis = i;
+			bestSign = variableSpace[i] > 0 ? 1 : -1;
+		}
+	}
+	*out_axis = bestAxis;
+	*out_sign = bestSign;
+}
+
 
 //// Text command stuff ////
 
@@ -383,23 +405,8 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		if (v.type == VAR_T_INT) {
 			v.value.integer += amt * v.incr;
 		} else if (v.type == VAR_T_POS) {
-			quat composedRotation;
-			quat_mult(composedRotation, quatCamRotation, v.value.position.rot);
-			float cameraSpace[3] = {0,0,0};
-			cameraSpace[axis] = 1;
-			float variableSpace[3];
-			quat_apply(variableSpace, composedRotation, cameraSpace);
-			int bestAxis = 0;
-			float bestComponent = 0;
-			int bestSign = 0;
-			range(i, 3) {
-				float component = fabs(variableSpace[i]);
-				if (component > bestComponent) {
-					bestComponent = component;
-					bestAxis = i;
-					bestSign = variableSpace[i] > 0 ? 1 : -1;
-				}
-			}
+			int bestAxis, bestSign;
+			camToPvar(axis, &v, &bestAxis, &bestSign);
 			v.value.position.vec[bestAxis] += bestSign * v.incr * amt;
 		} else if (v.type == VAR_T_ROT) {
 			// Input system maps up-down as Z (axis 2) and scroll as Y (axis 1),
@@ -412,6 +419,27 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 			while (angle < -180) angle += 360;
 			v.value.rotation.angles[axis] = angle;
 			v.value.rotation.rotParams[axis] = round(FIXP*sin((double)angle/2/180*M_PI));
+		}
+		strcpy(loopbackCommandBuffer, "/dlUpd");
+		return 1;
+	}
+	if (isCmd(buf, "/rd")) {
+		dl_selectedGroup->touched = 1;
+		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
+		v.touched = 1;
+		if (v.type == VAR_T_INT) {
+			v.value.integer = v.value.integer / v.incr * v.incr;
+		} else if (v.type == VAR_T_POS) {
+			int bestAxis, dummy;
+			camToPvar(1, &v, &bestAxis, &dummy);
+			int64_t &x = v.value.position.vec[bestAxis];
+			x = x/v.incr*v.incr;
+		} else if (v.type == VAR_T_ROT) {
+			range(i, 3) {
+				int32_t &x = v.value.rotation.angles[i];
+				x = x/v.incr*v.incr;
+				v.value.rotation.rotParams[i] = round(FIXP*sin((double)x/2/180*M_PI));
+			}
 		}
 		strcpy(loopbackCommandBuffer, "/dlUpd");
 		return 1;
