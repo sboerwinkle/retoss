@@ -1,0 +1,83 @@
+
+. mouse capture
+. better baking
+. value dragging
+
+. gp (incl basic name generation for now, and gp selection from code)
+	. Basic name gen
+	. /gp command
+. rotations
+
+. /gp works maybe?
+
+. raytrace selection
+	Have some of this thought out in collision.cpp,
+	but still needs a bit more to be nice.
+. Show group name onscreen
+. crosshair
+
+. Oh gods collision will need to be re-done :(
+
+- /rda (round all)
+- Bug where mottling disappears below scale 1000
+- Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
+- Movement is so god-awful lol
+- dl: re-frame operation for positions
+	Pos vars always store their "on paper" value, and their absolute value
+	Then we can set a flag and do a re-load, and they'll update their "on paper" value to maintain absolute value
+	Doesn't need to be perfect,
+		but I do want to consider a "round away from zero" mode for rotation applications,
+		which I think will be helpful for this.
+- Parameterized arch
+- editing still feels rough
+	- I miss my "copy", even if it's just for one obj
+	I also keep looking to see if things touch, which feels horrible and bad.
+Map design still too open?
+	Being fair, I'd hesitate to call anything I've done so far "map design".
+	Still, I need a proper building (2 rooms, a la UrT) at some point
+		Maybe this waits until we resolve cam positioning (by drawing the player, discussed below)
+. Player rendered w/ stippling!
+- capsule player?
+	I could just do 2 balls, but I think I could also do a capsule pretty reasonably
+		so long as the capsule isn't too long lol
+	Idea is that we just change how we compute the test point from the "magic pt" in collision.cpp
+	This will get increasingly weird for longer capsules, but for stubby ones it's probably good enough
+	Also, have to decide how the collision forceDir is calculated
+		I think just "magicPt to capsule center" might work slightly better than "test point capsule normal",
+		but honestly they probably both have issues to some degree.
+- decor at some pt
+	2D sprites I can churn out faster
+	they are billboarded
+		Some things (like potted plant) should have their vertical axis anchored,
+		while others (like crate) would probably do better fully facing the camera.
+		Don't need both modes at first, ofc.
+	Would feel better if we also gave them a hitbox and let people shoot them,
+		though they shouldn't stop bullets since their hitbox will be less obvious.
+- Moving complexes
+	This is something I've wanted since a while,
+		and I've got a rough idea of how it can work with the pieces I've assembled.
+	Consider a building on a turntable
+	Layout of the building is static (even COW).
+		It's stored similarly to velbox boxes, i.e. nested layers
+		Idea is we can drop one of these in as an actual velbox box, so radii should be the same,
+		but we have to be stricter about child placement.
+			(Treat as spheres, not boxes,
+			 since they could be realized at any rotation)
+	The top level is inserted as a velbox leaf,
+	and if game logic is interested in it (player collision, bullet tracing)
+	then game logic expands it, trashes the velbox leaf, and inserts new children.
+		children position, rotation, etc are calculated at that time.
+	Some mechanism by which these children decay if unused for several frames,
+		and they're consolidated back to a single velbox leaf at that point.
+		This is because "active" children take up nodes in velbox land,
+		and also because they need position etc. recalculated each frame.
+	Rendering just walks the tree every frame.
+		If we want to get cleverer later (i.e. render less when outside?),
+		that wouldn't be impacted by these design decisions.
+
+- value-themed commands
+	- /v (useful for scale)
+	- /v@
+	- /v@+ ignores incr, use some other command for edit gestures?
+	- /round
+	- /incr
