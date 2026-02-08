@@ -10,6 +10,8 @@
 
 #define PLAYER_SHAPE_RADIUS 800
 
+extern int32_t gs_gravity;
+
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];

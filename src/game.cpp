@@ -533,6 +533,13 @@ void prefsToCmds(queue<strbuf> *cmds) {
 
 //// graphics stuff! ////
 
+static void drawPlayer(player *p, float interpRatio) {
+	int64_t radius = 800;
+	int sprite = 3;
+	int mesh = 32;
+	drawCube(&p->m, radius, sprite, mesh, interpRatio);
+}
+
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
@@ -546,8 +553,10 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		int64_t *p2 = p->m.pos;
 		range(i, 3) frameCenter[i] = p1[i] + (int64_t)(interpRatio*(p2[i]-p1[i]));
 	}
+	// This modifies `frameCenter` fwiw
 	setupFrame(frameCenter);
 
+	// TODO put `interpRatio` in gfx state, no reason to keep passing it in here
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
 		int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
@@ -557,11 +566,11 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	rangeconst(i, gs->players.num) {
 		if (i == myPlayer) continue;
 		player *p2 = &gs->players[i];
-		int64_t radius = 800;
-		int sprite = 3;
-		int mesh = 32;
-		drawCube(&p2->m, radius, sprite, mesh, interpRatio);
+		drawPlayer(p2, interpRatio);
 	}
+
+	setupStipple();
+	drawPlayer(p, interpRatio);
 
 	setupTransparent();
 	rangeconst(i, gs->trails.num) {

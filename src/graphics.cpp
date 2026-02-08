@@ -28,6 +28,8 @@ static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float 
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
+int gfx_camDist = 3000;
+
 int displayWidth = 0;
 int displayHeight = 0;
 float scaleX, scaleY;
@@ -377,6 +379,7 @@ void setupFrame(int64_t *_camPos) {
 	frameLook[0] = matWorldToCam[1];
 	frameLook[1] = matWorldToCam[5];
 	frameLook[2] = matWorldToCam[9];
+	range(i, 3) _camPos[i] -= frameLook[i] * gfx_camDist;
 
 	// Todo I'm sure I'm wasting some multiplications here.
 	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
@@ -443,7 +446,12 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio) {
 	glDrawArrays(GL_TRIANGLES, vertexIndex, 36);
 }
 
+void setupStipple() {
+	glUseProgram(stipple_prog);
+}
+
 void setupTransparent() {
+	glUseProgram(main_prog);
 	glDepthMask(0);
 	glEnable(GL_BLEND);
 	// If this phase is only used for drawing trails,

@@ -12,6 +12,8 @@
 static list<void*> queryResults;
 static list<box*> tmpPlayerBoxes;
 
+int32_t gs_gravity = 8;
+
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {
 		.m={
@@ -123,7 +125,7 @@ void rmSolid(gamestate *gs, solid *s) {
 static void playerUpdate(gamestate *gs, player *p) {
 	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
 	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
-	p->vel[2] -= 8; // gravity
+	p->vel[2] -= gs_gravity; // gravity
 
 	offset dest;
 	range(i, 3) dest[i] = p->m.pos[i] + p->vel[i];

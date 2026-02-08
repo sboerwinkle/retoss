@@ -1,3 +1,5 @@
+extern int gfx_camDist;
+
 extern int displayWidth;
 extern int displayHeight;
 extern float scaleX, scaleY;
@@ -7,6 +9,7 @@ extern void initGraphics();
 
 extern void setupFrame(int64_t *_camPos);
 extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio);
+extern void setupStipple();
 
 extern void setupTransparent();
 extern void drawTrail(offset const start, unitvec const dir, int64_t len);

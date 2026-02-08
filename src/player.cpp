@@ -3,6 +3,12 @@
 
 #include "player.h"
 
+int64_t pl_tractMult = 2000;
+int32_t pl_speed = 200;
+int64_t pl_maxNorm = 1000;
+int64_t pl_gummy = 0;
+int64_t pl_jump = 150;
+
 static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm) {
 	// Todo: There's bound to be lots of optimizations I can do here,
 	//       since we know lots of things about our inputs.
@@ -63,9 +69,31 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	// rely on that fact.
 	if (normalForce <= 0) return;
 
+	int64_t appliedForce = normalForce;
+	int64_t tractionNorm;
+	int64_t gummy = pl_gummy;
+	int64_t maxNorm = pl_maxNorm;
+	if (p->inputs[2] > 0) { // jump
+		appliedForce += pl_jump;
+		gummy = 0;
+		maxNorm += pl_gummy; // Not sure about this but it's probably fine lol
+	}
+	if (appliedForce <= maxNorm) { // common case
+		tractionNorm = appliedForce;
+	} else if (appliedForce >= maxNorm + gummy) {
+		appliedForce -= gummy;
+		tractionNorm = maxNorm;
+	} else {
+		appliedForce = maxNorm;
+		tractionNorm = maxNorm;
+	}
+
+	/* We no longer share `impulse` calcuation if gumminess is a thing, so set this aside.
 	offset impulse;
 	range(i, 3) impulse[i] = normalForce*forceDir[i]/FIXP;
 	range(i, 3) p->vel[i] += impulse[i];
+	*/
+	range(i, 3) p->vel[i] += appliedForce*forceDir[i]/FIXP;
 
 	// This is where "boring" object physics ends.
 	// However, we're adding friction, and making it
@@ -79,11 +107,11 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 
 	offset landSpeed;
 	// This works out to be along the surface
-	range(i, 3) landSpeed[i] = contactVel[i] + impulse[i];
+	range(i, 3) landSpeed[i] = contactVel[i] + normalForce*forceDir[i]/FIXP;
 
 	// Todo Could add friction here, would need to work out specifics.
 	//      (so stopping is faster than starting)
-#define SPEED 200
+#define SPEED pl_speed
 	bound64(landSpeed, SPEED);
 	// Spatial types are usually in 64-bit integers,
 	// but this one in particular is computed from
@@ -91,21 +119,12 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	int32_t desiredChange[3];
 	range(i, 3) desiredChange[i] = rotatedDesire[i]*SPEED/FIXP - landSpeed[i];
 #undef SPEED
-	int64_t traction = normalForce*2;
-	if (traction < (1<<25)) { // `traction` fits in a signed 26-bit integer.
-		bound26(desiredChange, traction);
-	}
+	int64_t traction = tractionNorm*pl_tractMult/1000;
+	//if (traction < (1<<25)) { // `traction` fits in a signed 26-bit integer.
+	bound26(desiredChange, traction);
+	//}
 	//printf("%03d, %03d, %03d (%03ld)\r", desiredChange[0], desiredChange[1], desiredChange[2], normalForce);
 	fflush(stdout);
-	if (p->inputs[2] > 0) { // Jumping. We let you do one of 2 kinds because we're so nice
-		if (dot(desire, forceDir) > 0) {
-			// Jump away from surface
-			range(i, 3) desiredChange[i] += forceDir[i]*150/FIXP;
-		} else if (forceDir[2] > 0) {
-			// Jump up
-			desiredChange[2] += 150;
-		}
-	}
 	range(i, 3) p->vel[i] += desiredChange[i];
 	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
 }
