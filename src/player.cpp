@@ -3,11 +3,12 @@
 
 #include "player.h"
 
-int64_t pl_tractMult = 2000;
-int32_t pl_speed = 200;
-int64_t pl_maxNorm = 1000;
-int64_t pl_gummy = 0;
-int64_t pl_jump = 150;
+int32_t pl_tractMult = 1000;
+int32_t pl_tractBonus = 1000;
+int32_t pl_speed = 350;
+int64_t pl_walkForce = 60;
+int64_t pl_jumpForce = 180;
+int64_t pl_jump = 250;
 
 static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm) {
 	// Todo: There's bound to be lots of optimizations I can do here,
@@ -70,22 +71,10 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	if (normalForce <= 0) return;
 
 	int64_t appliedForce = normalForce;
-	int64_t tractionNorm;
-	int64_t gummy = pl_gummy;
-	int64_t maxNorm = pl_maxNorm;
+	int64_t maxLateralForce = pl_walkForce;
 	if (p->inputs[2] > 0) { // jump
 		appliedForce += pl_jump;
-		gummy = 0;
-		maxNorm += pl_gummy; // Not sure about this but it's probably fine lol
-	}
-	if (appliedForce <= maxNorm) { // common case
-		tractionNorm = appliedForce;
-	} else if (appliedForce >= maxNorm + gummy) {
-		appliedForce -= gummy;
-		tractionNorm = maxNorm;
-	} else {
-		appliedForce = maxNorm;
-		tractionNorm = maxNorm;
+		maxLateralForce = pl_jumpForce;
 	}
 
 	/* We no longer share `impulse` calcuation if gumminess is a thing, so set this aside.
@@ -119,12 +108,13 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	int32_t desiredChange[3];
 	range(i, 3) desiredChange[i] = rotatedDesire[i]*SPEED/FIXP - landSpeed[i];
 #undef SPEED
-	int64_t traction = tractionNorm*pl_tractMult/1000;
-	//if (traction < (1<<25)) { // `traction` fits in a signed 26-bit integer.
-	bound26(desiredChange, traction);
-	//}
+	int32_t traction = pl_tractMult;
+	if (forceDir[2] > 0) traction += forceDir[2]*pl_tractBonus/FIXP;
+	int64_t latForce = appliedForce*traction/1000;
+	if (latForce > maxLateralForce) latForce = maxLateralForce;
+	bound26(desiredChange, latForce);
 	//printf("%03d, %03d, %03d (%03ld)\r", desiredChange[0], desiredChange[1], desiredChange[2], normalForce);
-	fflush(stdout);
+	//fflush(stdout);
 	range(i, 3) p->vel[i] += desiredChange[i];
 	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
 }

@@ -12,7 +12,7 @@
 static list<void*> queryResults;
 static list<box*> tmpPlayerBoxes;
 
-int32_t gs_gravity = 8;
+int32_t gs_gravity = 30;
 
 void resetPlayer(gamestate *gs, int i) {
 	gs->players[i] = {

@@ -28,7 +28,7 @@ static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float 
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
-int gfx_camDist = 3000;
+int gfx_camDist = 4000;
 
 int displayWidth = 0;
 int displayHeight = 0;
