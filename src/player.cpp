@@ -9,6 +9,7 @@ int32_t pl_speed = 350;
 int64_t pl_walkForce = 60;
 int64_t pl_jumpForce = 180;
 int64_t pl_jump = 250;
+int64_t pl_gummy = 30;
 
 static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm) {
 	// Todo: There's bound to be lots of optimizations I can do here,
@@ -72,21 +73,18 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 
 	int64_t appliedForce = normalForce;
 	int64_t maxLateralForce = pl_walkForce;
-	if (p->inputs[2] > 0) { // jump
+	if (p->jump) {
+		p->jump = 0;
 		appliedForce += pl_jump;
 		maxLateralForce = pl_jumpForce;
+	} else if (appliedForce > pl_gummy) {
+		appliedForce -= pl_gummy;
+	} else {
+		// appliedForce would be 0, so nothing to do.
+		return;
 	}
 
-	/* We no longer share `impulse` calcuation if gumminess is a thing, so set this aside.
-	offset impulse;
-	range(i, 3) impulse[i] = normalForce*forceDir[i]/FIXP;
-	range(i, 3) p->vel[i] += impulse[i];
-	*/
 	range(i, 3) p->vel[i] += appliedForce*forceDir[i]/FIXP;
-
-	// This is where "boring" object physics ends.
-	// However, we're adding friction, and making it
-	// really spicy to boot so people can move around
 
 	unitvec desire = {p->inputs[0], p->inputs[1], 0};
 	unitvec rotatedDesire;
@@ -120,6 +118,7 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 }
 
 void pl_postStep(gamestate *gs, player *p) {
+	p->jump &= 1; // Keep only the 'jump continuing' bit
 	// TODO Actually figure out input for this, not just on a timer lol
 	if (vb_now % 15) return;
 

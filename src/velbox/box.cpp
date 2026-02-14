@@ -491,7 +491,7 @@ static void insert(box *guess, box *n) {
 	// Don't add to `p->kids` yet. Part of the contract for "setIntersects" methods
 }
 
-static void writeQueryResults(box *b, box *target, list<void*> *results) {
+static void writeQueryResults(box *b, box *target, list<LEAF*> *results) {
 	// We could skip the `intersects` check for a more optimistic query,
 	// but I think I'll leave it in for now.
 	if (!intersects(b, target)) return;
@@ -526,7 +526,7 @@ box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r) {
 // Results are added to the end of `results`, though the user is expected
 // to do their own verification if each is eligible (i.e. may contain
 // false positives).
-box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results) {
+box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results) {
 	box thing;
 	buildThing(&thing, pos, vel, r);
 	box *p = findParent(guess, &thing);

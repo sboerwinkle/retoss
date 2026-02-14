@@ -49,7 +49,9 @@ static int numberPressed = 0;
 
 struct {
 	char u, d, l, r, z, Z;
+	char jumpEvt, jumpState;
 } activeInputs = {}, sharedInputs = {};
+static char sentJumpState = 0;
 
 void game_init() {
 	initGraphics();
@@ -103,7 +105,10 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_A)     activeInputs.l = action;
 	else if (key == GLFW_KEY_S)     activeInputs.d = action;
 	else if (key == GLFW_KEY_W)     activeInputs.u = action;
-	else if (key == GLFW_KEY_SPACE) activeInputs.z = action;
+	else if (key == GLFW_KEY_SPACE) {
+		activeInputs.jumpState = activeInputs.z = action;
+		if (action) activeInputs.jumpEvt = 1;
+	}
 	else if (key == GLFW_KEY_C)     activeInputs.Z = action;
 	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
@@ -253,7 +258,13 @@ void copyInputs() {
 	// This matter a lot more if you're doing anything non-atomic writes,
 	// or if serializing the inputs means writing something
 	// (like for commands you want to be sent out exactly once).
-	sharedInputs = activeInputs;
+	{
+		char tmp = sharedInputs.jumpEvt;
+		sharedInputs = activeInputs;
+		sharedInputs.jumpEvt |= tmp;
+		// Not sure about this line; other option is just clearing it out.
+		activeInputs.jumpEvt &= tmp;
+	}
 
 	if (editMenuState >= 0) {
 		char const *cmd;
@@ -301,27 +312,42 @@ void serializeInputs(char * dest) {
 	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
 	int32_t *p = (int32_t*) dest;
 
-	float dirKeyboard[3] = {
+	float moveKeyboard[3] = {
 		(float)(sharedInputs.r-sharedInputs.l),
 		(float)(sharedInputs.u-sharedInputs.d),
 		(float)(sharedInputs.z-sharedInputs.Z),
 	};
-	float dirWorld[3];
+	float moveWorld[3];
 
 	// free-look stuff
-	//quat_apply(dirWorld, quatCamRotation, dirKeyboard);
+	//quat_apply(moveWorld, quatCamRotation, moveKeyboard);
 
 	// dome-look stuff
 	{
 		double c = cos(domeYaw);
 		double s = sin(domeYaw);
-		dirWorld[0] = c*dirKeyboard[0] - s*dirKeyboard[1];
-		dirWorld[1] = c*dirKeyboard[1] + s*dirKeyboard[0];
-		dirWorld[2] = dirKeyboard[2];
+		moveWorld[0] = c*moveKeyboard[0] - s*moveKeyboard[1];
+		moveWorld[1] = c*moveKeyboard[1] + s*moveKeyboard[0];
+		moveWorld[2] = moveKeyboard[2];
 	}
 
-	range(i, 3) p[i] = FIXP*dirWorld[i];
+	range(i, 3) p[i] = FIXP*moveWorld[i];
 	range(i, 4) p[3+i] = quatCamRotation[i]*FIXP;
+
+	// jump stuff.
+	if (sharedInputs.jumpEvt) {
+		sharedInputs.jumpEvt = 0;
+		// Todo We know this is getting serialized out,
+		//      whereas `outboundTextQueue` is checked
+		//      to see if it's a local command first.
+		//      Slight inefficiency.
+		strcpy(outboundTextQueue.add().items, "/_J");
+		sentJumpState = 1;
+	}
+	if (sentJumpState && !sharedInputs.jumpState) {
+		strcpy(outboundTextQueue.add().items, "/_j");
+		sentJumpState = 0;
+	}
 
 	if (watch_dlFlag.load(std::memory_order::acquire)) {
 		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
@@ -517,6 +543,10 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	if (isCmd(str, "/c")) {
 		// I have no idea if this works correctly lol
 		mkSolidAtPlayer(gs, p);
+	} else if (isCmd(str, "/_J")) {
+		p->jump = 3; // Set 'jump this frame' and 'jump continuing' bits
+	} else if (isCmd(str, "/_j")) {
+		p->jump &= 2; // Only keep 'jump this frame' bit
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.
@@ -680,13 +710,13 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 static void updateTiming(timing *t, long nanos) {
 	if (!t->counter) {
-		t->counter = 14;
+		t->counter = 15;
 		t->minNanos = t->nextMin;
 		t->maxNanos = t->nextMax;
 		t->nextMin = t->nextMax = nanos;
 	} else {
-		t->counter--;
 		if (nanos < t->nextMin) t->nextMin = nanos;
 		if (nanos > t->nextMax) t->nextMax = nanos;
 	}
+	t->counter--;
 }

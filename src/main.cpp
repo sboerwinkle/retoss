@@ -138,7 +138,6 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 	// sure commands aren't dropped, etc). The format of the
 	// "input data" section is irrelevant to it, however, so
 	// we just use a byte to describe that section's length.
-	// This is more flexible, but hardcoding would work too.
 	out[0] = inputSize;
 	*(int32_t*)(out.items + 1) = htonl(frame);
 	serializeInputs(&out[5]);

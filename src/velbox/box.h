@@ -15,6 +15,11 @@
 // and because I'm just doing as a personal project, it's up to
 // whoever includes this file to provide those definitions.
 
+
+// TODO These defines aren't scoped to the velbox stuff at all,
+//      they'll be present in any file that includes this header.
+//      I'd like to fix that at some point.
+
 #ifndef INT
 #define INT int64_t
 #endif
@@ -84,8 +89,7 @@ struct box : cloneable {
 	// Could have "type" here directly, but the advantage is if it's just one field,
 	// we can just have `list<foo*>` as the way potential intersects are returned
 	// from a query!
-	// TODO How is this type not #define'd??
-	void *data;
+	LEAF *data;
 };
 
 extern list<box*> boxSerizPtrs;
@@ -94,7 +98,7 @@ extern box* velbox_alloc();
 
 extern void velbox_remove(box *o);
 extern box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r);
-extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<void*> *results);
+extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results);
 extern void velbox_insert(box *guess, box *n);
 
 // For leafs

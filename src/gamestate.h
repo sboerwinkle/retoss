@@ -5,6 +5,7 @@
 
 #include "list.h"
 #include "matrix.h"
+struct mover; // "box" and "gamestate" reference each other's types
 #include "box.h"
 #include "cloneable.h"
 
@@ -23,6 +24,7 @@ struct player {
 	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
+	char jump;
 	box *prox;
 };
 

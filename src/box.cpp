@@ -1,4 +1,4 @@
-#include "box.h"
+#include "gamestate.h" // This includes "box.h" after defining necessary types
 #include "velbox/box.cpp"
 
 // Todo: Some of the stuff about serialization is outside the bounds

@@ -9,7 +9,7 @@
 #include "collision.h"
 #include "player.h"
 
-static list<void*> queryResults;
+static list<mover*> queryResults;
 static list<box*> tmpPlayerBoxes;
 
 int32_t gs_gravity = 30;
@@ -24,6 +24,7 @@ void resetPlayer(gamestate *gs, int i) {
 		},
 		.vel={0,0,0},
 		.inputs={0,0,0},
+		.jump=0,
 		.prox=gs->vb_root,
 	};
 }
@@ -122,6 +123,11 @@ void rmSolid(gamestate *gs, solid *s) {
 	delete s;
 }
 
+static char playerPhysLe(mover* const &a, mover* const &b) {
+	// Simple for now. Lower Z => floor-like => check first
+	return a->pos[2] <= b->pos[2];
+}
+
 static void playerUpdate(gamestate *gs, player *p) {
 	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
 	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
@@ -134,6 +140,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 	p->prox = velbox_query(p->prox, p->m.pos, p->vel, 2000, &queryResults);
 	unitvec forceDir;
 	offset contactVel;
+	queryResults.qsort(playerPhysLe);
 	rangeconst(j, queryResults.num) {
 		// Todo: We are blindly assuming this mover is part of a solid.
 		//       It's a safe bet for now, since we only keep players in the
@@ -308,7 +315,7 @@ static void transSolid(solid *s) {
 
 		// Box and Solid have ptrs to each other, but only one dir gets
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
-		s->b->data = s;
+		s->b->data = &s->m;
 	}
 }
 
@@ -337,6 +344,8 @@ static void transTrails(gamestate *gs) {
 static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->m.pos[i]);
 	range(i, 3) trans64(&p->vel[i]);
+	range(i, 3) trans32(&p->inputs[i]);
+	trans8(&p->jump);
 	range(i, 4) trans32(&p->m.rot[i]);
 	if (seriz_reading) {
 		range(i, 3) p->m.oldPos[i] = -1;

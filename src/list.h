@@ -4,9 +4,8 @@
 #include <string.h>
 #include <stdio.h>
 
-template <typename T> class Comparator {
-	public: virtual char le(const T &a, const T &b) = 0;
-};
+template <typename T>
+using Comparator = char (*)(const T &a, const T &b);
 
 template <typename T> class list {
 public:
@@ -27,8 +26,8 @@ public:
 	int find(const T &itm) const;
 	int s_find(const T &itm) const;
 	int s_find(const T &itm, int lo, int hi) const;
-	int s_find(const T &itm, Comparator<T> &comp) const;
-	int s_find(const T &itm, int lo, int hi, Comparator<T> &comp) const;
+	int s_find(const T &itm, Comparator<T> comp) const;
+	int s_find(const T &itm, int lo, int hi, Comparator<T> comp) const;
 	void addAll(const list<T> *other);
 	void setMax(int size);
 	void setMaxUp(int size);
@@ -40,7 +39,7 @@ public:
 	void diff(const list<T> &other);
 
 	void qsort();
-	void qsort(Comparator<T> &comp);
+	void qsort(Comparator<T> comp);
 	char sorted() const;
 
 	// min-heap stuff (AI generated, manually reviewed)
@@ -51,7 +50,7 @@ public:
 
 private:
 	void qsort(int low, int high);
-	void qsort(Comparator<T> &comp, int low, int high);
+	void qsort(Comparator<T> comp, int low, int high);
 
 	void heap_siftUp(int ix);
 	void heap_siftDown(int ix);
@@ -138,7 +137,7 @@ int list<T>::s_find(const T &itm) const {
 }
 
 template <typename T>
-int list<T>::s_find(const T &itm, Comparator<T> &comp) const {
+int list<T>::s_find(const T &itm, Comparator<T> comp) const {
 	return s_find(itm, 0, num, comp);
 }
 
@@ -161,15 +160,15 @@ int list<T>::s_find(const T &itm, int lo, int hi) const {
 }
 
 template <typename T>
-int list<T>::s_find(const T &itm, int lo, int hi, Comparator<T> &comp) const {
+int list<T>::s_find(const T &itm, int lo, int hi, Comparator<T> comp) const {
 	while (lo < hi) {
 		int testIx = (lo + hi) / 2;
 		T test = items[testIx];
-		if (!comp.le(itm, test)) {
+		if (!(*comp)(itm, test)) {
 			lo = testIx + 1;
 			continue;
 		}
-		if (!comp.le(test, itm)) {
+		if (!(*comp)(test, itm)) {
 			hi = testIx;
 			continue;
 		}
@@ -279,7 +278,7 @@ void list<T>::qsort() {
 }
 
 template <typename T>
-void list<T>::qsort(Comparator<T> &comp) {
+void list<T>::qsort(Comparator<T> comp) {
 	qsort(comp, 0, num);
 }
 
@@ -308,7 +307,7 @@ void list<T>::qsort(int low, int high) {
 
 // TODO This is basically the same as above, might replace most of the body w/ a macro?
 template <typename T>
-void list<T>::qsort(Comparator<T> &comp, int low, int high) {
+void list<T>::qsort(Comparator<T> comp, int low, int high) {
 	int L = low + 1;
 	int H = high;
 	if (L >= H) return;
@@ -316,8 +315,8 @@ void list<T>::qsort(Comparator<T> &comp, int low, int high) {
 	T pivot = items[middle];
 	items[middle] = items[low];
 	while (1) {
-		while (L < high && comp.le(items[L], pivot)) L++;
-		while (H-1 > low && comp.le(pivot, items[H-1])) H = H-1;
+		while (L < high && (*comp)(items[L], pivot)) L++;
+		while (H-1 > low && (*comp)(pivot, items[H-1])) H = H-1;
 		if (L >= H) break;
 		T tmp = items[H-1];
 		items[H-1] = items[L];
