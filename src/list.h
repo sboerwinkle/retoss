@@ -31,10 +31,11 @@ public:
 	void addAll(const list<T> *other);
 	void setMax(int size);
 	void setMaxUp(int size);
-	void rm(const T &itm);
+	void stableRm(const T &itm);
+	void quickRm(const T &itm);
 	void s_rm(const T &itm);
-	void rmAt(int ix);
-	void quickRmAt(int ix); // TODO Maybe this should be the default
+	void stableRmAt(int ix);
+	void quickRmAt(int ix);
 	void rmAll(const list<T> &other);
 	void diff(const list<T> &other);
 
@@ -200,12 +201,19 @@ void list<T>::setMaxUp(int size) {
 }
 
 template <typename T>
-void list<T>::rm(const T &itm) {
-	//TODO: I'm guessing bulk removals will be faster if we kept it in insertion order, but maybe rethink that.
+void list<T>::stableRm(const T &itm) {
 	int i;
 	// Don't use != since it may not be defined for typename T
 	for (i = 0; !(items[i] == itm); i++);
-	rmAt(i);
+	stableRmAt(i);
+}
+
+template <typename T>
+void list<T>::quickRm(const T &itm) {
+	int i;
+	// Don't use != since it may not be defined for typename T
+	for (i = 0; !(items[i] == itm); i++);
+	quickRmAt(i);
 }
 
 template <typename T>
@@ -217,14 +225,13 @@ void list<T>::s_rm(const T &itm) {
 		exit(1);
 	}
 #endif
-	rmAt(ix);
+	stableRmAt(ix);
 }
 
 template <typename T>
-void list<T>::rmAt(int ix) {
-	// TODO memmove?
-	for (ix++; ix < num; ix++) items[ix-1] = items[ix];
+void list<T>::stableRmAt(int ix) {
 	num--;
+	memmove(&items[ix], &items[ix+1], sizeof(*items) * (num-ix));
 }
 
 template <typename T>

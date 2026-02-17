@@ -16,7 +16,6 @@
 #include "graphics.h"
 #include "graphics_callbacks.h"
 
-#define NUM_TEXS 7
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
 #define TEX_TRAIL 6
@@ -29,6 +28,7 @@ static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
 int gfx_camDist = 4000;
+float gfx_interpRatio = 0;
 
 int displayWidth = 0;
 int displayHeight = 0;
@@ -400,14 +400,15 @@ void setupFrame(int64_t *_camPos) {
 	camPos = _camPos;
 }
 
-void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio) {
-	// Will need scaling (and mottling) eventually
+void drawCube(mover *m, int64_t scale, int tex, int mesh) {
+#ifdef DEBUG
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
-		return;
+		exit(1);
 	}
+#endif
 	// The rotation of the thing itself (used for lighting).
-	// Todo: Use `interpRatio` here somehow.
+	// Todo: Use `gfx_interpRatio` here somehow.
 	GLfloat rot_data[9];
 	mat3FromIquat(rot_data, m->rot);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
@@ -416,7 +417,7 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio) {
 	range(i, 9) rot_data[i] *= scale;
 	float matWorld[16];
 	float translate[3];
-	range(i, 3) translate[i] = m->oldPos[i] - camPos[i] + interpRatio*(m->pos[i] - m->oldPos[i]);
+	range(i, 3) translate[i] = m->oldPos[i] - camPos[i] + gfx_interpRatio*(m->pos[i] - m->oldPos[i]);
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`
@@ -510,19 +511,17 @@ void setup2d() {
 // where to put the origin, etc.
 // This assumes a square grid with the origin at the center, and accepts the Y size.
 void centeredGrid2d(float boundsY) {
-	// TODO I'm flipping this because I think I have a "front face" issue...
-	displayAreaBounds[1] = -boundsY;
+	displayAreaBounds[1] = boundsY;
 	displayAreaBounds[0] = boundsY*displayWidth/displayHeight;
-	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], 1.0/displayAreaBounds[1]);
+	// We have Y increase downwards
+	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], -1.0/displayAreaBounds[1]);
 }
 
 // `texW` and `texH` are the full width/height of the texture, in pixels.
 void selectTex2d(int tex, int texW, int texH) {
-#ifndef NODEBUG
-	// TODO this needs to be enforced when we deserialize stuff
-	//      (really it needs to be enforced as a custom type but whatever)
+#ifdef DEBUG
 	if (tex < 0 || tex >= NUM_TEXS) {
-		printf("Invalid tex: %d\n", tex);
+		printf("ERROR: Invalid tex: %d\n", tex);
 		exit(1);
 	}
 #endif
@@ -539,9 +538,8 @@ void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float
 }
 
 void setup2dText() {
-	// This part I *could* convert to a call to `centeredGrid2d`,
-	// but this code pre-dates that function. It wouldn't be a
-	// drop-in replacement, so I'm leaving it be for now.
+	// Could convert this part to `centeredGrid2d`,
+	// but I don't want to.
 	float textSize = 4;
 	displayAreaBounds[0] = displayWidth/2.0/textSize;
 	displayAreaBounds[1] = displayHeight/2.0/textSize;

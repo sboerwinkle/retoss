@@ -20,6 +20,7 @@ void resetPlayer(gamestate *gs, int i) {
 			.pos={0,0,0},
 			.oldPos={-1,-1,-1},
 			.rot={FIXP,0,0,0},
+			.oldRot={0,0,0,0},
 			.type=T_PLAYER,
 		},
 		.vel={0,0,0},
@@ -45,6 +46,12 @@ static void solidValidate(solid *s) {
 		printf("Invalid shape type %d!!\n", s->m.type);
 		s->m.type = 0;
 	}
+	// `s->tex & 31` is used in drawing code in main.cpp
+	int tex = s->tex & 31;
+	if (tex < 0 || tex >= NUM_TEXS) {
+		printf("Invalid shape texture %d!!\n", s->tex);
+		s->tex = 0;
+	}
 }
 
 static void solidPutVb(solid *s, box *guess) {
@@ -64,7 +71,7 @@ static void solidPutVb(solid *s, box *guess) {
 static void solidUpdate(gamestate *gs, solid *s) {
 	memcpy(s->m.oldPos, s->m.pos, sizeof(s->m.pos));
 	// For stuff that doesn't spin, we could maybe just set this up after de-seriz and cloning.
-	memcpy(s->oldRot, s->m.rot, sizeof(s->m.rot));
+	memcpy(s->m.oldRot, s->m.rot, sizeof(s->m.rot));
 
 	// The only other thing we're doing is updating our velbox,
 	// so if it's still valid for long enough we leave it alone.
@@ -84,6 +91,7 @@ static solid* solidDup(solid *s) {
 	// but the idea is that we don't want to rely on oldPos until the
 	// thing in question has ticked this frame.
 	t->m.oldPos[0] = t->m.oldPos[1] = t->m.oldPos[2] = -1;
+	// I don't care enough to reset oldRot, but the same logic applies.
 
 	s->clone.ptr = t;
 	t->b = (box*)(s->b->clone.ptr);
@@ -117,8 +125,10 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 // Would be slightly more efficient if we had an index (hypothetical `rmSolidAt`),
 // but I'm not sure if that's ever something we'll have.
 void rmSolid(gamestate *gs, solid *s) {
-	gs->solids.rm(s);
-	gs->selection.rm(s);
+	gs->solids.stableRm(s);
+	// May not exist in selection, need to check first.
+	int ix;
+	if (-1 != (ix = gs->selection.find(s))) gs->selection.stableRmAt(ix);
 	velbox_remove(s->b);
 	delete s;
 }
@@ -129,8 +139,8 @@ static char playerPhysLe(mover* const &a, mover* const &b) {
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
+	// We copy `rot`=>`oldRot` when player input happens.
 	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
-	// range(i, 3) p->vel[i] += p->inputs[i]; // We moved this to collision physics!
 	p->vel[2] -= gs_gravity; // gravity
 
 	offset dest;
@@ -186,12 +196,15 @@ void runTick(gamestate *gs) {
 		playerUpdate(gs, &gs->players[i]);
 	}
 
+	// Todo: If I cared about efficiency here, `trails` could be a `queue`.
 	while(gs->trails.num && gs->trails[0].expiry <= vb_now) {
-		gs->trails.rmAt(0);
+		gs->trails.stableRmAt(0);
 	}
 
 	playerAddBoxes(gs);
 	range(i, gs->players.num) {
+		// This uses `bcast`, which requires stuff to have its
+		// old position populated. Must run after other stuff.
 		pl_postStep(gs, &gs->players[i]);
 	}
 	playerRmBoxes(gs);
@@ -307,7 +320,7 @@ static void transSolid(solid *s) {
 		// Some fields that we want consistently initialized,
 		// but ideally nothing will need them before they are reset.
 		memset(s->m.oldPos, 0, sizeof(s->m.oldPos));
-		memset(s->oldRot, 0, sizeof(s->oldRot));
+		memset(s->m.oldRot, 0, sizeof(s->m.oldRot));
 
 		// Sanity / malicious data check.
 		// Doing our own serialization means we're responsible for avoiding array access issues...
@@ -349,6 +362,7 @@ static void transPlayer(player *p) {
 	range(i, 4) trans32(&p->m.rot[i]);
 	if (seriz_reading) {
 		range(i, 3) p->m.oldPos[i] = -1;
+		range(i, 4) p->m.oldRot[i] = 0;
 	}
 }
 

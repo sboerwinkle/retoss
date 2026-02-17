@@ -343,7 +343,7 @@ static void doWholeStep(gamestate *state, list<list<char>> const *_inputData, ch
 			int index = nextIx + 1;
 			while (numCmds--) {
 				int32_t len = ntohl(*(int32_t*)(data.items + index));
-				if (index+4+len > data.num) {
+				if (index+4+len > data.num || len <= 0) {
 					fputs("net2.cpp should ensure we don't have invalid lengths here!\n", stderr);
 					break;
 				}

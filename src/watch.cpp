@@ -148,7 +148,7 @@ void watch_init() {
 	watchDesc_dl = inotify_add_watch(watch_fd, "src/dl_tmp", IN_CLOSE_WRITE);
 	if (watchDesc_dl == -1) {
 		if (errno == ENOENT) {
-			puts("Couldn't find dl folder, so not doing that very optional thing");
+			puts("Couldn't find dl folder, assuming no edit mode");
 		} else {
 			perror("inotify_add_watch for dl");
 			close(watch_fd);

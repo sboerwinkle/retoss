@@ -85,7 +85,7 @@ int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec 
 	// (specifically, once we have objects with multiple 'pushee' centers,
 	//  or if we cache rotations of big things or something, idk)
 	imat rot1, rot2;
-	imatFromIquatInv(rot1, s->oldRot);
+	imatFromIquatInv(rot1, s->m.oldRot);
 	imatFromIquatInv(rot2, s->m.rot);
 
 	offset v1, v2;
@@ -315,9 +315,9 @@ foundSampleNorm:;
 
 char raycast(fraction *best, mover *m, offset const origin, unitvec const dir) {
 	offset vWorld;
-	range(i, 3) vWorld[i] = m->pos[i] - origin[i];
+	range(i, 3) vWorld[i] = m->oldPos[i] - origin[i];
 	imat rot;
-	imatFromIquatInv(rot, m->rot);
+	imatFromIquatInv(rot, m->oldRot);
 	offset vSolid;
 	imat_applySm(vSolid, rot, vWorld);
 	unitvec dirSolid;

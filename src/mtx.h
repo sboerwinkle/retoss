@@ -9,3 +9,6 @@
 
 typedef pthread_mutex_t mtx_t;
 #define MTX_INIT_EXPR PTHREAD_MUTEX_INITIALIZER
+
+typedef pthread_cond_t cond_t;
+#define COND_INIT_EXPR PTHREAD_COND_INITIALIZER

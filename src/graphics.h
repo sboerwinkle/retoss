@@ -1,4 +1,5 @@
 extern int gfx_camDist;
+extern float gfx_interpRatio;
 
 extern int displayWidth;
 extern int displayHeight;
@@ -8,7 +9,7 @@ extern float displayAreaBounds[2];
 extern void initGraphics();
 
 extern void setupFrame(int64_t *_camPos);
-extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float interpRatio);
+extern void drawCube(mover *m, int64_t scale, int tex, int mesh);
 extern void setupStipple();
 
 extern void setupTransparent();

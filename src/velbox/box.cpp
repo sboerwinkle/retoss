@@ -104,9 +104,11 @@ static void setIntersects_refresh(box *n) {
 #endif
 	n->intersects.add({.b=n, .i=0});
 
-	// TODO Is compiler mad about const here? It should be.
+	// This just enforces that we can't change it,
+	// it doesn't prove to the compiler that nobody
+	// changes it while this reference is in scope.
 	list<sect> const &candidates = n->parent->intersects;
-	range(i, candidates.num) {
+	rangeconst(i, candidates.num) {
 		box *candidate = candidates[i].b;
 
 		// We assume we have a shorter lifetime than `candidate`, so order `intersects()` args accordingly.
@@ -114,11 +116,8 @@ static void setIntersects_refresh(box *n) {
 		if (isLeaf(candidate)) {
 			recordIntersect(n, candidate);
 		} else {
-			// Not sure about the meaning of this `const`.
-			// If it means what I think it does, I may have to force the cast explicitly,
-			// since I want the compiler to understand that it's not changing here.
 			list<box*> const &peers = candidate->kids;
-			range(j, peers.num) {
+			rangeconst(j, peers.num) {
 				box *test = peers[j];
 				if (intersects(n, test)) {
 					recordIntersect(n, test);
@@ -328,7 +327,7 @@ static void remove(box *b) {
 
 // This isn't super efficient due to the linear search of `kids`
 void velbox_remove(box *o) {
-	o->parent->kids.rm(o);
+	o->parent->kids.quickRm(o);
 	remove(o);
 }
 
@@ -578,7 +577,7 @@ static void reposition(box *b) {
 
 // For leafs only
 void velbox_update(box *b) {
-	b->parent->kids.rm(b);
+	b->parent->kids.quickRm(b);
 	clearIntersects(b);
 	// Presumably its old parent is a good guess for the new parent.
 	insert(b->parent, b);
@@ -617,7 +616,7 @@ void velbox_refresh(box *root) {
 				if (isLeaf(k)) continue;
 				if (k->end == cutoff) {
 					refreshList.add(k);
-					kids.rmAt(j);
+					kids.quickRmAt(j);
 					j--;
 #ifndef NODEBUG
 				} else if (k->end < cutoff) {
@@ -658,7 +657,7 @@ void velbox_completeTick(box *root) {
 					k->inUse = 0;
 				}
 				if (del) {
-					kids.rmAt(j);
+					kids.quickRmAt(j);
 					j--;
 					remove(k);
 				}

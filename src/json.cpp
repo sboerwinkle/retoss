@@ -65,7 +65,7 @@ char jsonValue::rm(char const *key) {
 		if (!strcmp(key, d.obj[i].key)) {
 			free(d.obj[i].key);
 			d.obj[i].value.destroy();
-			d.obj.rmAt(i);
+			d.obj.stableRmAt(i);
 			return 1;
 		}
 	}

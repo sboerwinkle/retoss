@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -126,14 +127,14 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 				else if (selectedGroupIndex == i) selectedGroupIndex = 0;
 
 				varGroups[i].destroy();
-				varGroups.rmAt(i);
+				varGroups.stableRmAt(i);
 				i--;
 				continue;
 			}
 			list<dl_var> &vars = varGroups[i].vars;
 			range(j, vars.num) {
 				if (!vars[j].seen) {
-					vars.rmAt(j);
+					vars.stableRmAt(j);
 					j--;
 				}
 			}
@@ -495,9 +496,11 @@ void dl_init() {
 
 	editEventsFifo = fopen("edit_events.fifo", "w");
 	if (!editEventsFifo) {
-		// TODO shouldn't assume everyone is using an edit setup,
-		//      make it more clear that this isn't a big deal.
-		perror("Failed to open edit_events.fifo");
+		if (errno == ENOENT) {
+			puts("Couldn't find edit_events.fifo, assuming no edit mode");
+		} else {
+			perror("Failed to open edit_events.fifo");
+		}
 	}
 }
 

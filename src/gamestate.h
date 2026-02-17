@@ -1,7 +1,6 @@
 #pragma once
 
-#include <stddef.h> // Just need this for `offsetof`, but I'm betting it's pretty big...
-// TODO: Homebrew `offsetof`, it's not that bad if you look it up
+#include <stddef.h>
 
 #include "list.h"
 #include "matrix.h"
@@ -10,13 +9,14 @@ struct mover; // "box" and "gamestate" reference each other's types
 #include "cloneable.h"
 
 #define PLAYER_SHAPE_RADIUS 800
+#define NUM_TEXS 7
 
 extern int32_t gs_gravity;
 
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];
-	iquat rot;
+	iquat rot, oldRot;
 	int type;
 };
 
@@ -37,7 +37,6 @@ struct solid : cloneable {
 	int64_t vel[3];
 	int64_t r;
 	int32_t tex;
-	iquat oldRot; // This isn't serialized, and we don't care if it's copied. Should avoid using this until this solid has ticked!
 	box *b;
 };
 

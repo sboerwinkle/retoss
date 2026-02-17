@@ -356,13 +356,18 @@ void serializeInputs(char * dest) {
 }
 
 int playerInputs(player *p, list<char> const * data) {
-	// TODO is this handling players we don't have data for?
-	//      I think we re-use inputs in that case...
-	//      Does this handle players that have never yet sent anything?
-	//      Because that's maybe something we need to handle,
-	//      like if we don't properly init `inputs`...
+	// This always runs for all players (regardless of network state)
+	// before the gamestate steps, so this guarantees `oldRot` is initialized.
+	memcpy(p->m.oldRot, p->m.rot, sizeof(p->m.rot));
+
+	// This can happen if:
+	// - Malicious client
+	// - No data yet seen from client
+	// - Some other case I'm not sure about, maybe when client is late?
 	if (data->num < 7*(int)sizeof(int32_t)) {
+		// Set inputs to zero
 		range(i, 3) p->inputs[i] = 0;
+		// Reset facing - a visual indicator I guess?
 		p->m.rot[0] = FIXP;
 		range(i, 3) p->m.rot[i+1] = 0;
 		return 0;
@@ -563,11 +568,11 @@ void prefsToCmds(queue<strbuf> *cmds) {
 
 //// graphics stuff! ////
 
-static void drawPlayer(player *p, float interpRatio) {
+static void drawPlayer(player *p) {
 	int64_t radius = 800;
 	int sprite = 3;
 	int mesh = 32;
-	drawCube(&p->m, radius, sprite, mesh, interpRatio);
+	drawCube(&p->m, radius, sprite, mesh);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
@@ -575,6 +580,7 @@ static void drawPlayer(player *p, float interpRatio) {
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
 	updateTiming(&renderTiming, drawingNanos);
+	gfx_interpRatio = interpRatio;
 
 	player *p = &gs->players[myPlayer];
 	offset frameCenter;
@@ -586,21 +592,21 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	// This modifies `frameCenter` fwiw
 	setupFrame(frameCenter);
 
-	// TODO put `interpRatio` in gfx state, no reason to keep passing it in here
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
 		int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
-		drawCube(&s->m, s->r, s->tex & 31, mesh, interpRatio);
+		// `s->tex & 31` is validated in gamestate.cpp
+		drawCube(&s->m, s->r, s->tex & 31, mesh);
 	}
 
 	rangeconst(i, gs->players.num) {
 		if (i == myPlayer) continue;
 		player *p2 = &gs->players[i];
-		drawPlayer(p2, interpRatio);
+		drawPlayer(p2);
 	}
 
 	setupStipple();
-	drawPlayer(p, interpRatio);
+	drawPlayer(p);
 
 	setupTransparent();
 	rangeconst(i, gs->trails.num) {

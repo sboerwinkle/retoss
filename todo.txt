@@ -19,9 +19,19 @@
 . Oh gods collision will need to be re-done :(
 
 - /rda (round all)
+- Segfault loading save file. Maybe just an outdated file?? idk.
 - Bug where mottling disappears below scale 1000
 - Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
-- Movement is so god-awful lol
+jump intent via mouse (shelved for now)
+	If I don't allow air adjustments (which I'm kind of enjoying not doing),
+	then cam angle should somehow convey jump itent.
+	I'm not sure about wall-jumps,
+	but for ground jumps I'm thinking something like:
+		Horizontal means just enough force to get traction necessary for maximum speed this frame
+		Vertical means full jump force, desired speed is zero'd (or maybe just don't apply traction?)
+		45deg (up or down?) means going for distance, so max jump and max traction
+		Are ability to apply jump and traction independent?
+. Movement is so god-awful lol
 - dl: re-frame operation for positions
 	Pos vars always store their "on paper" value, and their absolute value
 	Then we can set a flag and do a re-load, and they'll update their "on paper" value to maintain absolute value
@@ -37,6 +47,19 @@ Map design still too open?
 	Still, I need a proper building (2 rooms, a la UrT) at some point
 		Maybe this waits until we resolve cam positioning (by drawing the player, discussed below)
 . Player rendered w/ stippling!
+- Cam restrictions
+	Cast 4 rays backwards, corresponding to the corners of the "too close to camera" volume.
+		Will have to be sure whatever casting mechanic we use is thread-safe,
+		and notate methods accordingly so I don't break that in the future.
+		Graphics thread is responsible for not stepping on game thread!
+	Then, if any of those hits within the appropriate distance,
+	set camera distance accordingly.
+		Camera sits at the base of the "too close to camera" volume
+	This may put the camera actually inside a solid,
+	but that's fine so long as they can't peek through a solid.
+		An interesting distinction!
+	Casting only the corners means we probably won't get some cases right,
+	but we handle the important one of "camera is sitting too close to a wall looking parallel".
 - capsule player?
 	I could just do 2 balls, but I think I could also do a capsule pretty reasonably
 		so long as the capsule isn't too long lol
