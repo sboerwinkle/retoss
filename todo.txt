@@ -20,7 +20,7 @@
 
 - /rda (round all)
 - Segfault loading save file. Maybe just an outdated file?? idk.
-- Bug where mottling disappears below scale 1000
+. Bug where mottling disappears below scale 1000
 - Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
 jump intent via mouse (shelved for now)
 	If I don't allow air adjustments (which I'm kind of enjoying not doing),

@@ -428,7 +428,7 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, scale/1000);
+	glUniform1f(u_main_texscale, scale/1000.0);
 	glUniform2f(u_main_texoffset, 0, 0);
 
 	int32_t vertexIndex;
