@@ -87,7 +87,7 @@ void game_destroy() {
 	dl_destroy();
 	gamestate_destroy();
 	velbox_destroy();
-	// no "destroy" call for graphics at present, maybe should make a stub for symmetry's sake?
+	gfx_destroy();
 }
 
 void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos) {
@@ -588,14 +588,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	gfx_interpRatio = interpRatio;
 
 	player *p = &gs->players[myPlayer];
-	offset frameCenter;
-	{
-		int64_t *p1 = p->m.oldPos;
-		int64_t *p2 = p->m.pos;
-		range(i, 3) frameCenter[i] = p1[i] + (int64_t)(interpRatio*(p2[i]-p1[i]));
-	}
-	// This modifies `frameCenter` fwiw
-	setupFrame(frameCenter);
+	// Todo: is `p->prox` the vb_root at some point? That would be a bit large lol, should pass null instead
+	setupFrame(p->m.oldPos, p->m.pos, p->prox);
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];

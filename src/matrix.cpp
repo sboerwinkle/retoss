@@ -229,7 +229,7 @@ void mat3FromIquat(float *M, iquat rot) {
 }
 
 // Produces a matrix that represents the reverse rotation of `rot`
-void imatFromIquatInv(imat M, iquat rot) {
+void imatFromIquatInv(imat M, iquat const rot) {
 	// All the operations on components of `rot`
 	// involve a `*2`, so we just include that in
 	// the calculation of our fixed-point divisor.

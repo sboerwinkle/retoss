@@ -12,6 +12,7 @@
 #include "png.h"
 #include "watch_flags.h"
 #include "gamestate.h"
+#include "collision.h" // For raycasting, for camera position
 
 #include "graphics.h"
 #include "graphics_callbacks.h"
@@ -21,6 +22,8 @@
 #define TEX_TRAIL 6
 char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png", "trail.png"};
 GLuint textures[NUM_TEXS];
+static float const fovThingIdk = 1/0.7;
+static float const zNear = 100;
 
 static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
@@ -67,7 +70,9 @@ static int vtxIdx_pane = -1;
 static float matWorldToScreen[16];
 // lol actually unused at the moment, may come back later
 static float frameLook[3];
-static int64_t *camPos;
+static int64_t const *camPos1;
+static int64_t const *camPos2;
+static list<mover*> camCastCands;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -183,6 +188,8 @@ static void loadAllTextures() {
 }
 
 void initGraphics() {
+	camCastCands.init();
+
 	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
 	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "shaders/sprite.vert");
 	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
@@ -335,6 +342,10 @@ void initGraphics() {
 	cerr("End of graphics setup");
 }
 
+void gfx_destroy() {
+	camCastCands.destroy();
+}
+
 static void checkReload() {
 	// I go into more detail about the use of std::memory_order in watch.cpp,
 	// but the short version is that we're getting some guarantees similar to
@@ -355,7 +366,50 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-void setupFrame(int64_t *_camPos) {
+static float calcCamDist(float *matWorldToCam, box *prox) {
+	camCastCands.num = 0;
+	velbox_query_ts(prox, &camCastCands);
+	unitvec dir;
+	range(i, 3) dir[i] = frameLook[i]*-FIXP; // Cast backwards
+	float y = zNear;
+	float z = zNear/fovThingIdk;
+	float x = z*displayWidth/displayHeight;
+	// Pad things out a little to account for rounding errors.
+	// A couple units seems to be plenty.
+	x += 2;
+	z += 2;
+	offset corners1[4];
+	offset corners2[4];
+	// This could be like a few matrix multiplications probably.
+	// This is faster and much less legible, clearly a win.
+	range(i, 3) {
+		float forward = y*matWorldToCam[1+4*i]; // could use `frameLook`, it's the same thing
+		float side = x*matWorldToCam[0+4*i];
+		float vert = z*matWorldToCam[2+4*i];
+		int64_t a = forward - side - vert;
+		int64_t b = forward - side + vert;
+		int64_t c = forward + side + vert;
+		int64_t d = forward + side - vert;
+		corners1[0][i] = camPos1[i] + a;
+		corners1[1][i] = camPos1[i] + b;
+		corners1[2][i] = camPos1[i] + c;
+		corners1[3][i] = camPos1[i] + d;
+		corners2[0][i] = camPos2[i] + a;
+		corners2[1][i] = camPos2[i] + b;
+		corners2[2][i] = camPos2[i] + c;
+		corners2[3][i] = camPos2[i] + d;
+	}
+	fraction best = {.numer=gfx_camDist, .denom=FIXP};
+	rangeconst(i, camCastCands.num) {
+		mover *m = camCastCands[i];
+		range(j, 4) {
+			raycast_interp(&best, m, corners1[j], corners2[j], dir, gfx_interpRatio);
+		}
+	}
+	return (float)best.numer*FIXP/best.denom;
+}
+
+void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
@@ -379,7 +433,10 @@ void setupFrame(int64_t *_camPos) {
 	frameLook[0] = matWorldToCam[1];
 	frameLook[1] = matWorldToCam[5];
 	frameLook[2] = matWorldToCam[9];
-	range(i, 3) _camPos[i] -= frameLook[i] * gfx_camDist;
+
+	camPos1 = p1;
+	camPos2 = p2;
+	if (prox) matWorldToCam[13] = calcCamDist(matWorldToCam, prox);
 
 	// Todo I'm sure I'm wasting some multiplications here.
 	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
@@ -387,17 +444,14 @@ void setupFrame(int64_t *_camPos) {
 
 	// This is the same no matter what (or where) we're rendering, so I can do that here...
 	float matPersp[16];
-	float fovThingIdk = 1/0.7;
 	perspective(
 		matPersp,
 		fovThingIdk*displayHeight/displayWidth,
 		fovThingIdk,
-		100 // zNear
+		zNear
 	);
 
 	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
-
-	camPos = _camPos;
 }
 
 void drawCube(mover *m, int64_t scale, int tex, int mesh) {
@@ -417,7 +471,11 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 	range(i, 9) rot_data[i] *= scale;
 	float matWorld[16];
 	float translate[3];
-	range(i, 3) translate[i] = m->oldPos[i] - camPos[i] + gfx_interpRatio*(m->pos[i] - m->oldPos[i]);
+	range(i, 3) {
+		int64_t x1 = m->oldPos[i] - camPos1[i];
+		int64_t x2 = m->pos[i]    - camPos2[i];
+		translate[i] = x1 + gfx_interpRatio*(x2-x1);
+	}
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
 
 	// And finally apply the transform we computed during `setupFrame`
@@ -478,7 +536,14 @@ void drawTrail(offset const start, unitvec const dir, int64_t len) {
 	matWorld[15] = 1;
 
 	range(i, 3) forward[i] = (float)dir[i]*len/(FIXP*2);
-	range(i, 3) translate[i] = start[i]-camPos[i]+forward[i];
+	range(i, 3) {
+		// These `cam` values don't depend on the trail, so I guess I could pre-calculate them
+		// if that actually represented any useful savings. Things that aren't trails don't use
+		// these values, since they don't play well with floats at high speeds. Trails don't
+		// move though, so they won't play well at high speeds anyway.
+		int64_t cam = camPos1[i] + gfx_interpRatio*(camPos2[i]-camPos1[i]);
+		translate[i] = start[i]-cam+forward[i];
+	}
 	// There's a reason I have to normalize `forward` here,
 	// but I can't articulate it properly right now lol covid
 	float fdir[3];

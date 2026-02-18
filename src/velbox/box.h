@@ -99,6 +99,7 @@ extern box* velbox_alloc();
 extern void velbox_remove(box *o);
 extern box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r);
 extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results);
+extern void velbox_query_ts(box *p, list<LEAF*> *results);
 extern void velbox_insert(box *guess, box *n);
 
 // For leafs

@@ -499,8 +499,19 @@ static void writeQueryResults(box *b, box *target, list<LEAF*> *results) {
 		results->add(b->data);
 	} else {
 		list<box*> const &kids = b->kids;
-		range(i, kids.num) {
+		rangeconst(i, kids.num) {
 			writeQueryResults(kids[i], target, results);
+		}
+	}
+}
+
+static void writeQueryResults_ts(box *b, list<LEAF*> *results) {
+	if (isLeaf(b)) {
+		results->add(b->data);
+	} else {
+		list<box*> const &kids = b->kids;
+		rangeconst(i, kids.num) {
+			writeQueryResults_ts(kids[i], results);
 		}
 	}
 }
@@ -534,6 +545,18 @@ box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *
 		writeQueryResults(p->intersects[i].b, &thing, results);
 	}
 	return p;
+}
+
+// "ts"=thread-safe. Still not safe if someone is writing to this velbox
+// heirarchy, but good enough for most of what the graphics thread needs.
+// No box allocation, and nothing that uses `vb_now`.
+//
+// This function basically just lists all the leafs of everything
+// that intersects `p`.
+void velbox_query_ts(box *p, list<LEAF*> *results) {
+	rangeconst(i, p->intersects.num) {
+		writeQueryResults_ts(p->intersects[i].b, results);
+	}
 }
 
 // Among other things, `n` needs `start` and `end`.
