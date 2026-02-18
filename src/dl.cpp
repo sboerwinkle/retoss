@@ -64,6 +64,11 @@ static void addDummyForGroup(int i) {
 }
 
 static void lookAtGp_test(solid *s) {
+	// Solid is newly created, so won't have `old` fields.
+	// We use those in `raycast` right now though,
+	// so populate them.
+	memcpy(s->m.oldRot, s->m.rot, sizeof(s->m.rot));
+	memcpy(s->m.oldPos, s->m.pos, sizeof(s->m.pos));
 	if (raycast(&lookAtGp_best, &s->m, lookAtGp_origin, lookAtGp_dir)) {
 		strcpy(lookAtGp_winner, currentGroup->name);
 	}

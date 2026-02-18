@@ -405,7 +405,7 @@ static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 //// Text command stuff ////
 
 char handleLocalCommand(char * buf, list<char> * outData) {
-	if (isCmd(buf, "/dl")) {
+	if (isCmd(buf, "/dl") || isCmd(buf, "/selall")) {
 		strcpy(loopbackCommandBuffer, buf);
 		return 1;
 	}
@@ -527,6 +527,11 @@ char customLoopbackCommand(gamestate *gs, int myPlayer, char const * str) {
 			return 1;
 		}
 		dl_processFile(str+4, gs, myPlayer);
+		return 1;
+	}
+	if (isCmd(str, "/selall")) {
+		gs->selection.num = 0;
+		gs->selection.addAll(&gs->solids);
 		return 1;
 	}
 	if (isCmd(str, "/dlUpd")) {
