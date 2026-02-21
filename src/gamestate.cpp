@@ -26,6 +26,8 @@ void resetPlayer(gamestate *gs, int i) {
 		.vel={0,0,0},
 		.inputs={0,0,0},
 		.jump=0,
+		.shoot=0,
+		.cooldown=0,
 		.prox=gs->vb_root,
 	};
 }
@@ -359,6 +361,8 @@ static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->vel[i]);
 	range(i, 3) trans32(&p->inputs[i]);
 	trans8(&p->jump);
+	trans8(&p->shoot);
+	trans32(&p->cooldown);
 	range(i, 4) trans32(&p->m.rot[i]);
 	if (seriz_reading) {
 		range(i, 3) p->m.oldPos[i] = -1;

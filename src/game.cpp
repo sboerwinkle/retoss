@@ -48,10 +48,15 @@ static char doLookGp = 0;
 static int numberPressed = 0;
 
 struct {
-	char u, d, l, r, z, Z;
-	char jumpEvt, jumpState;
+	struct {
+		char u, d, l, r, z, Z;
+		char jump, shoot;
+	} state;
+	struct {
+		char jump, shoot;
+	} event;
 } activeInputs = {}, sharedInputs = {};
-static char sentJumpState = 0;
+static char sentJumpState = 0, sentShootState = 0;
 
 void game_init() {
 	initGraphics();
@@ -101,15 +106,15 @@ void handleKey(int key, int action) {
 	// I can't imagine a scenario where I actually need to know about repeat events
 	if (action == GLFW_REPEAT) return;
 
-	     if (key == GLFW_KEY_D)     activeInputs.r = action;
-	else if (key == GLFW_KEY_A)     activeInputs.l = action;
-	else if (key == GLFW_KEY_S)     activeInputs.d = action;
-	else if (key == GLFW_KEY_W)     activeInputs.u = action;
+	     if (key == GLFW_KEY_D)     activeInputs.state.r = action;
+	else if (key == GLFW_KEY_A)     activeInputs.state.l = action;
+	else if (key == GLFW_KEY_S)     activeInputs.state.d = action;
+	else if (key == GLFW_KEY_W)     activeInputs.state.u = action;
 	else if (key == GLFW_KEY_SPACE) {
-		activeInputs.jumpState = activeInputs.z = action;
-		if (action) activeInputs.jumpEvt = 1;
+		activeInputs.state.jump = activeInputs.state.z = action;
+		if (action) activeInputs.event.jump = 1;
 	}
-	else if (key == GLFW_KEY_C)     activeInputs.Z = action;
+	else if (key == GLFW_KEY_C)     activeInputs.state.Z = action;
 	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
 	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
@@ -236,6 +241,11 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 		return;
 	}
 
+	if (button == GLFW_MOUSE_BUTTON_LEFT) {
+		if (action) activeInputs.event.shoot = 1;
+		activeInputs.state.shoot = action;
+	}
+
 	/*
 	if (action == GLFW_PRESS && (button == 0 || button == 1)) mouseDown = button+1;
 	else mouseDown = 0;
@@ -254,17 +264,24 @@ void window_focus_callback(GLFWwindow *window, int focused) {
 	}
 }
 
+static void copyEvent(char *a, char *b) {
+	// If they're both 1, do I clear b?
+	// For now I don't, which makes it
+	// easier to hit an input every single frame
+	// (since we effectively have a queue 1 frame long)
+	if (!*a && *b) {
+		*a = 1;
+		*b = 0;
+	}
+}
+
 void copyInputs() {
 	// This matter a lot more if you're doing anything non-atomic writes,
 	// or if serializing the inputs means writing something
 	// (like for commands you want to be sent out exactly once).
-	{
-		char tmp = sharedInputs.jumpEvt;
-		sharedInputs = activeInputs;
-		sharedInputs.jumpEvt |= tmp;
-		// Not sure about this line; other option is just clearing it out.
-		activeInputs.jumpEvt &= tmp;
-	}
+	sharedInputs.state = activeInputs.state;
+	copyEvent(&sharedInputs.event.jump, &activeInputs.event.jump);
+	copyEvent(&sharedInputs.event.shoot, &activeInputs.event.shoot);
 
 	if (editMenuState >= 0) {
 		char const *cmd;
@@ -303,6 +320,22 @@ void copyInputs() {
 	}
 }
 
+static void serializeEvent(char *event, char state, char *sentState, char const *cmdUp, char const *cmdDown) {
+	if (*event) {
+		*event = 0;
+		// Todo We know this is getting serialized out,
+		//      whereas `outboundTextQueue` is checked
+		//      to see if it's a local command first.
+		//      Slight inefficiency.
+		strcpy(outboundTextQueue.add().items, cmdUp);
+		*sentState = 1;
+	}
+	if (*sentState && !state) {
+		strcpy(outboundTextQueue.add().items, cmdDown);
+		*sentState = 0;
+	}
+}
+
 // In theory I think this would let us have a dynamic size of input data per-frame.
 // In practice we don't use that, partly because anything that *might* winds up
 // being better implemented as a command, which ensures delivery (even if late,
@@ -312,10 +345,11 @@ void serializeInputs(char * dest) {
 	// TODO I have all this nice stuff for serializing, and I'm going to ignore it
 	int32_t *p = (int32_t*) dest;
 
+	auto &inpState = sharedInputs.state;
 	float moveKeyboard[3] = {
-		(float)(sharedInputs.r-sharedInputs.l),
-		(float)(sharedInputs.u-sharedInputs.d),
-		(float)(sharedInputs.z-sharedInputs.Z),
+		(float)(inpState.r-inpState.l),
+		(float)(inpState.u-inpState.d),
+		(float)(inpState.z-inpState.Z),
 	};
 	float moveWorld[3];
 
@@ -335,19 +369,8 @@ void serializeInputs(char * dest) {
 	range(i, 4) p[3+i] = quatCamRotation[i]*FIXP;
 
 	// jump stuff.
-	if (sharedInputs.jumpEvt) {
-		sharedInputs.jumpEvt = 0;
-		// Todo We know this is getting serialized out,
-		//      whereas `outboundTextQueue` is checked
-		//      to see if it's a local command first.
-		//      Slight inefficiency.
-		strcpy(outboundTextQueue.add().items, "/_J");
-		sentJumpState = 1;
-	}
-	if (sentJumpState && !sharedInputs.jumpState) {
-		strcpy(outboundTextQueue.add().items, "/_j");
-		sentJumpState = 0;
-	}
+	serializeEvent(&sharedInputs.event.jump, sharedInputs.state.jump, &sentJumpState, "/_J", "/_j");
+	serializeEvent(&sharedInputs.event.shoot, sharedInputs.state.shoot, &sentShootState, "/_S", "/_s");
 
 	if (watch_dlFlag.load(std::memory_order::acquire)) {
 		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
@@ -557,6 +580,10 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		p->jump = 3; // Set 'jump this frame' and 'jump continuing' bits
 	} else if (isCmd(str, "/_j")) {
 		p->jump &= 2; // Only keep 'jump this frame' bit
+	} else if (isCmd(str, "/_S")) {
+		p->shoot = 3;
+	} else if (isCmd(str, "/_s")) {
+		p->shoot &= 2;
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.

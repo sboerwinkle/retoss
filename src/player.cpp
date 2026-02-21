@@ -117,11 +117,7 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
 }
 
-void pl_postStep(gamestate *gs, player *p) {
-	p->jump &= 1; // Keep only the 'jump continuing' bit
-	// TODO Actually figure out input for this, not just on a timer lol
-	if (vb_now % 15) return;
-
+static void shoot(gamestate *gs, player *p) {
 	// Todo: Surely we'll need this more often, right? Save it somewhere?
 	unitvec look;
 	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
@@ -152,4 +148,15 @@ void pl_postStep(gamestate *gs, player *p) {
 	memcpy(tr.dir, look, sizeof(unitvec));
 	tr.len = time.numer*FIXP/time.denom;
 	tr.expiry = vb_now + 45; // 3 sec, roughly
+}
+
+void pl_postStep(gamestate *gs, player *p) {
+	p->jump &= 1; // Keep only the 'jump continuing' bit
+	char shootInput = p->shoot;
+	p->shoot &= 1;
+	if (p->cooldown) p->cooldown--;
+	if (shootInput && !p->cooldown) {
+		p->cooldown = 10;
+		shoot(gs, p);
+	}
 }

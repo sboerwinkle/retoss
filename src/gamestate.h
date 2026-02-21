@@ -24,7 +24,8 @@ struct player {
 	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
-	char jump;
+	char jump, shoot;
+	int32_t cooldown;
 	box *prox;
 };
 
