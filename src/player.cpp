@@ -133,14 +133,23 @@ static void shoot(gamestate *gs, player *p) {
 	do {
 		result = bcast(&time, look, p->m.oldPos);
 	} while (result == &p->m);
-	// Usually we'd then actually *do something* with whatever we hit,
-	// but in this case we really don't care too much!
-	// Except we do care about the range restriction bit.
 	if (!result) {
 		time = limit;
 	} else if (limit.lt(time)) {
 		time = limit;
 		result = NULL;
+	}
+	if (result && result->type & T_PLAYER) {
+		player *shootee = playerFromMover(result);
+		if (shootee->hits < 2) {
+			shootee->hits++;
+			// 7 seconds to heal feels about right??
+			shootee->hitsCooldown = 15*7;
+		} else {
+			shootee->hits = 3;
+			// Enough time for them to get off one more shot
+			shootee->hitsCooldown = 10;
+		}
 	}
 
 	trail &tr = gs->trails.add();

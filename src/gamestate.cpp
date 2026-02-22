@@ -28,6 +28,8 @@ void resetPlayer(gamestate *gs, int i) {
 		.jump=0,
 		.shoot=0,
 		.cooldown=0,
+		.hits=0,
+		.hitsCooldown=0,
 		.prox=gs->vb_root,
 	};
 }
@@ -163,6 +165,17 @@ static void playerUpdate(gamestate *gs, player *p) {
 	}
 
 	memcpy(p->m.pos, dest, sizeof(dest));
+
+	if (p->hitsCooldown) {
+		p->hitsCooldown--;
+		if (!p->hitsCooldown) {
+			if (p->hits >= 3) {
+				// TODO: death
+			} else {
+				p->hits = 0;
+			}
+		}
+	}
 }
 
 static void playerAddBoxes(gamestate *gs) {
@@ -363,6 +376,8 @@ static void transPlayer(player *p) {
 	trans8(&p->jump);
 	trans8(&p->shoot);
 	trans32(&p->cooldown);
+	trans8(&p->hits);
+	trans8(&p->hitsCooldown);
 	range(i, 4) trans32(&p->m.rot[i]);
 	if (seriz_reading) {
 		range(i, 3) p->m.oldPos[i] = -1;

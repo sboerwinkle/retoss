@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "util.h"
 #include "list.h"
 #include "matrix.h"
 struct mover; // "box" and "gamestate" reference each other's types
@@ -20,12 +21,14 @@ struct mover { // This is kind of just a grouping of fields; we use it for e.g. 
 	int type;
 };
 
+#define playerFromMover(x) ((player*)((char*)(x) - offsetof(player, m)))
 struct player {
 	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
 	char jump, shoot;
 	int32_t cooldown;
+	u8 hits, hitsCooldown;
 	box *prox;
 };
 

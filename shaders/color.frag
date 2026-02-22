@@ -1,6 +1,7 @@
 #version 430 core
 layout(location=1, binding=0) uniform sampler2D u_tex;
 layout(binding=1) uniform sampler2D u_mottle_tex;
+uniform vec4 u_tint;
 
 layout(location=0) in vec3 v_color;
 layout(location=1) in vec2 v_uv;
@@ -12,6 +13,10 @@ layout(location = 0) out vec4 out_color;
 void main() {
 	float brightness = 1.0 - 0.2 * texture(u_mottle_tex, v_mottle_1).r * texture(u_mottle_tex, v_mottle_2).r;
 	//float brightness = 1.0 - 0.2 * texture(u_mottle_tex, v_mottle_1).r * texture(u_mottle_tex, v_mottle_1).r;
+
+	brightness = brightness * u_tint.a;
+	vec4 tint_addition = vec4(u_tint.rgb, 0.0);
+
 	vec4 mult = vec4(brightness, brightness, brightness, 1.0);
-	out_color = texture(u_tex, v_uv)*mult + vec4(v_color, 0.0);
+	out_color = texture(u_tex, v_uv)*mult + tint_addition + vec4(v_color, 0.0);
 }

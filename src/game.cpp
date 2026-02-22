@@ -601,6 +601,11 @@ void prefsToCmds(queue<strbuf> *cmds) {
 //// graphics stuff! ////
 
 static void drawPlayer(player *p) {
+	float alpha;
+	if (p->hits >= 3) alpha = 0.5;
+	else alpha = 0.1*p->hits;
+	tint(1, 0, 0, alpha);
+
 	int64_t radius = 800;
 	int sprite = 3;
 	int mesh = 32;
@@ -630,9 +635,12 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		player *p2 = &gs->players[i];
 		drawPlayer(p2);
 	}
+	tint(0, 0, 0, 0); // Clear tint.
 
 	setupStipple();
 	drawPlayer(p);
+	// Clear tint again; stippling uses a different copy of the uniforms.
+	tint(0, 0, 0, 0);
 
 	setupTransparent();
 	rangeconst(i, gs->trails.num) {

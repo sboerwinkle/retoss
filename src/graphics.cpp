@@ -51,7 +51,7 @@ static GLint u_main_modelview;
 static GLint u_main_rot;
 static GLint u_main_texscale;
 static GLint u_main_texoffset;
-//static GLint u_main_tint;
+static GLint u_main_tint;
 
 static GLint u_spr_size;
 static GLint u_spr_scale;
@@ -70,8 +70,8 @@ static int vtxIdx_pane = -1;
 static float matWorldToScreen[16];
 // lol actually unused at the moment, may come back later
 static float frameLook[3];
-static int64_t const *camPos1;
-static int64_t const *camPos2;
+static offset camPos1;
+static offset camPos2;
 static list<mover*> camCastCands;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
@@ -133,6 +133,19 @@ static GLuint mkShader(GLenum type, const char* path) {
 	glCompileShader(shader);
 	printGLShaderErrors(shader, path);
 	return shader;
+}
+
+static GLuint sharedUniformHelper(char const *name) {
+	GLuint m = glGetUniformLocation(main_prog, name);
+	GLuint s = glGetUniformLocation(stipple_prog, name);
+	if (m != s) {
+		printf(
+			"ERROR: Uniform \"%s\" resides at %d and %d in \"main\" and \"stipple\" progs respectively\n",
+			name, m, s
+		);
+		startupFailed = 1;
+	}
+	return m;
 }
 
 static void loadTexture(int i) {
@@ -231,17 +244,17 @@ void initGraphics() {
 	GLint a_spr_loc = attrib(sprite_prog, "a_loc");
 
 	// Uniforms
-	u_main_modelview = glGetUniformLocation(main_prog, "u_modelview");
-	u_main_rot = glGetUniformLocation(main_prog, "u_rot");
-	u_main_texscale = glGetUniformLocation(main_prog, "u_texscale");
-	u_main_texoffset = glGetUniformLocation(main_prog, "u_texoffset");
-	//u_main_tint = glGetUniformLocation(main_prog, "u_tint");
+	u_main_modelview = sharedUniformHelper("u_modelview");
+	u_main_rot       = sharedUniformHelper("u_rot");
+	u_main_texscale  = sharedUniformHelper("u_texscale");
+	u_main_texoffset = sharedUniformHelper("u_texoffset");
+	u_main_tint      = sharedUniformHelper("u_tint");
 	// sprite_prog uniforms
-	u_spr_size = glGetUniformLocation(sprite_prog, "u_size");
-	u_spr_scale = glGetUniformLocation(sprite_prog, "u_scale");
+	u_spr_size          = glGetUniformLocation(sprite_prog, "u_size");
+	u_spr_scale         = glGetUniformLocation(sprite_prog, "u_scale");
 	u_spr_screen_offset = glGetUniformLocation(sprite_prog, "u_offset");
-	u_spr_tex_scale = glGetUniformLocation(sprite_prog, "u_tex_scale");
-	u_spr_tex_offset = glGetUniformLocation(sprite_prog, "u_tex_offset");
+	u_spr_tex_scale     = glGetUniformLocation(sprite_prog, "u_tex_scale");
+	u_spr_tex_offset    = glGetUniformLocation(sprite_prog, "u_tex_offset");
 
 	// Previously I checked that some uniforms are in the same spots across programs here,
 	// and log + set startupFailed=1 if not.
@@ -366,7 +379,7 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-static float calcCamDist(float *matWorldToCam, box *prox) {
+static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox) {
 	camCastCands.num = 0;
 	velbox_query_ts(prox, &camCastCands);
 	unitvec dir;
@@ -390,14 +403,14 @@ static float calcCamDist(float *matWorldToCam, box *prox) {
 		int64_t b = forward - side + vert;
 		int64_t c = forward + side + vert;
 		int64_t d = forward + side - vert;
-		corners1[0][i] = camPos1[i] + a;
-		corners1[1][i] = camPos1[i] + b;
-		corners1[2][i] = camPos1[i] + c;
-		corners1[3][i] = camPos1[i] + d;
-		corners2[0][i] = camPos2[i] + a;
-		corners2[1][i] = camPos2[i] + b;
-		corners2[2][i] = camPos2[i] + c;
-		corners2[3][i] = camPos2[i] + d;
+		corners1[0][i] = p1[i] + a;
+		corners1[1][i] = p1[i] + b;
+		corners1[2][i] = p1[i] + c;
+		corners1[3][i] = p1[i] + d;
+		corners2[0][i] = p2[i] + a;
+		corners2[1][i] = p2[i] + b;
+		corners2[2][i] = p2[i] + c;
+		corners2[3][i] = p2[i] + d;
 	}
 	fraction best = {.numer=gfx_camDist, .denom=FIXP};
 	rangeconst(i, camCastCands.num) {
@@ -406,7 +419,7 @@ static float calcCamDist(float *matWorldToCam, box *prox) {
 			raycast_interp(&best, m, corners1[j], corners2[j], dir, gfx_interpRatio);
 		}
 	}
-	return (float)best.numer*FIXP/best.denom;
+	return -(float)best.numer*FIXP/best.denom;
 }
 
 void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
@@ -415,6 +428,7 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	glBindVertexArray(vaos[0]);
 	glDepthMask(1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	tint(0, 0, 0, 0);
 
 	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);
@@ -434,9 +448,17 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	frameLook[1] = matWorldToCam[5];
 	frameLook[2] = matWorldToCam[9];
 
-	camPos1 = p1;
-	camPos2 = p2;
-	if (prox) matWorldToCam[13] = calcCamDist(matWorldToCam, prox);
+	float dist = 0;
+	if (prox) dist = calcCamDist(matWorldToCam, p1, p2, prox);
+	// Previously I'd use `p1` and `p2` directly and just set
+	// `dist` into `matWorldToCam[13]`. This is kinda clever,
+	// but meant our calculations for how to draw trails were
+	// all messed up.
+	range(i, 3) {
+		int64_t shift = frameLook[i]*dist;
+		camPos1[i] = p1[i] + shift;
+		camPos2[i] = p2[i] + shift;
+	}
 
 	// Todo I'm sure I'm wasting some multiplications here.
 	//      Maybe a pointless optimization, but for both of the 4x4 matrix multiplications
@@ -452,6 +474,14 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	);
 
 	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
+}
+
+void tint(float r, float g, float b, float a) {
+	GLfloat _r = r*a;
+	GLfloat _g = g*a;
+	GLfloat _b = b*a;
+	GLfloat _a = 1-a;
+	glUniform4f(u_main_tint, _r, _g, _b, _a);
 }
 
 void drawCube(mover *m, int64_t scale, int tex, int mesh) {
@@ -507,6 +537,7 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 
 void setupStipple() {
 	glUseProgram(stipple_prog);
+	tint(0, 0, 0, 0);
 }
 
 void setupTransparent() {
