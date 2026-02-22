@@ -492,9 +492,10 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 	}
 #endif
 	// The rotation of the thing itself (used for lighting).
-	// Todo: Use `gfx_interpRatio` here somehow.
-	GLfloat rot_data[9];
-	mat3FromIquat(rot_data, m->rot);
+	GLfloat rot_data[9], rot_data2[9];
+	mat3FromIquat(rot_data, m->oldRot);
+	mat3FromIquat(rot_data2, m->rot);
+	range(i, 9) rot_data[i] += gfx_interpRatio*(rot_data2[i] - rot_data[i]);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
 	// Add in scaling / translation...

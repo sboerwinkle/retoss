@@ -313,9 +313,7 @@ foundSampleNorm:;
 // with a whole nasty nested network of solids.
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
 
-static char raycast_inner(fraction *best, mover const *m, offset const vWorld, iquat const q, unitvec const dir) {
-	imat rot;
-	imatFromIquatInv(rot, q);
+static char raycast_inner(fraction *best, mover const *m, offset const vWorld, imat const rot, unitvec const dir) {
 	offset vSolid;
 	imat_applySm(vSolid, rot, vWorld);
 	unitvec dirSolid;
@@ -361,8 +359,10 @@ static char raycast_inner(fraction *best, mover const *m, offset const vWorld, i
 char raycast(fraction *best, mover *m, offset const origin, unitvec const dir) {
 	offset vWorld;
 	range(i, 3) vWorld[i] = m->oldPos[i] - origin[i];
+	imat rot;
+	imatFromIquatInv(rot, m->oldRot);
 
-	return raycast_inner(best, m, vWorld, m->oldRot, dir);
+	return raycast_inner(best, m, vWorld, rot, dir);
 }
 
 char raycast_interp(fraction *best, mover *m, offset const origin1, offset const origin2, unitvec const dir, float interpRatio) {
@@ -372,10 +372,10 @@ char raycast_interp(fraction *best, mover *m, offset const origin1, offset const
 		int64_t x2 = m->pos[i]    - origin2[i];
 		vWorld[i] = x1 + (int64_t)(interpRatio*(x2-x1));
 	}
-	iquat interpQuat;
-	// I have no idea if interpolating quaternions in this way
-	// is reasonably accurate, but it's sure cheap!
-	range(i, 4) interpQuat[i] = m->oldRot[i] + (int32_t)(interpRatio*(m->rot[i] - m->oldRot[i]));
+	imat rot1, rot2;
+	imatFromIquatInv(rot1, m->oldRot);
+	imatFromIquatInv(rot2, m->rot);
+	range(i, 9) rot1[i] += (int32_t)(interpRatio*(rot2[i] - rot1[i]));
 
-	return raycast_inner(best, m, vWorld, interpQuat, dir);
+	return raycast_inner(best, m, vWorld, rot1, dir);
 }
