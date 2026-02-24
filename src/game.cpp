@@ -154,7 +154,7 @@ static void handleLook(double dx, double dy) {
 	double p = domePitch/2;
 	quat yawRot = {(float)cos(y), 0, 0, (float)sin(y)};
 	quat pitchRot = {(float)cos(p), (float)sin(p), 0, 0};
-	quat_mult(o, yawRot, pitchRot);
+	quat_mult(o, pitchRot, yawRot);
 
 	/* Free-look stuff. I'm kinda proud of this, keeping it in!
 	float dist = sqrt(dx*dx + dy*dy);
@@ -170,7 +170,7 @@ static void handleLook(double dx, double dy) {
 	// Positive Y -> mouse down -> rotate around +X
 
 	quat r = {cos(radians), (float)(s*dy/dist), 0, (float)(s*dx/dist)};
-	quat_mult(o, quatCamRotation, r);
+	quat_mult(o, r, quatCamRotation);
 	*/
 
 	// Common cleanup stuff

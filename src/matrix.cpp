@@ -42,12 +42,12 @@ void iquat_norm(iquat x) {
 }
 void quat_rotateBy(quat x, quat rot){
 	quat t;
-	quat_mult(t, x, rot);
+	quat_mult(t, rot, x);
 	memcpy(x, t, sizeof(t));
 }
 void iquat_rotateBy(iquat x, iquat const rot) {
 	iquat t;
-	iquat_mult(t, x, rot);
+	iquat_mult(t, rot, x);
 	memcpy(x, t, sizeof(t));
 }
 
@@ -68,20 +68,14 @@ void quat_rotZ(quat ret, quat strt, float r){
 	quat_rotateBy(ret, tmp);
 }
 
-// We do our quaternion multiplications backwards from what I think is convention.
-// It makes sense for me that if I have a quaternion that converts vectors from
-// camera rotation to world rotation, and one that converts world rotation to item rotation,
-// then `camera->world` * `world->item` => `camera->item`.
-// These feels like the more natural way to compose rotations.
-// This is why args `a` and `b` are flipped.
-void quat_mult(quat ret, quat b, quat a){
+void quat_mult(quat ret, quat a, quat b){
 	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3]);
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2]);
 	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1]);
 	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0]);
 }
 
-void iquat_mult(iquat ret, iquat const b, iquat const a){
+void iquat_mult(iquat ret, iquat const a, iquat const b){
 	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3])/FIXP;
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2])/FIXP;
 	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1])/FIXP;

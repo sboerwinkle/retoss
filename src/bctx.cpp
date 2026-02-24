@@ -111,7 +111,7 @@ void buildCtx::rot(int32_t const rotParams[3]) {
 	b[2] = 0;
 	b[3] = 0;
 
-	iquat_mult(c, a, b);
+	iquat_mult(c, b, a);
 	// `c` is now the result of composing the first 2 rotations,
 	// but we still have one more to compose. We can re-use `a` and `b` now,
 	// however.
@@ -121,7 +121,7 @@ void buildCtx::rot(int32_t const rotParams[3]) {
 	b[2] = rollSin;
 	//b[3] still 0
 
-	iquat_mult(a, c, b);
+	iquat_mult(a, b, c);
 
 	// We actually haven't normalized at all here.
 	// We rely on `rotQuat`'s normalization to
