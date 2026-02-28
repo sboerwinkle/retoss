@@ -17,9 +17,11 @@ void buildCtx::reset(gamestate *gs2) {
 	transf.rot[0] = FIXP;
 	range(i, 3) {
 		transf.pos[i] = 0;
+		transf.posPending[i] = 0;
 		transf.rot[i+1] = 0;
 	}
 	transf.scale = 1000; // TODO make this a constant somewhere
+	transf.hasPosPending = 0;
 
 	selecting = 0;
 }
@@ -54,15 +56,30 @@ void buildCtx::pos(int64_t x, int64_t y, int64_t z) {
 	pos(tmp);
 }
 
+void buildCtx::pos(int64_t scale, offset const v) {
+	offset v2;
+	range(i, 3) v2[i] = scale * v[i];
+	pos(v2);
+}
+
 void buildCtx::pos(offset const v) {
-	offset v2, v3;
-	range(i, 3) v2[i] = transf.scale * v[i] / 1000;
-	iquat_applySm(v3, transf.rot, v2);
-	range(i, 3) transf.pos[i] += v3[i];
+	transf.hasPosPending = 1;
+	range(i, 3) transf.posPending[i] += v[i];
+}
+
+void buildCtx::finalizeTranslate() {
+	if (!transf.hasPosPending) return;
+	transf.hasPosPending = 0;
+	range(i, 3) transf.posPending[i] = transf.scale * transf.posPending[i] / 1000;
+	offset v;
+	iquat_applySm(v, transf.rot, transf.posPending);
+	range(i, 3) transf.pos[i] += v[i];
+	range(i, 3) transf.posPending[i] = 0;
 }
 
 // Todo: Is this okay or backwards?
 void buildCtx::rotQuat(iquat const r) {
+	finalizeTranslate();
 	iquat_rotateBy(transf.rot, r);
 	iquat_norm(transf.rot);
 }
@@ -130,6 +147,7 @@ void buildCtx::rot(int32_t const rotParams[3]) {
 }
 
 void buildCtx::scale(int32_t scale) {
+	finalizeTranslate();
 	// This 1000 is pretty arbitrary, maybe I'll change it later?
 	// We use FIXP for 'precise' math, but this is more human-readable
 	// (for level design)
@@ -144,6 +162,7 @@ void buildCtx::resel() {
 }
 
 void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
+	finalizeTranslate();
 	int64_t finalSize = size*transf.scale/1000;
 	if (finalSize <= 0) {
 		printf("bctx: Bad object size %ld\n", finalSize);

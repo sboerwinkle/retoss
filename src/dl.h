@@ -17,6 +17,8 @@ struct dl_var {
 		int64_t integer;
 		struct {
 			offset vec;
+			offset transfDest;
+			char pinned;
 			quat rot;
 		} position;
 		struct {
@@ -43,6 +45,7 @@ extern int64_t* look(int64_t dist);
 
 extern void gp(char const* groupName);
 extern void dl_selectGp(char const* groupName);
+extern void pinNext();
 
 extern int64_t var(char const *name);
 extern int64_t var(char const *name, int64_t val);

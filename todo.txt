@@ -21,7 +21,7 @@
 - /rda (round all)
 - Segfault loading save file. Maybe just an outdated file?? idk.
 . Bug where mottling disappears below scale 1000
-- Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
+. Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
 jump intent via mouse (shelved for now)
 	If I don't allow air adjustments (which I'm kind of enjoying not doing),
 	then cam angle should somehow convey jump itent.
@@ -47,7 +47,7 @@ Map design still too open?
 	Still, I need a proper building (2 rooms, a la UrT) at some point
 		Maybe this waits until we resolve cam positioning (by drawing the player, discussed below)
 . Player rendered w/ stippling!
-- Cam restrictions
+. Cam restrictions
 	Cast 4 rays backwards, corresponding to the corners of the "too close to camera" volume.
 		Will have to be sure whatever casting mechanic we use is thread-safe,
 		and notate methods accordingly so I don't break that in the future.

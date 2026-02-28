@@ -35,6 +35,8 @@ static fraction lookAtGp_best;
 static offset lookAtGp_origin;
 static unitvec lookAtGp_dir;
 
+static char _pinNext = 0;
+
 // Most of the functions here will be called only from the game thread,
 // so a lot of multithreading headaches are avoided.
 // This mutex is for the graphics thread, which needs to read some of this data for display.
@@ -93,6 +95,7 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 
 	int selectedGroupIndex = dl_selectedGroup - varGroups.items;
 	int origNumGroups = varGroups.num;
+	_pinNext = 0;
 
 	bctx.reset(gs);
 	if (updGamestate) {
@@ -256,6 +259,10 @@ int64_t* look(int64_t dist) {
 	return result;
 }
 
+void pinNext() {
+	_pinNext = 1;
+}
+
 static dl_var *findVarByName(char const *name) {
 	if (!currentGroup) return NULL;
 
@@ -284,7 +291,7 @@ static dl_var *findVarByName(char const *name) {
 	// so we can go resizing lists if we need to.
 	dl_var *x = &vars.add();
 	strcpy(x->name, name);
-	x->seen = 1;
+	x->seen = 0;
 	// Vars default to touched so that any weird expressions (esp. `look`) get rewritten as constants.
 	// May change this later.
 	x->touched = 1;
@@ -324,6 +331,15 @@ int64_t const * pvar(char const *name, offset const val) {
 
 	if (!v) return val;
 
+	char isNew = (v->type == VAR_T_UNSET);
+	if (isNew) { // New var
+		v->type = VAR_T_POS;
+		v->incr = 100;
+		memcpy(v->value.position.vec, val, sizeof(offset));
+		v->value.position.pinned = 0;
+		// `transfDest` and `rot` will be set below.
+	}
+
 	if (!v->seen) {
 		v->seen = 1;
 		// Store the reverse of the current buildContext's rotation,
@@ -334,12 +350,20 @@ int64_t const * pvar(char const *name, offset const val) {
 		v->value.position.rot[1] = (double)-bctx.transf.rot[1] / FIXP;
 		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
 		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
+
+		int64_t *relative = v->value.position.vec;
+		int64_t *absolute = v->value.position.transfDest;
+		int64_t *transf = bctx.transf.posPending;
+		if (v->value.position.pinned) {
+			range(i, 3) relative[i] = absolute[i] - transf[i];
+		} else {
+			range(i, 3) absolute[i] = relative[i] + transf[i];
+		}
 	}
 
-	if (v->type == VAR_T_UNSET) { // New var
-		v->type = VAR_T_POS;
-		v->incr = 100;
-		memcpy(v->value.position.vec, val, sizeof(offset));
+	if (_pinNext) {
+		_pinNext = 0;
+		if (isNew) v->value.position.pinned = 1;
 	}
 
 	return v->value.position.vec;

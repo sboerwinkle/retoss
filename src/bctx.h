@@ -8,6 +8,10 @@ struct buildTransform {
 	offset pos;
 	iquat rot;
 	int32_t scale;
+	// Hasn't been rotated or scaled yet.
+	// This lets us compose translations losslessly.
+	offset posPending;
+	char hasPosPending;
 };
 
 struct buildCtx {
@@ -26,7 +30,9 @@ struct buildCtx {
 	void peek();
 
 	void pos(int64_t x, int64_t y, int64_t z);
+	void pos(int64_t scale, offset const v);
 	void pos(offset const v);
+	void finalizeTranslate();
 	void rotQuat(iquat const r);
 	void rot(int32_t const rotParams[3]);
 	void scale(int32_t scale);

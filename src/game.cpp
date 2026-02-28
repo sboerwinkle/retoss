@@ -427,6 +427,14 @@ static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 
 //// Text command stuff ////
 
+static int64_t* pvarUpdatePtr(dl_var *v) {
+	if (v->value.position.pinned) {
+		return v->value.position.transfDest;
+	} else {
+		return v->value.position.vec;
+	}
+}
+
 char handleLocalCommand(char * buf, list<char> * outData) {
 	if (isCmd(buf, "/dl") || isCmd(buf, "/selall")) {
 		strcpy(loopbackCommandBuffer, buf);
@@ -461,7 +469,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		} else if (v.type == VAR_T_POS) {
 			int bestAxis, bestSign;
 			camToPvar(axis, &v, &bestAxis, &bestSign);
-			v.value.position.vec[bestAxis] += bestSign * v.incr * amt;
+			pvarUpdatePtr(&v)[bestAxis] += bestSign * v.incr * amt;
 		} else if (v.type == VAR_T_ROT) {
 			// Input system maps up-down as Z (axis 2) and scroll as Y (axis 1),
 			// but we want these two flipped for rotation inputs
@@ -486,7 +494,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		} else if (v.type == VAR_T_POS) {
 			int bestAxis, dummy;
 			camToPvar(1, &v, &bestAxis, &dummy);
-			int64_t &x = v.value.position.vec[bestAxis];
+			int64_t &x = pvarUpdatePtr(&v)[bestAxis];
 			x = x/v.incr*v.incr;
 		} else if (v.type == VAR_T_ROT) {
 			range(i, 3) {

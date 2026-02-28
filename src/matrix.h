@@ -38,6 +38,10 @@ extern void quat_rotX(quat ret, quat strt, float r);
 extern void quat_rotY(quat ret, quat strt, float r);
 extern void quat_rotZ(quat ret, quat strt, float r);
 */
+
+// Composing rotations in an external/fixed coordinate system: left-to-right
+// Composing rotations in an internal/moving coordinate system: right-to-left
+// Composing conversions between coordinate systems: left-to-right
 extern void quat_mult(quat ret, quat a, quat b);
 extern void iquat_mult(iquat ret, iquat const a, iquat const b);
 
