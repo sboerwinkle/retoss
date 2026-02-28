@@ -27,6 +27,7 @@ void resetPlayer(gamestate *gs, int i) {
 		.inputs={0,0,0},
 		.jump=0,
 		.shoot=0,
+		.alive=1,
 		.cooldown=0,
 		.hits=0,
 		.hitsCooldown=0,
@@ -145,6 +146,14 @@ static char playerPhysLe(mover* const &a, mover* const &b) {
 static void playerUpdate(gamestate *gs, player *p) {
 	// We copy `rot`=>`oldRot` when player input happens.
 	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
+	if (!p->alive) {
+		int divisor = (p->shoot & 1) ? 16 : 64;
+		range(i, 3) p->m.pos[i] += p->inputs[i] / divisor;
+
+		p->prox = gs->vb_root;
+		return;
+	}
+
 	p->vel[2] -= gs_gravity; // gravity
 
 	offset dest;
@@ -170,7 +179,9 @@ static void playerUpdate(gamestate *gs, player *p) {
 		p->hitsCooldown--;
 		if (!p->hitsCooldown) {
 			if (p->hits >= 3) {
-				// TODO: death
+				// un-alive
+				p->alive = 0;
+				// Todo: Add gibs
 			} else {
 				p->hits = 0;
 			}
@@ -182,6 +193,7 @@ static void playerAddBoxes(gamestate *gs) {
 	tmpPlayerBoxes.num = 0;
 	rangeconst(i, gs->players.num) {
 		player &p = gs->players[i];
+		if (!p.alive) continue;
 
 		box *tmp = velbox_alloc();
 		memcpy(tmp->pos, p.m.oldPos, sizeof(tmp->pos));
@@ -218,9 +230,11 @@ void runTick(gamestate *gs) {
 
 	playerAddBoxes(gs);
 	range(i, gs->players.num) {
-		// This uses `bcast`, which requires stuff to have its
-		// old position populated. Must run after other stuff.
-		pl_postStep(gs, &gs->players[i]);
+		if (gs->players[i].alive) {
+			// This uses `bcast`, which requires stuff to have its
+			// old position populated. Must run after other stuff.
+			pl_postStep(gs, &gs->players[i]);
+		}
 	}
 	playerRmBoxes(gs);
 
@@ -375,6 +389,7 @@ static void transPlayer(player *p) {
 	range(i, 3) trans32(&p->inputs[i]);
 	trans8(&p->jump);
 	trans8(&p->shoot);
+	trans8(&p->alive);
 	trans32(&p->cooldown);
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);

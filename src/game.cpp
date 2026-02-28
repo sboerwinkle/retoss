@@ -609,6 +609,8 @@ void prefsToCmds(queue<strbuf> *cmds) {
 //// graphics stuff! ////
 
 static void drawPlayer(player *p) {
+	if (!p->alive) return;
+
 	float alpha;
 	if (p->hits >= 3) alpha = 0.5;
 	else alpha = 0.1*p->hits;
@@ -628,8 +630,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	gfx_interpRatio = interpRatio;
 
 	player *p = &gs->players[myPlayer];
-	// Todo: is `p->prox` the vb_root at some point? That would be a bit large lol, should pass null instead
-	setupFrame(p->m.oldPos, p->m.pos, p->prox);
+	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
+	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting);
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
