@@ -1,5 +1,6 @@
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -20,7 +21,7 @@
 static int lvlWrVersion = -1;
 static void *fileHandle = NULL;
 static void (*lvlUpdFn)(gamestate*) = NULL;
-static FILE* editEventsFifo;
+static FILE* editEventsFifo = NULL;
 
 static gamestate *updGamestate = NULL;
 static player *updPlayer = NULL;
@@ -523,12 +524,19 @@ void dl_init() {
 	currentGroup = NULL; // Have to reset this after our call to `gp` earlier
 	locked = 0;
 
-	editEventsFifo = fopen("edit_events.fifo", "w");
-	if (!editEventsFifo) {
+	int fifoFd = open("edit_events.fifo", O_WRONLY | O_NONBLOCK);
+	if (fifoFd == -1) {
 		if (errno == ENOENT) {
 			puts("Couldn't find edit_events.fifo, assuming no edit mode");
+		} else if (errno == ENXIO) {
+			puts("Couldn't open edit_events.fifo, did you start dl_watch.sh?");
 		} else {
 			perror("Failed to open edit_events.fifo");
+		}
+	} else {
+		editEventsFifo = fdopen(fifoFd, "w");
+		if (!editEventsFifo) {
+			perror("Failed to convert edit_events.fifo fd to FILE*");
 		}
 	}
 }
