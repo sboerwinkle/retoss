@@ -332,15 +332,6 @@ int64_t const * pvar(char const *name, offset const val) {
 
 	if (!v) return val;
 
-	char isNew = (v->type == VAR_T_UNSET);
-	if (isNew) { // New var
-		v->type = VAR_T_POS;
-		v->incr = 100;
-		memcpy(v->value.position.vec, val, sizeof(offset));
-		v->value.position.pinned = 0;
-		// `transfDest` and `rot` will be set below.
-	}
-
 	if (!v->seen) {
 		v->seen = 1;
 		// Store the reverse of the current buildContext's rotation,
@@ -352,20 +343,28 @@ int64_t const * pvar(char const *name, offset const val) {
 		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
 		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
 
+		v->value.position.pinned = _pinNext;
+
+		if (v->type == VAR_T_UNSET) { // New var
+			v->type = VAR_T_POS;
+			v->incr = 100;
+			memcpy(v->value.position.vec, val, sizeof(offset));
+			// The first time around, we have to start with the
+			// provided position, so we overwrite `pinned` to be 0.
+			v->value.position.pinned = 0;
+		}
+
 		int64_t *relative = v->value.position.vec;
 		int64_t *absolute = v->value.position.transfDest;
 		int64_t *transf = bctx.transf.posPending;
 		if (v->value.position.pinned) {
 			range(i, 3) relative[i] = absolute[i] - transf[i];
+			range(i, 3) if (relative[i] != val[i]) v->touched = 1;
 		} else {
 			range(i, 3) absolute[i] = relative[i] + transf[i];
 		}
 	}
-
-	if (_pinNext) {
-		_pinNext = 0;
-		if (isNew) v->value.position.pinned = 1;
-	}
+	_pinNext = 0;
 
 	return v->value.position.vec;
 }
