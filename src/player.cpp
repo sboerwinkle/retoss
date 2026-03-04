@@ -11,6 +11,11 @@ int64_t pl_jumpForce = 180;
 int64_t pl_jump = 250;
 int64_t pl_gummy = 30;
 
+// TODO: We'll deal with this later, but I don't think the input desire should be rotated.
+//       Instead, just project it onto the lateral plane and scale it up.
+//       It may come out to be the zero vector, that's okay too.
+//       Maybe better is to double or triple the length, project it down,
+//       and shrink it if necessary.
 static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm) {
 	// Todo: There's bound to be lots of optimizations I can do here,
 	//       since we know lots of things about our inputs.
@@ -83,6 +88,56 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 		// appliedForce would be 0, so nothing to do.
 		return;
 	}
+	/*
+	Jump logic is something like this:
+	Assuming we have a move direction, that defines a vertical plane.
+	It also defines a rotation (just 2x2) which we can apply to the surface normal
+	(which is also our primary jump direction).
+	Now we assume our destination is the YZ plane.
+	From there we can get the point nearest the origin where the lateral movement plane
+	(being offset by the jump vector)
+	intersects the YZ plane, as follows:
+		elevation is n.x
+		shadow is (n.y, n.z)
+		shadow size is dist(n.y, n.z)
+		similar triangles say the intersection point is:
+		(n.y, n.z) * (1 + n.x^2 / dist(n.y,n.z)^2)
+		Interestingly, this works out to be
+		(n.y, n.z) * (jumpForce^2 / (n.y^2 + n.z^2))
+		We'll have to be careful with those squares,
+		but since we know the size of `n` (our jump vector)
+		it can be done safely.
+	We also need to know how much length that took up in the lateral movement plane,
+	so we know if we have any left to spend on getting an optimal position.
+		Similar triangles again, we get something like:
+		jumpForce * n.x / dist(n.y, n.z)
+		Well, we can save a sqrt because really we only need the square of the distance spent,
+		jumpForce^2 / (n.y^2 + n.z^2) * n.x^2
+		I also shuffled that around to surface a familiar term...
+	Of course, both of those numbers could be large, but we know the bounds.
+	At this point we may know we have nothing left to spend,
+	and we just take a vector difference to get the lateral motion and then rotate it back and scale it.
+		Or scale it and rotate it back I guess, depending on how many bits we've used up.
+		jumpForce^3 is big, but currently only like 24 bits. We've got some wiggle room if we use int64_t.
+	If we still have motion left to spend, however, we've got to do math to figure out
+		Where the optimal placement is
+		What placement we can reach
+	There will be edge cases to handle, of course.
+		Available line in YZ plane could be vert, or horiz.
+		Fully half of the lines in the YZ plane will always want one extremity.
+		dist(n.y, n.z) could be 0
+		Straight-up jump, yikes
+		I'm having a really hard time picturing the other quadrants...
+			Q2 and Q4 will have angles where we just want to pick one endpoint,
+			so I think treat those normally.
+			Q3 I guess just pick whatever's furthest forward?
+			So by some metric the same as Q2/Q4.
+	Once we do all that to get our desired lateral motion,
+		we still have to do traction math to get our *actual* lateral motion if we jump.
+	In the end we compare against the "just walk" result and take the "jump" result if... something.
+		Maybe just if it has a positive dot product with the absolute movement desire?
+		I think that's about right, idk
+	*/
 
 	range(i, 3) p->vel[i] += appliedForce*forceDir[i]/FIXP;
 
