@@ -46,6 +46,8 @@ extern int64_t* look(int64_t dist);
 extern void gp(char const* groupName);
 extern void dl_selectGp(char const* groupName);
 extern void pinNext();
+extern void pushVarIgnore();
+extern void popVarIgnore();
 
 extern int64_t var(char const *name);
 extern int64_t var(char const *name, int64_t val);

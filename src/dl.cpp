@@ -37,6 +37,7 @@ static offset lookAtGp_origin;
 static unitvec lookAtGp_dir;
 
 static char _pinNext = 0;
+static int varIgnore = 0;
 
 // Most of the functions here will be called only from the game thread,
 // so a lot of multithreading headaches are avoided.
@@ -97,6 +98,10 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 	int selectedGroupIndex = dl_selectedGroup - varGroups.items;
 	int origNumGroups = varGroups.num;
 	_pinNext = 0;
+	if (varIgnore) {
+		printf("WARN: varIgnore should be 0, is %d\n", varIgnore);
+		varIgnore = 0;
+	}
 
 	bctx.reset(gs);
 	if (updGamestate) {
@@ -180,10 +185,14 @@ static dl_varGroup *findGroup(char const *name) {
 }
 
 void gp(char const* groupName) {
-	if (!locked) {
-		// Used to have an error here, but now this is just
-		// the case where a level is being loaded outside of editing.
-		//puts("ERROR: dl: gp: must be locked");
+	if (!locked || varIgnore) {
+		// `!locked` probably means we're loading a level
+		// outside of the edit flow.
+		// `varIgnore` is usually set by functions that might
+		// be called from the edit flow, and contain `var` calls
+		// for convenient editing (if you were to copy their contents),
+		// but are currently declared outside the scratch file
+		// (so you can't actually edit their contents as-is).
 		return;
 	}
 
@@ -264,8 +273,17 @@ void pinNext() {
 	_pinNext = 1;
 }
 
+void pushVarIgnore() { varIgnore++; }
+void popVarIgnore() {
+	if (varIgnore > 0) {
+		varIgnore--;
+	} else {
+		printf("ERROR: Bad popVarIgnore (%d)!!!\n", varIgnore);
+	}
+}
+
 static dl_var *findVarByName(char const *name) {
-	if (!currentGroup) return NULL;
+	if (!currentGroup || varIgnore) return NULL;
 
 	list<dl_var> &vars = currentGroup->vars;
 
