@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "gamestate.h"
 #include "bcast.h"
 
@@ -65,6 +67,96 @@ static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm)
 	imat_apply(out, rotationMat, in);
 }
 
+static void jumpHelper(offset jumpLateralDest, unitvec const forceDir, unitvec const desire) {
+	// Todo not sure if jumping should use the bounded version of `landSpeed` or not.
+	//      Also not sure if it should consider a larger possible range of motion
+	//      if landSpeed is already over the limit; that could easily happen if you're
+	//      falling very fast when you touch.
+	int64_t jumpNormal[3];
+	// TODO with all these transforms back and forth,
+	//      I'd love to keep some of this at a higher precision.
+	//      Need to review this once it's all done and see if we
+	//      have the bits to spare.
+	jumpNormal[2] = forceDir[2]; // We're rotating around the Z axis, so that one is unchanged.
+	jumpNormal[0] = (desire[1]*forceDir[0] - desire[0]*forceDir[1]) / FIXP;
+	jumpNormal[1] = (desire[0]*forceDir[0] + desire[1]*forceDir[1]) / FIXP;
+	int64_t yzSq = jumpNormal[1]*jumpNormal[1] + jumpNormal[2]*jumpNormal[2];
+	int64_t nearContactDiv = yzSq/FIXP;
+	if (!nearContactDiv) {
+		jumpLateralDest[0] = 0;
+		jumpLateralDest[1] = pl_speed;
+		jumpLateralDest[2] = 0;
+		return;
+	}
+	int64_t nearContactY = jumpNormal[1] * pl_jump / nearContactDiv;
+	int64_t nearContactZ = jumpNormal[2] * pl_jump / nearContactDiv;
+	int64_t lateralMotionSpentSq = pl_jump*pl_jump*jumpNormal[0]*jumpNormal[0]/nearContactDiv/FIXP;
+	int64_t leftoverSq = pl_speed*pl_speed - lateralMotionSpentSq;
+	int32_t yzDist = sqrt(yzSq);
+	if (leftoverSq <= 0) {
+		int64_t speed = pl_speed;
+		if (jumpNormal[0] < 0) speed *= -1;
+		jumpLateralDest[0] = -yzDist * pl_speed / FIXP;
+		jumpLateralDest[1] = jumpNormal[0] * jumpNormal[1] / FIXP * pl_speed / yzDist;
+		jumpLateralDest[2] = jumpNormal[0] * jumpNormal[2] / FIXP * pl_speed / yzDist;
+	} else {
+		jumpLateralDest[0] = 0;
+		int32_t slideY = jumpNormal[2]*FIXP/yzDist;
+		int32_t slideZ = -jumpNormal[1]*FIXP/yzDist;
+		int64_t leftover = sqrt(leftoverSq);
+		// And here's where it gets weird, like with various quadrants to consider.
+		// I did confirm that, for a line with slope `m` (presumably negative),
+		// the optimal placement satisfies `y=-m*x`.
+		if (jumpNormal[1] <= 0 || jumpNormal[2] <= 0) {
+			if (jumpNormal[2] <= 0) leftover *= -1;
+			jumpLateralDest[1] = nearContactY + slideY*leftover/FIXP;
+			jumpLateralDest[2] = nearContactZ + slideZ*leftover/FIXP;
+		} else {
+			int64_t guessY, guessZ;
+			if (jumpNormal[1] > jumpNormal[2]) {
+				guessY = nearContactY - slideY*leftover/FIXP;
+				guessZ = nearContactZ - slideZ*leftover/FIXP;
+				if (jumpNormal[2]*guessZ > jumpNormal[1]*guessY) {
+					// We went too far, calculate (and snap to) optimum position.
+					// (nearContactZ+slideZ*x/FIXP) / (nearContactY+slideY*x/FIXP) = jumpNormal[1]/jumpNormal[2]
+					// (nearContactZ+slideZ*x/FIXP)*jumpNormal[2] = (nearContactY+slideY*x/FIXP)*jumpNormal[1]
+					// x*(slideZ*jn[2]/FIXP-slideY*jn[1]/FIXP) = ncy*jn[1]-ncz*jn[2]
+					int64_t slideAmt = (nearContactY*jumpNormal[1]-nearContactZ*jumpNormal[2])/((slideZ*jumpNormal[2]-slideY*jumpNormal[1])/FIXP);
+					jumpLateralDest[1] = nearContactY + slideY*slideAmt/FIXP;
+					jumpLateralDest[2] = nearContactZ + slideZ*slideAmt/FIXP;
+				} else {
+					jumpLateralDest[1] = guessY;
+					jumpLateralDest[2] = guessZ;
+				}
+			} else {
+				guessY = nearContactY + slideY*leftover/FIXP;
+				guessZ = nearContactZ + slideZ*leftover/FIXP;
+				if (jumpNormal[1]*guessY > jumpNormal[2]*guessZ) {
+					// (same as other case)
+					int64_t slideAmt = (nearContactY*jumpNormal[1]-nearContactZ*jumpNormal[2])/((slideZ*jumpNormal[2]-slideY*jumpNormal[1])/FIXP);
+					jumpLateralDest[1] = nearContactY + slideY*slideAmt/FIXP;
+					jumpLateralDest[2] = nearContactZ + slideZ*slideAmt/FIXP;
+				} else {
+					jumpLateralDest[1] = guessY;
+					jumpLateralDest[2] = guessZ;
+				}
+			}
+			// TODO when all's said and done, see if we can collapse the above
+			//      if/else by doing something clever like flipping slideY and slideZ.
+		}
+		range(i, 3) jumpLateralDest[i] -= jumpNormal[i]*pl_jump/FIXP;
+	}
+}
+
+static void getLatChange(offset output, int32_t *input, offset landSpeed, int64_t appliedForce, int32_t traction, int64_t max) {
+	range(i, 3) output[i] = input[i] - landSpeed[i];
+
+	int64_t latForce = appliedForce*traction/1000;
+	if (latForce > max) latForce = max;
+
+	bound64(output, latForce);
+}
+
 void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t dist, offset dest, player *p) {
 	// update pos according to normal + pos difference (input?)
 	// update vel according to normal + input vel difference
@@ -76,100 +168,67 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	// rely on that fact.
 	if (normalForce <= 0) return;
 
-	int64_t appliedForce = normalForce;
-	int64_t maxLateralForce = pl_walkForce;
-	if (p->jump) {
-		p->jump = 0;
-		appliedForce += pl_jump;
-		maxLateralForce = pl_jumpForce;
-	} else if (appliedForce > pl_gummy) {
-		appliedForce -= pl_gummy;
-	} else {
-		// appliedForce would be 0, so nothing to do.
-		return;
-	}
-	/*
-	Jump logic is something like this:
-	Assuming we have a move direction, that defines a vertical plane.
-	It also defines a rotation (just 2x2) which we can apply to the surface normal
-	(which is also our primary jump direction).
-	Now we assume our destination is the YZ plane.
-	From there we can get the point nearest the origin where the lateral movement plane
-	(being offset by the jump vector)
-	intersects the YZ plane, as follows:
-		elevation is n.x
-		shadow is (n.y, n.z)
-		shadow size is dist(n.y, n.z)
-		similar triangles say the intersection point is:
-		(n.y, n.z) * (1 + n.x^2 / dist(n.y,n.z)^2)
-		Interestingly, this works out to be
-		(n.y, n.z) * (jumpForce^2 / (n.y^2 + n.z^2))
-		We'll have to be careful with those squares,
-		but since we know the size of `n` (our jump vector)
-		it can be done safely.
-	We also need to know how much length that took up in the lateral movement plane,
-	so we know if we have any left to spend on getting an optimal position.
-		Similar triangles again, we get something like:
-		jumpForce * n.x / dist(n.y, n.z)
-		Well, we can save a sqrt because really we only need the square of the distance spent,
-		jumpForce^2 / (n.y^2 + n.z^2) * n.x^2
-		I also shuffled that around to surface a familiar term...
-	Of course, both of those numbers could be large, but we know the bounds.
-	At this point we may know we have nothing left to spend,
-	and we just take a vector difference to get the lateral motion and then rotate it back and scale it.
-		Or scale it and rotate it back I guess, depending on how many bits we've used up.
-		jumpForce^3 is big, but currently only like 24 bits. We've got some wiggle room if we use int64_t.
-	If we still have motion left to spend, however, we've got to do math to figure out
-		Where the optimal placement is
-		What placement we can reach
-	There will be edge cases to handle, of course.
-		Available line in YZ plane could be vert, or horiz.
-		Fully half of the lines in the YZ plane will always want one extremity.
-		dist(n.y, n.z) could be 0
-		Straight-up jump, yikes
-		I'm having a really hard time picturing the other quadrants...
-			Q2 and Q4 will have angles where we just want to pick one endpoint,
-			so I think treat those normally.
-			Q3 I guess just pick whatever's furthest forward?
-			So by some metric the same as Q2/Q4.
-	Once we do all that to get our desired lateral motion,
-		we still have to do traction math to get our *actual* lateral motion if we jump.
-	In the end we compare against the "just walk" result and take the "jump" result if... something.
-		Maybe just if it has a positive dot product with the absolute movement desire?
-		I think that's about right, idk
-	*/
-
-	range(i, 3) p->vel[i] += appliedForce*forceDir[i]/FIXP;
+	int32_t traction = pl_tractMult;
+	if (forceDir[2] > 0) traction += forceDir[2]*pl_tractBonus/FIXP;
 
 	unitvec desire = {p->inputs[0], p->inputs[1], 0};
-	unitvec rotatedDesire;
-	rotateInputDesire(rotatedDesire, desire, forceDir);
-	bound26(rotatedDesire, FIXP);
-	//printf("%7d, %7d, %ld\n", desire[0], rotatedDesire[0], normalForce);
 
 	offset landSpeed;
 	// This works out to be along the surface
 	range(i, 3) landSpeed[i] = contactVel[i] + normalForce*forceDir[i]/FIXP;
-
 	// Todo Could add friction here, would need to work out specifics.
 	//      (so stopping is faster than starting)
-#define SPEED pl_speed
-	bound64(landSpeed, SPEED);
-	// Spatial types are usually in 64-bit integers,
-	// but this one in particular is computed from
-	// bounded inputs (so we know it fits in 32 bits (actually it fits in 10)).
-	int32_t desiredChange[3];
-	range(i, 3) desiredChange[i] = rotatedDesire[i]*SPEED/FIXP - landSpeed[i];
-#undef SPEED
-	int32_t traction = pl_tractMult;
-	if (forceDir[2] > 0) traction += forceDir[2]*pl_tractBonus/FIXP;
-	int64_t latForce = appliedForce*traction/1000;
-	if (latForce > maxLateralForce) latForce = maxLateralForce;
-	bound26(desiredChange, latForce);
+	bound64(landSpeed, pl_speed);
+
+	// We know these values are bounded, and should fit comfortably in 32 bits.
+	offset latChange;
+	int64_t appliedForce;
+	if (p->jump) {
+		offset jumpLateralDestRotated;
+		jumpHelper(jumpLateralDestRotated, forceDir, desire);
+		int32_t jumpLateralDest[3];
+		jumpLateralDest[2] = jumpLateralDestRotated[2];
+		jumpLateralDest[0] = ( desire[1]*jumpLateralDestRotated[0] + desire[0]*jumpLateralDestRotated[1]) / FIXP;
+		jumpLateralDest[1] = (-desire[0]*jumpLateralDestRotated[0] + desire[1]*jumpLateralDestRotated[1]) / FIXP;
+
+		appliedForce = normalForce + pl_jump;
+
+		getLatChange(latChange, jumpLateralDest, landSpeed, appliedForce, traction, pl_jumpForce);
+
+		int64_t dot =
+			(contactVel[0] + appliedForce*forceDir[0]/FIXP + latChange[0])*desire[0] +
+			(contactVel[1] + appliedForce*forceDir[1]/FIXP + latChange[1])*desire[1];
+		if (dot > 0) {
+			p->jump = 0; // Maybe?
+			goto applyForces;
+		}
+		// TODO Print: jumpLateralDest, rotated form, final lateral speed, final global speed, move direction (X,Y), decision.
+	}
+
+	unitvec rotatedDesire;
+	rotateInputDesire(rotatedDesire, desire, forceDir);
+	bound26(rotatedDesire, FIXP); // Todo why did I have this??? To normalize or something?
+	range(i, 3) rotatedDesire[i] = rotatedDesire[i]*pl_speed/FIXP;
+
+	if (normalForce > pl_gummy) {
+		appliedForce = normalForce - pl_gummy;
+	} else {
+		// appliedForce would be 0, so nothing to do.
+		return;
+	}
+
+	getLatChange(latChange, rotatedDesire, landSpeed, appliedForce, traction, pl_walkForce);
+
+	applyForces:;
+
 	//printf("%03d, %03d, %03d (%03ld)\r", desiredChange[0], desiredChange[1], desiredChange[2], normalForce);
 	//fflush(stdout);
-	range(i, 3) p->vel[i] += desiredChange[i];
-	range(i, 3) dest[i] += desiredChange[i]; // Hopefully prevents gradual slipping?
+
+	// This is lateral force (traction; movement over surface)
+	range(i, 3) p->vel[i] += latChange[i];
+	range(i, 3) dest[i] += latChange[i]; // Hopefully prevents gradual slipping?
+	// This is normal force (stopping the collision, plus maybe a jump)
+	range(i, 3) p->vel[i] += appliedForce*forceDir[i]/FIXP;
 }
 
 static void shoot(gamestate *gs, player *p) {
