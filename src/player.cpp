@@ -156,7 +156,7 @@ static void shoot(gamestate *gs, player *p) {
 	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
 	memcpy(tr.dir, look, sizeof(unitvec));
 	tr.len = time.numer*FIXP/time.denom;
-	tr.expiry = vb_now + 45; // 3 sec, roughly
+	tr.expiry = vb_now + TRAIL_LIFETIME;
 }
 
 void pl_postStep(gamestate *gs, player *p) {

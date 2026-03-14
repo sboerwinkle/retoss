@@ -2,6 +2,7 @@
 layout(location=1, binding=0) uniform sampler2D u_tex;
 layout(binding=1) uniform sampler2D u_mottle_tex;
 uniform vec4 u_tint;
+uniform float u_transparency;
 
 layout(location=0) in vec3 v_color;
 layout(location=1) in vec2 v_uv;
@@ -17,6 +18,6 @@ void main() {
 	brightness = brightness * u_tint.a;
 	vec4 tint_addition = vec4(u_tint.rgb, 0.0);
 
-	vec4 mult = vec4(brightness, brightness, brightness, 1.0);
+	vec4 mult = vec4(brightness, brightness, brightness, u_transparency);
 	out_color = texture(u_tex, v_uv)*mult + tint_addition + vec4(v_color, 0.0);
 }
