@@ -165,7 +165,7 @@ class ClientNetHandler(asyncio.Protocol):
 
         self.requested_frame = int.from_bytes(frame_bytes, 'big')
         if self.requested_frame >= FRAME_ID_MAX:
-            raise Exception(f"Bad frame number {frame}, invalid network communication")
+            raise Exception(f"Bad frame number {self.requested_frame}, invalid network communication")
 
         self.reqd_bytes = 1
         self.next_phase = self.phase_cmd_count
