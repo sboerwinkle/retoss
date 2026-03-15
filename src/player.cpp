@@ -8,8 +8,8 @@
 int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a denominator, idk.
 int32_t pl_speed = 350;
 int64_t pl_walkForce = 60;
-int64_t pl_jumpForce = 180;
-int64_t pl_jump = 250;
+int64_t pl_jumpForce = 700; // This used to be much smaller (3x walk speed), but this should be more fun.
+int64_t pl_jump = 350;
 int64_t pl_gummy = 30;
 
 // TODO: We'll deal with this later, but I don't think the input desire should be rotated.
