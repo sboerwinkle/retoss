@@ -270,6 +270,7 @@ int64_t* look(int64_t dist) {
 }
 
 void pinNext() {
+	if (varIgnore) puts("WARN: Why is pinNext called inside pushVarIgnore/popVarIgnore scope?");
 	_pinNext = 1;
 }
 
