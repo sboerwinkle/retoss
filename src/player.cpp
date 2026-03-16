@@ -9,7 +9,7 @@ int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a den
 int32_t pl_speed = 350;
 int64_t pl_walkForce = 60;
 int64_t pl_jumpForce = 700; // This used to be much smaller (3x walk speed), but this should be more fun.
-int64_t pl_jump = 350;
+int64_t pl_jump = 300;
 int64_t pl_gummy = 30;
 
 // TODO: We'll deal with this later, but I don't think the input desire should be rotated.
@@ -69,6 +69,7 @@ static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm)
 // "We've had one jump helper function, yes."
 // For any context about wtf I'm doing, check `jumpHelper`.
 static void secondJumpHelper(int32_t *jumpLateralDest, unitvec const jumpNormal, char vertical) {
+	int32_t const latSpeed = pl_jump; // Previously this was `pl_speed`, but I'm trying this instead
 	int64_t yzSq = jumpNormal[1]*jumpNormal[1] + jumpNormal[2]*jumpNormal[2];
 	int64_t nearContactDiv = yzSq/FIXP;
 	if (!nearContactDiv) {
@@ -78,9 +79,9 @@ static void secondJumpHelper(int32_t *jumpLateralDest, unitvec const jumpNormal,
 		// lies parallel to a vertical wall.
 		if (vertical) {
 			jumpLateralDest[1] = 0;
-			jumpLateralDest[2] = pl_speed;
+			jumpLateralDest[2] = latSpeed;
 		} else {
-			jumpLateralDest[1] = pl_speed;
+			jumpLateralDest[1] = latSpeed;
 			jumpLateralDest[2] = 0;
 		}
 		return;
@@ -88,14 +89,14 @@ static void secondJumpHelper(int32_t *jumpLateralDest, unitvec const jumpNormal,
 	int64_t nearContactY = jumpNormal[1] * pl_jump / nearContactDiv;
 	int64_t nearContactZ = jumpNormal[2] * pl_jump / nearContactDiv;
 	int64_t lateralMotionSpentSq = pl_jump*pl_jump*jumpNormal[0]*jumpNormal[0]/nearContactDiv/FIXP;
-	int64_t leftoverSq = pl_speed*pl_speed - lateralMotionSpentSq;
+	int64_t leftoverSq = latSpeed*latSpeed - lateralMotionSpentSq;
 	int32_t yzDist = sqrt(yzSq);
 	if (leftoverSq <= 0) {
-		int64_t speed = pl_speed;
+		int64_t speed = latSpeed;
 		if (jumpNormal[0] < 0) speed *= -1;
-		jumpLateralDest[0] = -yzDist * pl_speed / FIXP;
-		jumpLateralDest[1] = jumpNormal[0] * jumpNormal[1] / FIXP * pl_speed / yzDist;
-		jumpLateralDest[2] = jumpNormal[0] * jumpNormal[2] / FIXP * pl_speed / yzDist;
+		jumpLateralDest[0] = -yzDist * speed / FIXP;
+		jumpLateralDest[1] = jumpNormal[0] * jumpNormal[1] / FIXP * speed / yzDist;
+		jumpLateralDest[2] = jumpNormal[0] * jumpNormal[2] / FIXP * speed / yzDist;
 	} else {
 		// We were able to make it to the Y,Z plane with motion left to spare.
 		// Find the best spot on the Y,Z plane we can reach.
@@ -161,7 +162,7 @@ static void jumpHelper(int32_t *jumpLateralDest, unitvec const forceDir, unitvec
 	// The first step is doing a rotation so that the desired vertical plane is the Y,Z plane.
 	//   (We'll rotate back later)
 	// This function just assumes lateral motion (along the surface) can be any vector inside
-	// the circle with radius `pl_speed`; the realities of traction are handled outside this fn.
+	// a circle centered at the origin; the realities of traction are handled outside this fn.
 	// This does mean there could be times where the jump could reach the Y,Z plane, but instead
 	// targets a different point in the Y,Z plane which can't quite be reached w/ current traction.
 	// This is because handling all the edge cases for that is a nightmare.
@@ -221,13 +222,13 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 	if (normalForce <= 0) return;
 
 	unitvec desire = {p->inputs[0], p->inputs[1], 0};
+	// For some reason we don't circularize the square inputs earlier,
+	// so I'm just doing it here.
+	bound26(desire, FIXP);
 
 	offset landSpeed;
 	// This works out to be along the surface
 	range(i, 3) landSpeed[i] = contactVel[i] + normalForce*forceDir[i]/FIXP;
-	// Todo Could add friction here, would need to work out specifics.
-	//      (so stopping is faster than starting)
-	bound64(landSpeed, pl_speed);
 
 	// We know these values are bounded, and should fit comfortably in 32 bits.
 	offset latChange;
@@ -252,7 +253,7 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 
 	unitvec rotatedDesire;
 	rotateInputDesire(rotatedDesire, desire, forceDir);
-	bound26(rotatedDesire, FIXP); // Todo why did I have this??? To normalize or something?
+	bound26(rotatedDesire, FIXP); // Todo I think this might be moot, since I'm circularizing eralier.
 	range(i, 3) rotatedDesire[i] = rotatedDesire[i]*pl_speed/FIXP;
 
 	if (normalForce > pl_gummy) {
