@@ -378,7 +378,13 @@ int64_t const * pvar(char const *name, offset const val) {
 		int64_t *transf = bctx.transf.posPending;
 		if (v->value.position.pinned) {
 			range(i, 3) relative[i] = absolute[i] - transf[i];
-			range(i, 3) if (relative[i] != val[i]) v->touched = 1;
+			range(i, 3) {
+				if (relative[i] != val[i]) {
+					v->touched = 1;
+					currentGroup->touched = 1;
+					break;
+				}
+			}
 		} else {
 			range(i, 3) absolute[i] = relative[i] + transf[i];
 		}

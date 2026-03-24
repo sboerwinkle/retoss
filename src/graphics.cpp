@@ -20,7 +20,19 @@
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
 #define TEX_TRAIL 6
-char const * const texSrcFiles[NUM_TEXS] = {"", "font.png", "dirt.png", "guy.png", "stop.png", "wall.png", "trail.png"};
+char const * const texSrcFiles[NUM_TEXS] = {
+	"",
+	"font.png",
+	"dirt.png",
+	"guy.png",
+	"stop.png",
+	"wall.png",
+	"trail.png",
+	"grass.png",
+	"metal.png",
+	"guy.2.png",
+	"guy.3.png",
+};
 GLuint textures[NUM_TEXS];
 static float const fovThingIdk = 1/0.7;
 static float const zNear = 100;

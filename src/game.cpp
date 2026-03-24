@@ -584,6 +584,14 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	if (isCmd(str, "/c")) {
 		// I have no idea if this works correctly lol
 		mkSolidAtPlayer(gs, p);
+	} else if (isCmd(str, "/team")) {
+		char const *pos = str + 5;
+		int team;
+		if (getNum(&pos, &team)) {
+			p->team = team;
+		} else if (isMe && isReal) {
+			printf("team = %hhd\n", p->team);
+		}
 	} else if (isCmd(str, "/_J")) {
 		p->jump = 3; // Set 'jump this frame' and 'jump continuing' bits
 	} else if (isCmd(str, "/_j")) {
@@ -617,8 +625,13 @@ static void drawPlayer(player *p) {
 	tint(1, 0, 0, alpha);
 
 	int64_t radius = 800;
-	int sprite = 3;
+	int sprite;
 	int mesh = 32;
+
+	if (p->team == 0) sprite = 3;
+	else if (p->team == 1) sprite = 9;
+	else sprite = 10;
+
 	drawCube(&p->m, radius, sprite, mesh);
 }
 

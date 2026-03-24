@@ -28,6 +28,7 @@ void resetPlayer(gamestate *gs, int i) {
 		.jump=0,
 		.shoot=0,
 		.alive=1,
+		.team=-1,
 		.cooldown=0,
 		.hits=0,
 		.hitsCooldown=0,
@@ -390,6 +391,7 @@ static void transPlayer(player *p) {
 	trans8(&p->jump);
 	trans8(&p->shoot);
 	trans8(&p->alive);
+	trans8(&p->team);
 	trans32(&p->cooldown);
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);

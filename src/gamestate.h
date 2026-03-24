@@ -10,7 +10,7 @@ struct mover; // "box" and "gamestate" reference each other's types
 #include "cloneable.h"
 
 #define PLAYER_SHAPE_RADIUS 800
-#define NUM_TEXS 7
+#define NUM_TEXS 11
 
 extern int32_t gs_gravity;
 
@@ -27,6 +27,7 @@ struct player {
 	int64_t vel[3];
 	int32_t inputs[3];
 	char jump, shoot, alive;
+	char team;
 	int32_t cooldown;
 	u8 hits, hitsCooldown;
 	box *prox;
