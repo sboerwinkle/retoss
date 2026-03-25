@@ -8,6 +8,7 @@
 struct mover; // "box" and "gamestate" reference each other's types
 #include "box.h"
 #include "cloneable.h"
+#include "task.h"
 
 #define PLAYER_SHAPE_RADIUS 800
 #define NUM_TEXS 11
@@ -58,6 +59,7 @@ struct gamestate {
 	list<solid*> solids;
 	list<solid*> selection;
 	list<trail> trails;
+	list<taskInstance> tasks;
 	box *vb_root;
 };
 

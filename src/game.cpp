@@ -17,6 +17,7 @@
 #include "bctx.h"
 #include "lv.h"
 #include "bcast.h"
+#include "task.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -60,6 +61,7 @@ static char sentJumpState = 0, sentShootState = 0;
 
 void game_init() {
 	initGraphics();
+	task_init();
 	velbox_init();
 	gamestate_init();
 	dl_init();
@@ -74,13 +76,6 @@ gamestate* game_init2() {
 	init(gs);
 
 	lv_playground(gs);
-	/*
-	addSolid(gs, gs->vb_root,     0, 3000,    0,  1000, 0, 2+32);
-	addSolid(gs, gs->vb_root,  1000, 4000, 1000,  1000, 0, 4);
-	addSolid(gs, gs->vb_root, 31000, 9000, 1000, 15000, 1, 4);
-	iquat r1 = {(int32_t)(FIXP*0.9801), (int32_t)(FIXP*0.1987), 0, 0}; // Just me with a lil' rotation lol
-	memcpy(gs->solids[2]->rot, r1, sizeof(r1)); // Array types are weird in C
-	*/
 
 	return gs;
 }
@@ -92,6 +87,7 @@ void game_destroy() {
 	dl_destroy();
 	gamestate_destroy();
 	velbox_destroy();
+	task_destroy();
 	gfx_destroy();
 }
 

@@ -15,6 +15,8 @@ struct tskTdmData {
 	u8 animDest;
 	u8 timer;
 	u8 scoreLimit;
+	u8 numSpawns;
+	offset *spawns;
 }
 
 extern void taskTdm_draw(void *_data, float interp);

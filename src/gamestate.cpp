@@ -285,6 +285,15 @@ gamestate* dup(gamestate *orig) {
 	// Nothing special in the trail data, we can just copy it all
 	ret->trails.init(orig->trails);
 
+	// Copy tasks.
+	// We keep the copied defn pointers,
+	// but we'll have to re-write all the data pointers, so that part's wasted
+	ret->tasks.init(orig->tasks);
+	rangeconst(i, ret->tasks.num) {
+		taskInstance &task = ret->tasks[i];
+		(*task.defn->copy)(&task.data, orig->tasks[i]->data);
+	}
+
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
 		playerDupCleanup(p);
@@ -298,11 +307,17 @@ void init(gamestate *gs) {
 	gs->selection.init();
 	gs->solids.init();
 	gs->trails.init();
+	gs->tasks.init();
 	gs->vb_root = velbox_getRoot();
 }
 
 void cleanup(gamestate *gs) {
 	velbox_freeRoot(gs->vb_root);
+	rangeconst(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		(*task.defn->destroy)(task.data);
+	}
+	gs->tasks.destroy();
 	gs->trails.destroy();
 	rangeconst(i, gs->solids.num) {
 		delete gs->solids[i];
@@ -384,6 +399,22 @@ static void transTrails(gamestate *gs) {
 	}
 }
 
+static void transTask(taskInstance *task) {
+	if (seriz_reading) {
+		task->defn = task_lookup(read32());
+	} else {
+		write32(task->defn->id);
+	}
+	(*task->defn->trans)(&task->data);
+}
+
+static void transTasks(gamestate *gs) {
+	transItemCount(&gs->tasks);
+	rangeconst(i, gs->tasks.num) {
+		transTask(&gs->tasks[i]);
+	}
+}
+
 static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->m.pos[i]);
 	range(i, 3) trans64(&p->vel[i]);
@@ -442,6 +473,7 @@ void serialize(gamestate *gs, list<char> *data) {
 	transAllSolids(gs);
 	// We don't bother with the selection for now
 	transTrails(gs);
+	transTasks(gs);
 
 	write8(gs->players.num);
 	range(i, gs->players.num) {
@@ -460,6 +492,7 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	transAllSolids(gs);
 	// We don't bother with the selection for now
 	transTrails(gs);
+	transTasks(gs);
 
 	int players = read8();
 	// If there are fewer players in the game than the file, ignore extras.

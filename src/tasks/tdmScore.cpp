@@ -31,14 +31,14 @@ void taskTdm_draw(void *_data, float interp) {
 		heads[1-winner] = SNAKE_OHNO;
 		drawGameWinner(winner);
 	}
-	drawSnakes(data, dests, head, interp);
+	drawSnakes(data, dests, heads, interp);
 }
 
 static void handlePlay(gamestate *gs, tskTdmData *data) {
 	char aliveTeam = -1;
 	rangeconst(i, gs->players.num) {
 		player &p = gs->players[i];
-		if (!p.alive) continue;
+		if (!p.alive || p.team < 0 || p.team >= 2) continue;
 
 		// First live player seen
 		if (aliveTeam == -1) aliveTeam = p.team;
@@ -62,14 +62,12 @@ static void handlePlay(gamestate *gs, tskTdmData *data) {
 		// so we don't have to wait very long.
 		data->timer++;
 		if (data->timer < 15) return;
-		// Win for `aliveTeam`.
-		// Using this to index, coerce to 0-1 for memory safety.
-		u8 winner = !!aliveTeam;
-		data->winner = winner;
+		// We know `aliveTeam` must be 0 or 1 at this point
+		data->winner = aliveTeam;
 		data->state = TSK_TDM_ST_GROW_ANIM;
 		data->timer = 0;
 		// Add 1.0 pts, animate to that score.
-		data->animDest = data->scores[winner] + 10;
+		data->animDest = data->scores[aliveTeam] + 10;
 	}
 }
 
@@ -118,26 +116,64 @@ static void handleChompAnim(tskTdmData *data) {
 	data->animDest = 45;
 }
 
-static void handlePrepAgain(gamestate *gs, tskTdmData *data) {
-	data->timer++;
-	if (data->timer < data->animDest) return;
+static void spawn(gamestate *gs, int i, tskTdmData *data) {
+	// TODO pick spawn for each team randomly per round
+	player *p = &gs->players[i];
+	if (data->numSpawns < 2) return;
 
-	// TODO: Respawn people or smthng
+	// We want to preserve their team
+	char team = p->team;
+	resetPlayer(gs, i);
+	p->team = team;
+
+	// However, for selecting spawns, we coerce to {0,1}.
+	u8 spawn;
+	if (team >= 0 && team < 1) {
+		spawn = team; // TODO convert team to spawn (random mapping from earlier?)
+	} else {
+		spawn = 0; // TODO random spawn
+	}
+	memcpy(p->m.pos, data->spawns[spawn], sizeof(offset));
+	// IDK if we technically need this as well, seems reasonable
+	memcpy(p->m.oldPos, data->spawns[spawn], sizeof(offset));
+}
+
+static void beginRound(gamestate *gs, tskTdmData *data) {
+	rangeconst(i, gs->players.num) {
+		spawn(gs, i, data);
+	}
 
 	data->state = TSK_TDM_ST_PLAY;
 	data->timer = 0;
 }
 
-static void handleDone(gamestate *gs) {
-	// TODO: Respawn anybody who dies I guess
+static void handlePrepAgain(gamestate *gs, tskTdmData *data) {
+	data->timer++;
+	if (data->timer < data->animDest) return;
+
+	beginRound(gs, data);
 }
 
 static void handlePrepStart(gamestate *gs, tskTdmData *data) {
-	// TODO: Wait until everybody has a valid team and somebody's dead.
+	char hasUndecided = 0;
+	char hasDead = 0;
+	rangeconst(i, gs->players.num) {
+		if (!gs->players[i].alive) {
+			spawn(gs, i, data);
+			hasDead = 1;
+		}
+		char team = gs->players[i].team;
+		if (team < 0 || team >= 2) hasUndecided = 1;
+	}
 
-	// Else, just respawn anybody who dies while people are still picking.
-	// Conveniently, we have a method that happens to do exactly this...
-	handleDone(gs);
+	// This is how we know people are happy with the teams: someone gets shot
+	if (hasDead && !hasUndecided) beginRound(gs, data);
+}
+
+static void handleDone(gamestate *gs) {
+	rangeconst(i, gs->players.num) {
+		if (!gs->players[i].alive) spawn(gs, i, data);
+	}
 }
 
 static void step(gamestate *gs, void *_data) {
@@ -163,14 +199,51 @@ static void trans(void **ptr) {
 	if (seriz_reading) {
 		data = malloc(sizeof(tskTdmData));
 	}
-	trans8(&data->score1);
-	trans8(&data->score2);
-	trans8(&data->animTimer);
-	// TODO whatever values I have here lol
+	trans8(&data->scores[0]);
+	trans8(&data->scores[1]);
+	trans8(&data->state);
+	trans8(&data->winner);
+	trans8(&data->animDest);
+	trans8(&data->timer);
+	trans8(&data->scoreLimit);
+	trans8(&data->numSpawns);
+	if (seriz_reading) {
+		// Normally we'd want a safety on the size we're allocating here
+		// (don't trust data that comes from the network),
+		// but since it's just an 8-bit counter it doesn't go that high.
+		data->spawns = malloc(data->numSpawns*sizeof(offset));
+	}
+	range(i, data->numSpawns) {
+		range(j, 3) trans64(&data->spawns[i][j]);
+	}
+}
+
+static void copy(void **to, void *from) {
+	// There's no reason to be copying this data around every frame, especially `spawns`.
+	// Heck, if we updated `timer` to be a destination frame # (and not an offset),
+	// we'd usually not be updating anything, and the whole thing could be copy-on-write.
+	// ...
+	// but for now I just want to get this to work.
+
+	tskTdmData *dest = malloc(sizeof(tskTdmData));
+	*to = dest;
+	tskTdmData *src = (tskTdmData*)from;
+
+	*dest = *src;
+
+	size_t sz = dest->numSpawns * sizeof(offset);
+	dest->spawns = malloc(sz);
+	memcpy(dest->spawns, src->spawns, sz);
+}
+
+static void destroy(void *data) {
+	free(((tskTdmData*)data)->spawns);
+	free(data);
 }
 
 void defineTask_tdmScore(taskDefn *d) {
 	d->step = &step;
 	d->trans = &trans;
-	d->destroy = &free;
+	d->copy = &copy;
+	d->destroy = &destroy;
 }
