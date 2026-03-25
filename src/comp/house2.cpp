@@ -121,7 +121,7 @@ void house2(gamestate *gs, int64_t wall, int32_t const * r1) {
 	bctx.pos(wall, pvar("v_wall", (offset const){-4, 4, 2}));
 	bctx.pos(edge, pvar("v_edge", (offset const){-2, 2, 0}));
 	bctx.pos(0, 0, (wall*2+edge)/4);
-	bctx.add(1, 5, wall*4+edge*2);
+	bctx.add(1, 8, wall*4+edge*2);
 
 	bctx.pop();
 	popVarIgnore();
