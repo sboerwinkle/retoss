@@ -670,7 +670,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);
 	}
 
-	drawPlayer(p, 0.8f);
+	drawPlayer(p, 0.6f);
 
 
 	setup2dDrawing();
