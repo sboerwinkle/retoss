@@ -18,8 +18,9 @@
 
 . Oh gods collision will need to be re-done :(
 
+- vb_now should be directly on gamestate, not gamestate->vb_root->end
 - /rda (round all)
-- Segfault loading save file. Maybe just an outdated file?? idk.
+! Segfault loading save file. Maybe just an outdated file?? idk.
 . Bug where mottling disappears below scale 1000
 . Bug where gestures aren't properly mapped for some rotated things (see the arch in "rubble")
 jump intent via mouse (shelved for now)
@@ -32,7 +33,7 @@ jump intent via mouse (shelved for now)
 		45deg (up or down?) means going for distance, so max jump and max traction
 		Are ability to apply jump and traction independent?
 . Movement is so god-awful lol
-- dl: re-frame operation for positions
+. dl: re-frame operation for positions
 	Pos vars always store their "on paper" value, and their absolute value
 	Then we can set a flag and do a re-load, and they'll update their "on paper" value to maintain absolute value
 	Doesn't need to be perfect,
