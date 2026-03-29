@@ -618,13 +618,12 @@ void prefsToCmds(queue<strbuf> *cmds) {
 
 //// graphics stuff! ////
 
-static void drawPlayer(player *p) {
+static void drawPlayer(player *p, float alpha) {
 	if (!p->alive) return;
 
-	float alpha;
-	if (p->hits >= 3) alpha = 0.5;
-	else alpha = 0.1*p->hits;
-	tint(1, 0, 0, alpha);
+	float tint_alpha = 0.5;
+	if (p->hits < 3) tint_alpha = 0.1*p->hits;
+	tint(1, 0, 0, tint_alpha);
 
 	int64_t radius = 800;
 	int sprite;
@@ -634,7 +633,7 @@ static void drawPlayer(player *p) {
 	else if (p->team == 1) sprite = 9;
 	else sprite = 10;
 
-	drawCube(&p->m, radius, sprite, mesh);
+	drawCube(&p->m, radius, sprite, mesh, alpha);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
@@ -652,28 +651,24 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		solid *s = gs->solids[i];
 		int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
 		// `s->tex & 31` is validated in gamestate.cpp
-		drawCube(&s->m, s->r, s->tex & 31, mesh);
+		drawCube(&s->m, s->r, s->tex & 31, mesh, 1.0f);
 	}
 
 	rangeconst(i, gs->players.num) {
 		if (i == myPlayer) continue;
 		player *p2 = &gs->players[i];
-		drawPlayer(p2);
+		drawPlayer(p2, 1.0f);
 	}
-	tint(0, 0, 0, 0); // Clear tint.
 
-	setupStipple();
-	drawPlayer(p);
-	// Clear tint again; stippling uses a different copy of the uniforms.
-	tint(0, 0, 0, 0);
-
-	setupTransparent();
 	rangeconst(i, gs->trails.num) {
 		trail &tr = gs->trails[i];
-		drawTrail(tr.origin, tr.dir, tr.len);
+		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-vb_now)-interpRatio)/TRAIL_LIFETIME);
 	}
 
-	setup2d();
+	drawPlayer(p, 0.8f);
+
+
+	setup2dDrawing();
 
 	// Crosshair:
 	centeredGrid2d(256);
@@ -694,13 +689,13 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		sprite2d(0, 118, 10, 10, -5, -5);
 	}
 
-	setup2dText();
+	setup2dTextDrawing();
 
 	rangeconst(i, gs->tasks.num) {
 		taskInstance &task = gs->tasks[i];
 		if (task.defn->id == TSK_TDM) {
 			taskTdm_draw(task.data, interpRatio);
-			setup2dText();
+			setup2dTextDrawing();
 		}
 	}
 

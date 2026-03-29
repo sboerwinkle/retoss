@@ -54,7 +54,6 @@ float displayAreaBounds[2];
 static char startupFailed = 0;
 static GLuint main_prog;
 static GLuint sprite_prog;
-static GLuint stipple_prog;
 // static GLuint flat_prog; // Will need this later, but don't feel like reworking shader rn
 
 static GLuint buffer_id, spr_buffer_id;
@@ -65,6 +64,7 @@ static GLint u_main_rot;
 static GLint u_main_texscale;
 static GLint u_main_texoffset;
 static GLint u_main_tint;
+static GLint u_main_transparency;
 
 static GLint u_spr_size;
 static GLint u_spr_scale;
@@ -148,19 +148,6 @@ static GLuint mkShader(GLenum type, const char* path) {
 	return shader;
 }
 
-static GLuint sharedUniformHelper(char const *name) {
-	GLuint m = glGetUniformLocation(main_prog, name);
-	GLuint s = glGetUniformLocation(stipple_prog, name);
-	if (m != s) {
-		printf(
-			"ERROR: Uniform \"%s\" resides at %d and %d in \"main\" and \"stipple\" progs respectively\n",
-			name, m, s
-		);
-		startupFailed = 1;
-	}
-	return m;
-}
-
 static void loadTexture(int i) {
 	char *imageData;
 	int width, height;
@@ -221,7 +208,6 @@ void initGraphics() {
 	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
 	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "shaders/color.frag");
 	GLuint fragShaderSprite = mkShader(GL_FRAGMENT_SHADER, "shaders/texOnly.frag");
-	GLuint fragShaderStipple = mkShader(GL_FRAGMENT_SHADER, "shaders/stipple.frag");
 
 	main_prog = glCreateProgram();
 	glAttachShader(main_prog, vertexShader);
@@ -235,12 +221,6 @@ void initGraphics() {
 	glLinkProgram(sprite_prog);
 	cerr("Post link");
 
-	stipple_prog = glCreateProgram();
-	glAttachShader(stipple_prog, vertexShader);
-	glAttachShader(stipple_prog, fragShaderStipple);
-	glLinkProgram(stipple_prog);
-	cerr("Post link");
-
 	/*
 	flat_prog = glCreateProgram();
 	glAttachShader(flat_prog, vertexShader2d);
@@ -249,7 +229,6 @@ void initGraphics() {
 	cerr("Post link");
 	*/
 
-	// These will be the same attrib locations as stipple_prog, since they use the same vertex shader
 	GLint a_pos_id = attrib(main_prog, "a_pos");
 	GLint a_norm_id = attrib(main_prog, "a_norm");
 	GLint a_tex_st_id = attrib(main_prog, "a_tex_st");
@@ -257,11 +236,12 @@ void initGraphics() {
 	GLint a_spr_loc = attrib(sprite_prog, "a_loc");
 
 	// Uniforms
-	u_main_modelview = sharedUniformHelper("u_modelview");
-	u_main_rot       = sharedUniformHelper("u_rot");
-	u_main_texscale  = sharedUniformHelper("u_texscale");
-	u_main_texoffset = sharedUniformHelper("u_texoffset");
-	u_main_tint      = sharedUniformHelper("u_tint");
+	u_main_modelview    = glGetUniformLocation(main_prog, "u_modelview");
+	u_main_rot          = glGetUniformLocation(main_prog, "u_rot");
+	u_main_texscale     = glGetUniformLocation(main_prog, "u_texscale");
+	u_main_texoffset    = glGetUniformLocation(main_prog, "u_texoffset");
+	u_main_tint         = glGetUniformLocation(main_prog, "u_tint");
+	u_main_transparency = glGetUniformLocation(main_prog, "u_transparency");
 	// sprite_prog uniforms
 	u_spr_size          = glGetUniformLocation(sprite_prog, "u_size");
 	u_spr_scale         = glGetUniformLocation(sprite_prog, "u_scale");
@@ -274,7 +254,6 @@ void initGraphics() {
 
 	printGLProgErrors(main_prog, "main");
 	printGLProgErrors(sprite_prog, "sprite");
-	printGLProgErrors(stipple_prog, "stipple");
 	//printGLProgErrors(flat_prog, "flat");
 
 	if (startupFailed) {
@@ -359,7 +338,7 @@ void initGraphics() {
 
 	glClearColor(0.2, 0.2, 0.2, 1);
 
-	// I think these settings stick around, but they don't "apply" until we enable GL_BLEND.
+	glEnable(GL_BLEND);
 	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
 	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
 	glBlendEquation(GL_FUNC_ADD);
@@ -445,9 +424,6 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 
 	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);
-	// I guess I just have this off to make rendering 3D stuff slightly faster?
-	// We shouldn't have any transparent parts in our 3D textures, so it shouldn't matter.
-	glDisable(GL_BLEND);
 
 	float matWorldToCam[16];
 	// Grab the camera rotation and reverse it
@@ -497,7 +473,7 @@ void tint(float r, float g, float b, float a) {
 	glUniform4f(u_main_tint, _r, _g, _b, _a);
 }
 
-void drawCube(mover *m, int64_t scale, int tex, int mesh) {
+void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha) {
 #ifdef DEBUG
 	if (tex < 0 || tex >= NUM_TEXS) {
 		printf("ERROR: Invalid tex %d\n", tex);
@@ -532,6 +508,7 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_texscale, scale/1000.0);
 	glUniform2f(u_main_texoffset, 0, 0);
+	glUniform1f(u_main_transparency, alpha);
 
 	int32_t vertexIndex;
 	if (mesh == 0) {
@@ -549,24 +526,12 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh) {
 	glDrawArrays(GL_TRIANGLES, vertexIndex, 36);
 }
 
-void setupStipple() {
-	glUseProgram(stipple_prog);
-	tint(0, 0, 0, 0);
-}
-
-void setupTransparent() {
-	glUseProgram(main_prog);
+void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
 	glDepthMask(0);
-	glEnable(GL_BLEND);
-	// If this phase is only used for drawing trails,
-	// we can move some of the setup stuff to be here instead
-	// (and do it once, instead of 1 per trail)
-}
-
-void drawTrail(offset const start, unitvec const dir, int64_t len) {
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
 	glUniform1f(u_main_texscale, 1);
 	glUniform2f(u_main_texoffset, 0, 0); // Not sure, maybe this is already set?
+	glUniform1f(u_main_transparency, 1.0-age_interp);
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.
 	float matWorld[16];
@@ -594,21 +559,20 @@ void drawTrail(offset const start, unitvec const dir, int64_t len) {
 	float fdir[3];
 	range(i, 3) fdir[i] = dir[i]*(0.5/FIXP); // scale factor here relates to distance from trail
 	cross(sideways, translate, fdir);
-	float magnitude = sideways[0]*sideways[0] + sideways[1]*sideways[1] + sideways[2]*sideways[2];
-	if (magnitude > 30*30) {
-		float x = 30/sqrt(magnitude);
-		range(i, 3) sideways[i] *= x;
-	}
-
+	float magnitude = sqrt(sideways[0]*sideways[0] + sideways[1]*sideways[1] + sideways[2]*sideways[2]);
+	float trail_width = -10.0f/(age_interp+0.1f)+110.0f;
+	float x = trail_width/(magnitude+0.0001);
+	range(i, 3) sideways[i] *= x;
 	// And finally apply the transform we computed during `setupFrame`
 	float matScreen[16];
 	mat4Multf(matScreen, matWorldToScreen, matWorld);
 	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
 
 	glDrawArrays(GL_TRIANGLES, vtxIdx_pane, 6);
+	glDepthMask(1);
 }
 
-void setup2d() {
+void setup2dDrawing() {
 	glUseProgram(sprite_prog);
 	glBindVertexArray(vaos[1]);
 
@@ -647,7 +611,7 @@ void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float
 	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 }
 
-void setup2dText() {
+void setup2dTextDrawing() {
 	// Could convert this part to `centeredGrid2d`,
 	// but I don't want to.
 	float textSize = 4;
