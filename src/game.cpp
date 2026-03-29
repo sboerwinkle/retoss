@@ -374,7 +374,7 @@ void serializeInputs(char * dest) {
 	}
 }
 
-int playerInputs(player *p, list<char> const * data) {
+void playerInputs(player *p, char const *data, int size) {
 	// This always runs for all players (regardless of network state)
 	// before the gamestate steps, so this guarantees `oldRot` is initialized.
 	memcpy(p->m.oldRot, p->m.rot, sizeof(p->m.rot));
@@ -383,19 +383,18 @@ int playerInputs(player *p, list<char> const * data) {
 	// - Malicious client
 	// - No data yet seen from client
 	// - Some other case I'm not sure about, maybe when client is late?
-	if (data->num < 7*(int)sizeof(int32_t)) {
+	if (size < 7*(int)sizeof(int32_t)) {
 		// Set inputs to zero
 		range(i, 3) p->inputs[i] = 0;
 		// Reset facing - a visual indicator I guess?
 		p->m.rot[0] = FIXP;
 		range(i, 3) p->m.rot[i+1] = 0;
-		return 0;
+		return;
 	}
 
-	int32_t *ptr = (int32_t*)(data->items);
+	int32_t *ptr = (int32_t*)(data);
 	range(i, 3) p->inputs[i] = ptr[i];
 	range(i, 4) p->m.rot[i] = ptr[3+i];
-	return 7*sizeof(int32_t);
 }
 
 static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {

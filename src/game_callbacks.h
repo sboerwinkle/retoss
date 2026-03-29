@@ -17,7 +17,7 @@ extern void window_focus_callback(GLFWwindow *window, int focused);
 extern void copyInputs();
 extern int getInputsSize();
 extern void serializeInputs(char * dest);
-extern int playerInputs(player *p, list<char> const * data);
+extern void playerInputs(player *p, char const *data, int size);
 
 //// Text command stuff ////
 

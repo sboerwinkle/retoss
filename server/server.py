@@ -36,6 +36,10 @@ HEADER_ADJ = 50
 PROC_ADJ = 50
 FRAMERATE = 15
 INCR = 1/FRAMERATE
+# Kick clients that miss too many frames as well.
+# Side effect is that this limits the size of a single message to approx USAGE_POOL,
+# since they can't wait for their pool to recover w/out completing it.
+MAX_MISSED_FRAMES = 5*FRAMERATE
 
 EMPTY_MSG = b'\0\0\0\0'
 
@@ -85,7 +89,6 @@ class ClientNetHandler(asyncio.Protocol):
         self.usagesince = time.monotonic()
         self.missed_frames = 0
 
-        self.size_bytes = None
         self.requested_frame = 0
         self.payload_bytes = None
 
@@ -95,8 +98,8 @@ class ClientNetHandler(asyncio.Protocol):
         self.cmds = []
         self.cmds_remaining = 0
 
-        self.reqd_bytes = 1
-        self.next_phase = self.phase_size
+        self.reqd_bytes = 5
+        self.next_phase = self.phase_frame
 
     def connection_made(self, transport):
         self.transport = transport
@@ -151,21 +154,21 @@ class ClientNetHandler(asyncio.Protocol):
             traceback.print_exc()
             self.transport.close()
 
-    def phase_size(self):
-        self.reqd_bytes = self.recvd[0] + 5
+    def phase_frame(self):
+        if self.check_usage(PROC_ADJ):
+            return
+
+        self.requested_frame = int.from_bytes(self.recvd[0:4], 'big')
+        if self.requested_frame >= FRAME_ID_MAX:
+            raise Exception(f"Bad frame number {self.requested_frame}, invalid network communication")
+
+        # First byte of payload is always payload size (not counting first byte)
+        self.reqd_bytes = 5+self.recvd[4]
         self.next_phase = self.phase_body
 
     def phase_body(self):
-        if self.check_usage(PROC_ADJ):
-            return
-        self.size_bytes = self.recvd[0:1]
-        frame_bytes = self.recvd[1:5]
-        self.payload_bytes = self.recvd[5:self.reqd_bytes]
+        self.payload_bytes = self.recvd[4:self.reqd_bytes]
         self.recvd = self.recvd[self.reqd_bytes:]
-
-        self.requested_frame = int.from_bytes(frame_bytes, 'big')
-        if self.requested_frame >= FRAME_ID_MAX:
-            raise Exception(f"Bad frame number {self.requested_frame}, invalid network communication")
 
         self.reqd_bytes = 1
         self.next_phase = self.phase_cmd_count
@@ -192,8 +195,8 @@ class ClientNetHandler(asyncio.Protocol):
             self.reqd_bytes = 4
             self.next_phase = self.phase_cmd_size
         else:
-            self.reqd_bytes = 1
-            self.next_phase = self.phase_size
+            self.reqd_bytes = 5
+            self.next_phase = self.phase_frame
             self.record_complete_frame()
 
     def record_complete_frame(self):
@@ -220,7 +223,7 @@ class ClientNetHandler(asyncio.Protocol):
         offset_index = (self.offsets_offset + delt) % (MAX_AHEAD + 1)
         if not self.offsets_used[offset_index]:
             self.offsets_used[offset_index] = True
-            message_bytes = self.size_bytes+frame_bytes+self.payload_bytes
+            message_bytes = frame_bytes+self.payload_bytes
             # The one-item list represents a message with 0 associated commands.
             # We will add commands in a sec (if we have any)
             self.complete_messages.append([message_bytes])
@@ -326,9 +329,9 @@ async def loop(host):
                 items.clear()
             else:
                 c.missed_frames += 1
-                if c.missed_frames >= FRAMERATE*5:
+                if c.missed_frames >= MAX_MISSED_FRAMES:
                     c.transport.close()
-                    print(f"Closed client {c.ix} for not completing any messages for 5 seconds")
+                    print(f"Closed client {c.ix} for not completing any messages for too long")
             # This frame has gone out, so whether or not the client sent anything here
             # it's time to recycle that entry in `offsets_used` (a circular buffer) so
             # that it represents a new frame (that is, the one MAX_AHEAD frames ahead)

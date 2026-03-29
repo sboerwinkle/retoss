@@ -127,7 +127,7 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 	list<char> &out = *_out;
 
 	u8 inputSize = getInputsSize();
-	int firstBlock = inputSize + 6; // 1 size + 4 frame + ? input data + 1 cmd count
+	int firstBlock = inputSize + 6; // 4 frame + 1 size + ? input data + 1 cmd count
 
 	out.setMaxUp(firstBlock);
 	out.num = firstBlock;
@@ -138,8 +138,8 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 	// sure commands aren't dropped, etc). The format of the
 	// "input data" section is irrelevant to it, however, so
 	// we just use a byte to describe that section's length.
-	out[0] = inputSize;
-	*(int32_t*)(out.items + 1) = htonl(frame);
+	*(int32_t*)out.items = htonl(frame);
+	out[4] = inputSize;
 	serializeInputs(&out[5]);
 
 	// out[firstBlock-1] is the number of commands, populate that at the end
@@ -335,12 +335,21 @@ static void doWholeStep(gamestate *state, list<list<char>> const *_inputData, ch
 	range(i, numPlayers) {
 		char isMe = i == myPlayer;
 		list<char> const &data = inputData[i];
+		if (!data.num) {
+			puts("0-length player data, net2.cpp should prevent this!");
+			continue;
+		}
+		int inputsSize = (u8)data[0];
+		if (inputsSize+1 > data.num) {
+			printf("Bad input size (net2.cpp should prevent this?) - %d vs %d\n", inputsSize, data.num);
+			continue;
+		}
 
-		int nextIx = playerInputs(&players[i], &data);
+		playerInputs(&players[i], data.items+1, inputsSize);
 
-		if (data.num > nextIx && (isMe || isReal)) {
-			u8 numCmds = data[nextIx];
-			int index = nextIx + 1;
+		if (data.num > inputsSize+1) {
+			u8 numCmds = data[inputsSize+1];
+			int index = inputsSize+2;
 			while (numCmds--) {
 				int32_t len = ntohl(*(int32_t*)(data.items + index));
 				if (index+4+len > data.num || len <= 0) {
@@ -365,14 +374,14 @@ static void newPhantom(gamestate *gs) {
 }
 
 static void insertOutbound(list<char> *dest, list<char> *src) {
-	// The trouble is that the data we sent out includes some header info,
-	// like the frame and size. By the time we have our nice list of
-	// who's doing what this frame, those two fields have been removed.
-	// We have to do the same here. Fortunately, it's assumed these
-	// lists are stricly read-only, so it's okay to make a "fake" list here!
-	dest->num = src->num - 5;
-	dest->max = src->max - 5; // Does this even matter if RO?
-	dest->items = src->items + 5;
+	// The trouble is that the data we sent out includes a frame #.
+	// By the time we have our nice list of who's doing what this
+	// frame, that has been removed. We have to do the same here.
+	// Fortunately, it's assumed these lists are stricly read-only,
+	// so it's okay to make a "fake" list here!
+	dest->num = src->num - 4;
+	dest->max = src->max - 4; // Does this even matter if RO?
+	dest->items = src->items + 4;
 }
 
 static void* gameThreadFunc(void *startFramePtr) {
@@ -433,7 +442,9 @@ static void* gameThreadFunc(void *startFramePtr) {
 				// (or rather, they only simulate far enough ahead to get their data in on time).
 				list<char> *netInputs = frameData.peek(outboundSize).items;
 				range(i, playerDatas.num) {
-					if (netInputs[i].num) playerDatas[i] = netInputs[i];
+					// "dummy" (filler) netInputs have (max==0).
+					// This is okay because nothing ever writes to the dummy input.
+					if (netInputs[i].max) playerDatas[i] = netInputs[i];
 					// It's also possible that the netInputs we're reading are actually from a finalized frame,
 					// in which case it would be more accurate to completely reset `playerDatas` to those values
 					// and ignore `outboundData` completely (since finalized frames are authoritative).
@@ -514,7 +525,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 				if (outboundIx+1 < frameDataSize) {
 					list<char> *netInputs = frameData.peek(outboundIx+1).items;
 					range(i, playerDatas.num) {
-						if (netInputs[i].num) {
+						if (netInputs[i].max) {
 							playerDatas[i] = netInputs[i];
 							// If the server has any input from us ahead of time, we're going fast enough.
 							if (i == myPlayer) clockOk = 1;

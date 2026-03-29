@@ -30,7 +30,9 @@ char asleep = 0;
 static int numPlayers, maxPlayers;
 static int32_t expectedFrame;
 static list<list<char>> availBuffers;
-static const list<char> dummyBuffer = {.items = NULL, .num = 0, .max = 1};
+// The dummy buffer should be read-only, so the `max` doesn't matter.
+// We set it to 0 to have an easy way to test for it.
+static const list<char> dummyBuffer = {.items = (char*)(char const[]){0}, .num = 1, .max = 0};
 
 struct message {
 	int player;
@@ -42,6 +44,9 @@ static list<message> pendingMessages;
 
 // A "normal" message should be under 50 bytes; at time of writing, it's about 16 for frame data, plus any command / chat.
 #define MSG_SIZE_GUESS 50
+// Shouldn't be possible to get this from the server if it's doing its job,
+// as you can't build a message this big without either exhausting your usage pool or skipping too many frames.
+#define MAX_CMD_LEN (6*1024*1024)
 
 static void reclaimBuffer(list<char> *buf) {
 	// A "big" message, like a level load, is in the 10K range.
@@ -97,12 +102,6 @@ char net2_read() {
 		if (readData(&numMessages, 1)) return 1;
 		range(j, numMessages) {
 
-			u8 size;
-			if (readData(&size, 1)) return 1;
-			// Todo Previously we had a check on the size here (required `size==6`).
-			//      Maybe need a basic sanity check? Or option for game.h to provide
-			//      a size, or like a custom size checking rule? Would be more work.
-
 			int32_t msgFrame;
 			if (readData(&msgFrame, 4)) return 1;
 			msgFrame = ntohl(msgFrame);
@@ -123,17 +122,25 @@ char net2_read() {
 			m->player = i;
 			m->frameOffset = frameOffset;
 
-			data.setMaxUp(size);
-			if (readData(data.items, size)) return 1;
-			data.num = size;
+			u8 size;
+			if (readData(&size, 1)) return 1;
+
+			data.setMaxUp(1+size);
+			data[0] = size;
+			if (readData(data.items+1, size)) return 1;
+			data.num = 1+size;
 
 			// Now read in any commands
 			if (readData(&size, 1)) return 1;
 			data.add(size);
 			while (size--) {
-				int32_t netCmdLen;
+				uint32_t netCmdLen;
 				if (readData(&netCmdLen, 4)) return 1;
-				int32_t cmdLen = ntohl(netCmdLen);
+				uint32_t cmdLen = ntohl(netCmdLen);
+				if (cmdLen > MAX_CMD_LEN) {
+					printf("Got cmd len 0x%X, which server should prevent!\n", cmdLen);
+					return 1;
+				}
 				int end = data.num + cmdLen + 4;
 				data.setMaxUp(end);
 				*(int32_t*)(data.items + data.num) = netCmdLen;
@@ -157,7 +164,7 @@ char net2_read() {
 		for (int i = size; i < reqdSize; i++) {
 			list<list<char>> &players = frameData.peek(i);
 			range(j, players.num) {
-				if (players[j].items) {
+				if (players[j].max) {
 					reclaimBuffer(&players[j]);
 					players[j] = dummyBuffer;
 				}
@@ -191,7 +198,7 @@ char net2_read() {
 		//
 		// We also can't base an overwrite decision on any kind of information from the game thread,
 		// since that could be ahead/behind on other clients and we don't want desync.
-		if (!dest->items) {
+		if (!dest->max) {
 			*dest = m.data;
 		} else {
 			fputs("Not an issue, but this case shouldn't happen with the new server rules?\n", stderr);
@@ -241,7 +248,7 @@ void net2_destroy() {
 	range(i, frameData.max) {
 		list<list<char>> &players = frameData.items[i];
 		range(j, players.num) {
-			if (players[j].items) players[j].destroy();
+			if (players[j].max) players[j].destroy();
 		}
 		// players.destroy(); // Handled by `frameData.destroy()`, since the queue was responsible for initing them
 	}
