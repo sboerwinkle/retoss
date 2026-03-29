@@ -742,47 +742,47 @@ static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float 
 	GLfloat F = -y, B = y;
 	GLfloat D = -z, U = z;
 	// up
-	vtx(L, B, U, 0, 0, U, 0, 0);
-	vtx(L, F, U, 0, 0, U, 0, y);
-	vtx(R, B, U, 0, 0, U, x, 0);
-	vtx(R, F, U, 0, 0, U, x, y);
-	vtx(R, B, U, 0, 0, U, x, 0);
-	vtx(L, F, U, 0, 0, U, 0, y);
+	vtx(L, B, U, 0, 0, 1, 0, 0);
+	vtx(L, F, U, 0, 0, 1, 0, y);
+	vtx(R, B, U, 0, 0, 1, x, 0);
+	vtx(R, F, U, 0, 0, 1, x, y);
+	vtx(R, B, U, 0, 0, 1, x, 0);
+	vtx(L, F, U, 0, 0, 1, 0, y);
 	// front
-	vtx(L, F, U, 0, F, 0, 0, 0);
-	vtx(L, F, D, 0, F, 0, 0, z);
-	vtx(R, F, U, 0, F, 0, x, 0);
-	vtx(R, F, D, 0, F, 0, x, z);
-	vtx(R, F, U, 0, F, 0, x, 0);
-	vtx(L, F, D, 0, F, 0, 0, z);
+	vtx(L, F, U, 0, -1, 0, 0, 0);
+	vtx(L, F, D, 0, -1, 0, 0, z);
+	vtx(R, F, U, 0, -1, 0, x, 0);
+	vtx(R, F, D, 0, -1, 0, x, z);
+	vtx(R, F, U, 0, -1, 0, x, 0);
+	vtx(L, F, D, 0, -1, 0, 0, z);
 	// right
-	vtx(R, F, U, R, 0, 0, 0, 0);
-	vtx(R, F, D, R, 0, 0, 0, z);
-	vtx(R, B, U, R, 0, 0, y, 0);
-	vtx(R, B, D, R, 0, 0, y, z);
-	vtx(R, B, U, R, 0, 0, y, 0);
-	vtx(R, F, D, R, 0, 0, 0, z);
+	vtx(R, F, U, 1, 0, 0, 0, 0);
+	vtx(R, F, D, 1, 0, 0, 0, z);
+	vtx(R, B, U, 1, 0, 0, y, 0);
+	vtx(R, B, D, 1, 0, 0, y, z);
+	vtx(R, B, U, 1, 0, 0, y, 0);
+	vtx(R, F, D, 1, 0, 0, 0, z);
 	// left
-	vtx(L, B, U, L, 0, 0, 0, 0);
-	vtx(L, B, D, L, 0, 0, 0, z);
-	vtx(L, F, U, L, 0, 0, y, 0);
-	vtx(L, F, D, L, 0, 0, y, z);
-	vtx(L, F, U, L, 0, 0, y, 0);
-	vtx(L, B, D, L, 0, 0, 0, z);
+	vtx(L, B, U, -1, 0, 0, 0, 0);
+	vtx(L, B, D, -1, 0, 0, 0, z);
+	vtx(L, F, U, -1, 0, 0, y, 0);
+	vtx(L, F, D, -1, 0, 0, y, z);
+	vtx(L, F, U, -1, 0, 0, y, 0);
+	vtx(L, B, D, -1, 0, 0, 0, z);
 	// back
-	vtx(R, B, U, 0, B, 0, 0, 0);
-	vtx(R, B, D, 0, B, 0, 0, z);
-	vtx(L, B, U, 0, B, 0, x, 0);
-	vtx(L, B, D, 0, B, 0, x, z);
-	vtx(L, B, U, 0, B, 0, x, 0);
-	vtx(R, B, D, 0, B, 0, 0, z);
+	vtx(R, B, U, 0, 1, 0, 0, 0);
+	vtx(R, B, D, 0, 1, 0, 0, z);
+	vtx(L, B, U, 0, 1, 0, x, 0);
+	vtx(L, B, D, 0, 1, 0, x, z);
+	vtx(L, B, U, 0, 1, 0, x, 0);
+	vtx(R, B, D, 0, 1, 0, 0, z);
 	// down
-	vtx(L, F, D, 0, 0, D, 0, 0);
-	vtx(L, B, D, 0, 0, D, 0, y);
-	vtx(R, F, D, 0, 0, D, x, 0);
-	vtx(R, B, D, 0, 0, D, x, y);
-	vtx(R, F, D, 0, 0, D, x, 0);
-	vtx(L, B, D, 0, 0, D, 0, y);
+	vtx(L, F, D, 0, 0, -1, 0, 0);
+	vtx(L, B, D, 0, 0, -1, 0, y);
+	vtx(R, F, D, 0, 0, -1, x, 0);
+	vtx(R, B, D, 0, 0, -1, x, y);
+	vtx(R, F, D, 0, 0, -1, x, 0);
+	vtx(L, B, D, 0, 0, -1, 0, y);
 }
 
 static void populateCubeVertexData2(list<GLfloat> *data) {

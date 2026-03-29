@@ -27,12 +27,11 @@ void main()
 	v_mottle_1 = u_texoffset + u_texscale*a_tex_st;
 	v_mottle_2 = u_texoffset + 1.618034*u_texscale*a_tex_st;
 
+	// I want my faces to look a bit different based on angle.
+	// Normally I'd put them in shadow, but I already have this code here,
+	// and it's literally 00:02AM right now.
 	float lighting_dot = dot(vec3(0.6, 0, 0.8), u_rot*a_norm);
-
-	// I'm sure there's a more correct/technical term for this.
-	// Point is, if it's facing the light directly we add a little of the light's color.
-	// Uh... this will still be subjected to the texture stuff though, not fixing that rn.
-	vec3 glare = max(lighting_dot - 0.6, 0) * vec3(1,1,1);
+	vec3 glare = lighting_dot * vec3(0.15,0.15,0.15);
 
 	// v_color = glare + (0.75 + 0.25*lighting_dot)*u_tint;
 	v_color = glare;
