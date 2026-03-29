@@ -239,6 +239,11 @@ void runTick(gamestate *gs) {
 	}
 	playerRmBoxes(gs);
 
+	range(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		(*task.defn->step)(gs, task.data);
+	}
+
 	velbox_completeTick(gs->vb_root);
 }
 
@@ -247,16 +252,24 @@ void mkSolidAtPlayer(gamestate *gs, player *p) {
 	memcpy(s->m.rot, p->m.rot, sizeof(iquat)); // Array types are weird in C
 }
 
-// I'm thinking `isSync` may be unused forever, but we can leave it for now (forever)
 void prepareGamestateForLoad(gamestate *gs, char isSync) {
-	int numPlayers = gs->players.num;
+	// Shallow copy of player data.
+	// We don't need all of it, but it's okay to be slow here.
+	list<player> tmp;
+	tmp.init(gs->players);
 
 	cleanup(gs);
 	// Re-initialize with valid (but empty) data
 	init(gs);
 
-	// Setup any data that might carry over (right now, just player count)
-	setupPlayers(gs, numPlayers);
+	// Setup any data that might carry over (right now, just player count and teams)
+	setupPlayers(gs, tmp.num);
+	if (!isSync) {
+		rangeconst(i, tmp.num) {
+			gs->players[i].team = tmp[i].team;
+		}
+	}
+	tmp.destroy();
 }
 
 static void playerDupCleanup(player *p) {
@@ -291,7 +304,7 @@ gamestate* dup(gamestate *orig) {
 	ret->tasks.init(orig->tasks);
 	rangeconst(i, ret->tasks.num) {
 		taskInstance &task = ret->tasks[i];
-		(*task.defn->copy)(&task.data, orig->tasks[i]->data);
+		(*task.defn->copy)(&task.data, orig->tasks[i].data);
 	}
 
 	rangeconst(i, ret->players.num) {
@@ -401,7 +414,7 @@ static void transTrails(gamestate *gs) {
 
 static void transTask(taskInstance *task) {
 	if (seriz_reading) {
-		task->defn = task_lookup(read32());
+		task->defn = taskLookup(read32());
 	} else {
 		write32(task->defn->id);
 	}

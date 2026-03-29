@@ -11,7 +11,7 @@ struct mover; // "box" and "gamestate" reference each other's types
 #include "task.h"
 
 #define PLAYER_SHAPE_RADIUS 800
-#define NUM_TEXS 11
+#define NUM_TEXS 12
 
 extern int32_t gs_gravity;
 

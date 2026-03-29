@@ -1,5 +1,6 @@
 #include "util.h"
 #include "list.h"
+#include "matrix.h"
 
 #include "task.h"
 

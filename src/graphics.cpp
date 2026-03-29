@@ -32,6 +32,7 @@ char const * const texSrcFiles[NUM_TEXS] = {
 	"metal.png",
 	"guy.2.png",
 	"guy.3.png",
+	"snakes.png",
 };
 GLuint textures[NUM_TEXS];
 static float const fovThingIdk = 1/0.7;
@@ -659,6 +660,10 @@ void setup2dText() {
 	// Our texture is 64x64, and I belive tex coords go 0-1
 	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
+}
+
+void drawTextCentered(char const *str, int y) {
+	drawText(str, displayAreaBounds[0] - (1 + strlen(str)*5)/2, y);
 }
 
 void drawText(char const* str, int x, int y) {

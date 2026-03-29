@@ -19,6 +19,8 @@
 #include "bcast.h"
 #include "task.h"
 
+#include "tasks/tdmScore.h"
+
 #include "game.h"
 #include "game_callbacks.h"
 
@@ -75,7 +77,7 @@ gamestate* game_init2() {
 	// is handled by gamestate.cpp (in this call)
 	init(gs);
 
-	lv_playground(gs);
+	lv_tdm1(gs);
 
 	return gs;
 }
@@ -241,11 +243,6 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 		if (action) activeInputs.event.shoot = 1;
 		activeInputs.state.shoot = action;
 	}
-
-	/*
-	if (action == GLFW_PRESS && (button == 0 || button == 1)) mouseDown = button+1;
-	else mouseDown = 0;
-	*/
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
 	if (ctrlPressed) {
@@ -595,6 +592,16 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		p->shoot = 3;
 	} else if (isCmd(str, "/_s")) {
 		p->shoot &= 2;
+	} else if (isCmd(str, "/lv_tdm1")) {
+		if (isReal) {
+			prepareGamestateForLoad(gs, 0);
+			lv_tdm1(gs);
+		}
+	} else if (isCmd(str, "/lv_playground")) {
+		if (isReal) {
+			prepareGamestateForLoad(gs, 0);
+			lv_playground(gs);
+		}
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.
@@ -669,18 +676,37 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	setup2d();
 
 	// Crosshair:
-	// Want a pixel to be 1/256 of vertical screen space (so +/-128)
-	centeredGrid2d(128);
-	// We've got it on the "font" texture for now
-	selectTex2d(1, 64, 64);
-	// src coords+size, dest coords
-	sprite2d(0, 59, 5, 5, -2.5, -2.5);
+	centeredGrid2d(256);
+	// We've got it on the "font" texture for now.
+	// We double the resolution b/c we have to draw halves in some cases,
+	// and need to split a pixel for that.
+	selectTex2d(1, 128, 128);
+	if (p->cooldown) {
+		// Split crosshair
+		float distance = (p->cooldown - interpRatio)/2;
+		// src coords, size, dest coords
+		sprite2d(0, 118, 5, 10, -5-distance, -5);
+		sprite2d(5, 118, 5, 10,    distance, -5);
+	} else {
+		// Could draw it as 2 halves in this case as well,
+		// I'm just not sure if it might look funny b/c of
+		// pixel nonsense
+		sprite2d(0, 118, 10, 10, -5, -5);
+	}
 
 	setup2dText();
 	if (main_typingLen >= 0) {
 		drawText(main_textBuffer, 1, 1);
 	}
 	char msg[20];
+
+	rangeconst(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		if (task.defn->id == TSK_TDM) {
+			taskTdm_draw(task.data, interpRatio);
+			setup2dText();
+		}
+	}
 
 	/*
 	snprintf(msg, 20, "(%5ld,%5ld,%5ld)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);

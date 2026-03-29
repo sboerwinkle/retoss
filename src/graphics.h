@@ -24,4 +24,5 @@ extern void selectTex2d(int tex, int texW, int texH);
 extern void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float y);
 
 extern void setup2dText();
+extern void drawTextCentered(char const *str, int y);
 extern void drawText(char const *str, int x, int y);

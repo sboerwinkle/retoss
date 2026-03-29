@@ -17,8 +17,10 @@ struct tskTdmData {
 	u8 scoreLimit;
 	u8 numSpawns;
 	offset *spawns;
-}
+};
 
 extern void taskTdm_draw(void *_data, float interp);
+extern tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore);
+extern void taskTdm_spawnAll(gamestate *gs, void *_data);
 
 extern void defineTask_tdmScore(taskDefn *d);
