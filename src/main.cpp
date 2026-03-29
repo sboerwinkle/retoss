@@ -851,7 +851,11 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	if (initNetData[0] != (char)MAGIC_FIRST_BYTE) {
-		printf("Bad initial byte 0x%hhX, aborting!\n", initNetData[0]);
+		printf(
+			"Server initial byte was 0x%hhX, expected 0x%hhX. Is the server on an incompatible version?\n",
+			initNetData[0],
+			MAGIC_FIRST_BYTE
+		);
 		return 1;
 	}
 	myPlayer = initNetData[1];
