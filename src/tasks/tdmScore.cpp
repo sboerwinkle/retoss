@@ -15,14 +15,15 @@ static void drawPrepStartText() {
 }
 
 // Whole space avail
-static void drawSmallSnakes(tskTdmData const * data) {
-	// I don't know offhand how printf handles rounding vs truncating,
-	// so a bit of math to make sure truncate/round both look correct.
-	float s0 = (3.0f * data->scores[0] + 1)/30;
-	float s1 = (3.0f * data->scores[1] + 1)/30;
-	char text[12];
-	snprintf(text, 12, "%.1f v %.1f", s0, s1);
-	drawText(text, 0, 0);
+static void drawSmallScores(u8 const scores[2]) {
+	range(i, 2) {
+		// I don't know offhand how printf handles rounding vs truncating,
+		// so a bit of math to make sure truncate/round both look correct.
+		float displayScore = (3.0f * scores[i] + 1)/30;
+		char text[5];
+		snprintf(text, 5, "%.1f", displayScore);
+		drawText(text, 0, i*7);
+	}
 }
 
 #define SNAKE_BASIC 2
@@ -33,6 +34,8 @@ static void drawSmallSnakes(tskTdmData const * data) {
 
 // Whole space avail
 static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float interp) {
+	drawSmallScores(dests);
+
 	selectTex2d(11, 40, 40);
 	// We have 5 display units per score point,
 	// but 10 internal units per score point,
@@ -95,7 +98,7 @@ void taskTdm_draw(void *_data, float interp) {
 		drawPrepStartText();
 		return;
 	} else if (state == TSK_TDM_ST_PLAY) {
-		drawSmallSnakes(data);
+		drawSmallScores(data->scores);
 		return;
 	}
 	u8 winnerTeam = !!data->winner;

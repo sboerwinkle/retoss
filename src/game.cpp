@@ -695,10 +695,6 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 
 	setup2dText();
-	if (main_typingLen >= 0) {
-		drawText(main_textBuffer, 1, 1);
-	}
-	char msg[20];
 
 	rangeconst(i, gs->tasks.num) {
 		taskInstance &task = gs->tasks[i];
@@ -707,6 +703,11 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 			setup2dText();
 		}
 	}
+
+	if (main_typingLen >= 0) {
+		drawText(main_textBuffer, 1, 1);
+	}
+	char msg[20];
 
 	/*
 	snprintf(msg, 20, "(%5ld,%5ld,%5ld)", p->prox->pos[0], p->prox->pos[1], p->prox->pos[2]);
