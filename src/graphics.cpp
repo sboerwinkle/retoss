@@ -545,6 +545,7 @@ void drawTrail(offset const start, unitvec const dir, int64_t len, float age_int
 	matWorld[11] = 0;
 	matWorld[15] = 1;
 
+	// `forward` and `translate` we can produce without much fuss.
 	range(i, 3) forward[i] = (float)dir[i]*len/(FIXP*2);
 	range(i, 3) {
 		// These `cam` values don't depend on the trail, so I guess I could pre-calculate them
@@ -554,15 +555,20 @@ void drawTrail(offset const start, unitvec const dir, int64_t len, float age_int
 		int64_t cam = camPos1[i] + gfx_interpRatio*(camPos2[i]-camPos1[i]);
 		translate[i] = start[i]-cam+forward[i];
 	}
-	// There's a reason I have to normalize `forward` here,
-	// but I can't articulate it properly right now lol covid
+	// `sideways` is the trickiest to produce,
+	// since it depends on the angle you're looking at the trail from.
 	float fdir[3];
 	range(i, 3) fdir[i] = dir[i]*(0.5/FIXP); // scale factor here relates to distance from trail
 	cross(sideways, translate, fdir);
 	float magnitude = sqrt(sideways[0]*sideways[0] + sideways[1]*sideways[1] + sideways[2]*sideways[2]);
 	float trail_width = -10.0f/(age_interp+0.1f)+110.0f;
-	float x = trail_width/(magnitude+0.0001);
-	range(i, 3) sideways[i] *= x;
+	// If camera lines up too closely w/ trail,
+	// it will shrink to nothing,
+	// instead of spinning around dramatically as the camera makes its near approach
+	if (magnitude > trail_width) {
+		float x = trail_width/magnitude;
+		range(i, 3) sideways[i] *= x;
+	}
 	// And finally apply the transform we computed during `setupFrame`
 	float matScreen[16];
 	mat4Multf(matScreen, matWorldToScreen, matWorld);

@@ -659,10 +659,15 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		player *p2 = &gs->players[i];
 		drawPlayer(p2, 1.0f);
 	}
+	tint(0, 0, 0, 0); // Clear tint.
 
+	// I'm using this clock in more and more places,
+	// really it belongs directly on `gamestate`
+	// now that isn't not confined to velbox stuff.
+	int32_t now = gs->vb_root->end;
 	rangeconst(i, gs->trails.num) {
 		trail &tr = gs->trails[i];
-		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-vb_now)-interpRatio)/TRAIL_LIFETIME);
+		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);
 	}
 
 	drawPlayer(p, 0.8f);

@@ -88,7 +88,7 @@ static void drawPrepText() {
 	drawTextCentered(">>> STARTING <<<", 28);
 }
 
-// For now, we can assume `setup2dText` was already called,
+// For now, we can assume `setup2dTextDrawing` was already called,
 // and that it will be called again for us when we exit.
 // Conveniently, this means we can ignore it.
 void taskTdm_draw(void *_data, float interp) {
