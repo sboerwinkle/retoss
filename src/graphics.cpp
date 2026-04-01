@@ -43,7 +43,7 @@ static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float 
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
-int gfx_camDist = 4000;
+float gfx_camDist;
 float gfx_interpRatio = 0;
 
 int displayWidth = 0;
@@ -71,6 +71,8 @@ static GLint u_spr_scale;
 static GLint u_spr_screen_offset;
 static GLint u_spr_tex_scale;
 static GLint u_spr_tex_offset;
+static GLint u_spr_color_mult;
+static GLint u_spr_color_add;
 
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
@@ -248,6 +250,8 @@ void initGraphics() {
 	u_spr_screen_offset = glGetUniformLocation(sprite_prog, "u_offset");
 	u_spr_tex_scale     = glGetUniformLocation(sprite_prog, "u_tex_scale");
 	u_spr_tex_offset    = glGetUniformLocation(sprite_prog, "u_tex_offset");
+	u_spr_color_mult    = glGetUniformLocation(sprite_prog, "u_c_mult");
+	u_spr_color_add     = glGetUniformLocation(sprite_prog, "u_c_add");
 
 	// Previously I checked that some uniforms are in the same spots across programs here,
 	// and log + set startupFailed=1 if not.
@@ -404,14 +408,14 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 		corners2[2][i] = p2[i] + c;
 		corners2[3][i] = p2[i] + d;
 	}
-	fraction best = {.numer=gfx_camDist, .denom=FIXP};
+	fraction best = {.numer=GFX_CAM_DIST_MAX, .denom=FIXP};
 	rangeconst(i, camCastCands.num) {
 		mover *m = camCastCands[i];
 		range(j, 4) {
 			raycast_interp(&best, m, corners1[j], corners2[j], dir, gfx_interpRatio);
 		}
 	}
-	return -(float)best.numer*FIXP/best.denom;
+	return (float)best.numer*FIXP/best.denom;
 }
 
 void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
@@ -437,14 +441,14 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	frameLook[1] = matWorldToCam[5];
 	frameLook[2] = matWorldToCam[9];
 
-	float dist = 0;
-	if (prox) dist = calcCamDist(matWorldToCam, p1, p2, prox);
+	if (prox) gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox);
+	else gfx_camDist = 0;
 	// Previously I'd use `p1` and `p2` directly and just set
-	// `dist` into `matWorldToCam[13]`. This is kinda clever,
+	// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
 	// but meant our calculations for how to draw trails were
 	// all messed up.
 	range(i, 3) {
-		int64_t shift = frameLook[i]*dist;
+		int64_t shift = -frameLook[i]*gfx_camDist;
 		camPos1[i] = p1[i] + shift;
 		camPos2[i] = p2[i] + shift;
 	}
@@ -471,6 +475,14 @@ void tint(float r, float g, float b, float a) {
 	GLfloat _b = b*a;
 	GLfloat _a = 1-a;
 	glUniform4f(u_main_tint, _r, _g, _b, _a);
+}
+
+void sprite_color_mult(float r, float g, float b, float a) {
+	glUniform4f(u_spr_color_mult, r, g, b, a);
+}
+
+void sprite_color_add(float r, float g, float b, float a) {
+	glUniform4f(u_spr_color_add, r, g, b, a);
 }
 
 void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha) {
@@ -581,8 +593,18 @@ void drawTrail(offset const start, unitvec const dir, int64_t len, float age_int
 void setup2dDrawing() {
 	glUseProgram(sprite_prog);
 	glBindVertexArray(vaos[1]);
+	spriteColorMult(1, 1, 1, 1);
+	spriteColorAdd(0, 0, 0, 0);
 
 	glDisable(GL_DEPTH_TEST);
+}
+
+void spriteColorMult(float r, float g, float b, float a) {
+	glUniform4f(u_spr_color_mult, r, g, b, a);
+}
+
+void spriteColorAdd(float r, float g, float b, float a) {
+	glUniform4f(u_spr_color_add, r, g, b, a);
 }
 
 // Can make variants of this -
@@ -630,6 +652,8 @@ void setup2dTextDrawing() {
 	// Our texture is 64x64, and I belive tex coords go 0-1
 	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
+
+	spriteColorMult(0.75, 0.75, 0.75, 1);
 }
 
 void drawTextCentered(char const *str, int y) {

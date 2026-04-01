@@ -1,4 +1,5 @@
-extern int gfx_camDist;
+extern float gfx_camDist;
+#define GFX_CAM_DIST_MAX 4000
 extern float gfx_interpRatio;
 
 extern int displayWidth;
@@ -16,6 +17,8 @@ extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha);
 extern void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp);
 
 extern void setup2dDrawing();
+extern void spriteColorMult(float r, float g, float b, float a);
+extern void spriteColorAdd(float r, float g, float b, float a);
 
 extern void centeredGrid2d(float boundsY);
 extern void selectTex2d(int tex, int texW, int texH);

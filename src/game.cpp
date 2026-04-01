@@ -625,7 +625,6 @@ static void drawPlayer(player *p, float alpha) {
 	if (p->hits < 3) tint_alpha = 0.1*p->hits;
 	tint(1, 0, 0, tint_alpha);
 
-	int64_t radius = 800;
 	int sprite;
 	int mesh = 32;
 
@@ -633,7 +632,7 @@ static void drawPlayer(player *p, float alpha) {
 	else if (p->team == 1) sprite = 9;
 	else sprite = 10;
 
-	drawCube(&p->m, radius, sprite, mesh, alpha);
+	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mesh, alpha);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
@@ -670,7 +669,10 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);
 	}
 
-	drawPlayer(p, 0.6f);
+
+	float alpha = (gfx_camDist-PLAYER_SHAPE_RADIUS) / (GFX_CAM_DIST_MAX-PLAYER_SHAPE_RADIUS) * 0.6;
+	// GL will handle clamping if `alpha` goes negative, so no worries
+	drawPlayer(p, alpha);
 
 
 	setup2dDrawing();

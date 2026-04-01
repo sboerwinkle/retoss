@@ -17,6 +17,12 @@ static void drawPrepStartText() {
 // Whole space avail
 static void drawSmallScores(u8 const scores[2]) {
 	range(i, 2) {
+		// Match text colors with the colors on the snake spritesheet
+		if (i == 0) {
+			spriteColorMult(0.84, 0.2, 0.2, 1);
+		} else {
+			spriteColorMult(0.24, 0.24, 1.0, 1);
+		}
 		// I don't know offhand how printf handles rounding vs truncating,
 		// so a bit of math to make sure truncate/round both look correct.
 		float displayScore = (3.0f * scores[i] + 1)/30;
@@ -37,6 +43,8 @@ static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float i
 	drawSmallScores(dests);
 
 	selectTex2d(11, 40, 40);
+	// Color multiple is set different for text, need to reset it for sprites.
+	spriteColorMult(1, 1, 1, 1);
 	// We have 5 display units per score point,
 	// but 10 internal units per score point,
 	// so we have to divide `scoreLimit` by 2.
