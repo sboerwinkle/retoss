@@ -65,7 +65,9 @@ struct gamestate {
 };
 
 extern void resetPlayer(gamestate *gs, int i);
+extern void softResetPlayer(player *p);
 extern void setupPlayers(gamestate *gs, int numPlayers);
+extern void killPlayer(player *p);
 
 extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex);
 extern void rmSolid(gamestate *gs, solid *s);

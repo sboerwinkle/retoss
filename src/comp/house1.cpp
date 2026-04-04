@@ -98,3 +98,13 @@ void house1(int64_t wall, int64_t door) {
 	bctx.pop();
 	popVarIgnore();
 }
+
+void house1_center(int64_t wall, int64_t door) {
+	int64_t shift = wall+wall/8+door/2;
+	// I'm being very goofy here.
+	// I know that I can exactly undo the `pos` because of how the bctx internals work (`posPending`),
+	// so I can save a `push`/`pop` in this method (which is very cheap and not worth optimizing around...)
+	bctx.pos(shift, -shift, 0);
+	house1(wall, door);
+	bctx.pos(-shift, shift, 0);
+}

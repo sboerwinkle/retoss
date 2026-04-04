@@ -14,32 +14,48 @@ static list<box*> tmpPlayerBoxes;
 
 int32_t gs_gravity = 30;
 
-void resetPlayer(gamestate *gs, int i) {
-	gs->players[i] = {
-		.m={
-			.pos={0,0,0},
-			.oldPos={-1,-1,-1},
-			.rot={FIXP,0,0,0},
-			.oldRot={0,0,0,0},
-			.type=T_PLAYER,
-		},
-		.vel={0,0,0},
-		.inputs={0,0,0},
-		.jump=0,
-		.shoot=0,
-		.alive=1,
-		.team=-1,
-		.cooldown=0,
-		.hits=0,
-		.hitsCooldown=0,
-		.prox=gs->vb_root,
+void resetPlayer(gamestate *gs, int ix) {
+	player &p = gs->players[ix];
+	p.m={
+		.pos={0,0,0},
+		.oldPos={-1,-1,-1},
+		.rot={FIXP,0,0,0},
+		.oldRot={0,0,0,0},
+		.type=T_PLAYER,
 	};
+	range(i, 3) {
+		p.vel[i] = 0;
+		p.inputs[i] = 0;
+	}
+	p.team=-1;
+	p.prox=gs->vb_root;
+
+	softResetPlayer(&p);
+}
+
+void softResetPlayer(player *_p) {
+	player &p = *_p;
+	p.jump=0;
+	p.shoot=0;
+	p.alive=1;
+	p.cooldown=0;
+	p.hits=0;
+	p.hitsCooldown=0;
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
 	gs->players.setMaxUp(numPlayers);
 	gs->players.num = numPlayers;
 	range(i, gs->players.num) resetPlayer(gs, i);
+}
+
+void killPlayer(player *p) {
+	p->alive = 0;
+	// If player was reloading, crosshairs will still
+	// try to play the animation frame-by-frame,
+	// but no progress is being made between game states.
+	// This causes a weird jitter.
+	p->cooldown = 0;
 }
 
 // cube diagonal is sqrt(3), or approx 1.75 (=7/4)
@@ -180,8 +196,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 		p->hitsCooldown--;
 		if (!p->hitsCooldown) {
 			if (p->hits >= 3) {
-				// un-alive
-				p->alive = 0;
+				killPlayer(p);
 				// Todo: Add gibs
 			} else {
 				p->hits = 0;

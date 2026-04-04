@@ -602,6 +602,15 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 			prepareGamestateForLoad(gs, 0);
 			lv_playground(gs);
 		}
+	} else if (isCmd(str, "/lv_swarm")) {
+		if (isReal) {
+			prepareGamestateForLoad(gs, 0);
+			lv_swarm(gs);
+		}
+	} else if (isCmd(str, "/die")) {
+		killPlayer(p);
+	} else if (isCmd(str, "/respawn")) {
+		softResetPlayer(p);
 	} else {
 		// If unprocessed, "main.cpp" puts this in a text chat buffer.
 		// We don't render that though, so it's basically lost.

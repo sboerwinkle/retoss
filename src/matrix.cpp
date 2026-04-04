@@ -401,6 +401,20 @@ void bound26(int32_t v[3], int32_t bound) {
 	range(i, 3) v[i] = v[i]*bound/d;
 }
 
+static int32_t sinTab[37] = {
+	0, 1429, 2856, 4277, 5690, 7092, 8481, 9854, 11207, 12540, 13848,
+	15131, 16384, 17606, 18795, 19948, 21063, 22138, 23170, 24159, 25102,
+	25997, 26842, 27636, 28378, 29066, 29698, 30274, 30792, 31251, 31651,
+	31991, 32270, 32488, 32643, 32737, 32768
+};
+int32_t quatSin(int deg5) {
+	if (deg5 < 0) deg5 = (deg5-36)%72+36;
+	else deg5 = (deg5+35)%72-35;
+
+	if (deg5 < 0) return -sinTab[-deg5];
+	return sinTab[deg5];
+}
+
 // Be aware that +/-Inf == +/-Inf and NaN == anything under this definition.
 // However, +/-Inf compare correctly with rationals, so that's nice.
 char fraction::lt(fraction const &other) const {

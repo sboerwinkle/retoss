@@ -231,12 +231,9 @@ static void spawn(gamestate *gs, int i, tskTdmData *data, char flip) {
 	player *p = &gs->players[i];
 	if (data->numSpawns < 2) return;
 
-	// We want to preserve their team
-	char team = p->team;
-	resetPlayer(gs, i);
-	p->team = team;
+	softResetPlayer(p);
 
-	// However, for selecting spawns, we coerce to {0,1}.
+	char team = p->team;
 	u8 spawn;
 	if (team >= 0 && team < 2) {
 		spawn = team ^ flip;

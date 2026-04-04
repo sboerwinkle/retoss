@@ -75,3 +75,9 @@ extern void cross(unitvec output, unitvec const a, unitvec const b);
 extern void cross(float output[3], float const a[3], float const b[3]);
 extern void bound64(offset v, int32_t bound);
 extern void bound26(int32_t v[3], int32_t bound);
+
+// Quaternions use `sin(x/2)`, and we use quaternions in the
+// level-setup functions. IDK how consistent `sin` is across
+// computers, though, so this function finds the req'd value
+// in 5-degree increments. Input wraps appropriately.
+extern int32_t quatSin(int deg5);

@@ -329,7 +329,8 @@ static void doWholeStep(gamestate *state, list<list<char>> const *_inputData, ch
 	list<player> &players = state->players;
 	players.setMaxUp(numPlayers);
 	while (players.num < numPlayers) {
-		resetPlayer(state, players.num++);
+		resetPlayer(state, players.num);
+		players.num++;
 	}
 
 	range(i, numPlayers) {
