@@ -10,7 +10,7 @@ int32_t pl_speed = 350;
 int64_t pl_walkForce = 60;
 // `pl_jump > pl_speed` means that for some slopes it's faster to bunny-hop. This is fine.
 int64_t pl_jump = 400;
-int64_t pl_gummy = 30;
+int64_t pl_gummy = 80;
 
 // TODO: We'll deal with this later, but I don't think the input desire should be rotated.
 //       Instead, just project it onto the lateral plane and scale it up.
@@ -72,8 +72,7 @@ static void getLatChange(offset output, int32_t *input, offset landSpeed, int64_
 }
 
 void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t dist, offset dest, player *p) {
-	// update pos according to normal + pos difference (input?)
-	// update vel according to normal + input vel difference
+	// Push us out of the wall
 	range(i, 3) dest[i] += dist*forceDir[i]/FIXP;
 	int64_t normalForce = -dot(contactVel, forceDir);
 	// Typically `normalForce` should be positive,

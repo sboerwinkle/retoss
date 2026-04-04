@@ -300,8 +300,6 @@ foundSampleNorm:;
 	// changes the contact velocity.
 	imat_applySm(v1, rot1, magicPt);
 	imat_applySm(v2, rot2, magicPt);
-	range(i, 3) if (v1[i] != v2[i]) puts("woah"); // tmp
-	range(i, 3) if (s->vel[i] != 0) puts("oof"); // tmp
 	// For now the other thing is a player (a sphere that doesn't spin),
 	// so its contact point doesn't matter.
 	range(i, 3) contactVel_out[i] = p->vel[i] - s->vel[i] + v1[i] - v2[i];

@@ -1,3 +1,22 @@
+- Shooting is weird at speed
+. increase gumminess?
+- change angled floor vector math?
+. reload anim while dead
+- ADS / third-person-angle
+- kill plane task
+. /die, /respawn
+. Check on `prox` being okay if we just set `alive` directly
+. double check save path safety
+- (update magic byte again)
+
+Possible things to do next:
+	Sounds
+	New level
+	co-op level editing
+	weapons / grenades / abilities
+	monogrammed skins
+	dynamic level (e.g. gondolas)
+		Prereq for vehicles
 
 . mouse capture
 . better baking
