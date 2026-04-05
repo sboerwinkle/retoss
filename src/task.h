@@ -17,6 +17,7 @@ struct taskInstance {
 
 enum {
 	TSK_TDM,
+	TSK_KILL_PLANE,
 };
 
 extern taskDefn* taskLookup(int id);

@@ -5,6 +5,7 @@
 #include "task.h"
 
 #include "tasks/tdmScore.h"
+#include "tasks/killPlane.h"
 
 static list<taskDefn> taskDefns;
 
@@ -30,8 +31,9 @@ static void add(int id, void (*f)(taskDefn*)) {
 
 void task_init() {
 	taskDefns.init();
-	// Only one for now...
+
 	add(TSK_TDM, &defineTask_tdmScore);
+	add(TSK_KILL_PLANE, &defineTask_killPlane);
 }
 
 void task_destroy() {

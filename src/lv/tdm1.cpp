@@ -9,8 +9,10 @@
 #include "../comp/trench1.h"
 
 #include "../tasks/tdmScore.h"
+#include "../tasks/killPlane.h"
 
 void lv_tdm1(gamestate *gs) {
+	taskKillPlane_create(gs, -30000);
 	pushVarIgnore();
 	bctx.reset(gs);
 

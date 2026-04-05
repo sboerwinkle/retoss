@@ -6,6 +6,7 @@
 #include "../random.h"
 
 #include "../comp/house1.h"
+#include "../tasks/killPlane.h"
 
 static void island() {
 	gp("0");
@@ -32,6 +33,7 @@ static void rand_island(uint32_t seed) {
 }
 
 extern void lv_swarm(gamestate *gs) {
+	taskKillPlane_create(gs, -64000);
 	bctx.reset(gs);
 	//bctx.resel();
 

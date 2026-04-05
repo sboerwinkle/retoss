@@ -1,4 +1,4 @@
 #pragma once
 
 #define WINDOW_TITLE "Retoss"
-#define MAGIC_FIRST_BYTE 0x91
+#define MAGIC_FIRST_BYTE 0x92

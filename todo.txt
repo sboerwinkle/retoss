@@ -1,13 +1,15 @@
-- Shooting is weird at speed
+. Shooting is weird at speed
+	Nope, shooting was already fine it seems like.
 . increase gumminess?
-- change angled floor vector math?
+! change angled floor vector math?
+	Actually I think I like it the way it is
 . reload anim while dead
 - ADS / third-person-angle
-- kill plane task
+. kill plane task
 . /die, /respawn
 . Check on `prox` being okay if we just set `alive` directly
 . double check save path safety
-- (update magic byte again)
+. (update magic byte again)
 
 Possible things to do next:
 	Sounds
