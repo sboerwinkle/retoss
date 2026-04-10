@@ -1,6 +1,8 @@
 extern float gfx_camDist;
 #define GFX_CAM_DIST_MAX 4000
 extern float gfx_interpRatio;
+extern float gfx_camHoverCos;
+extern float gfx_camHoverSin;
 
 extern int displayWidth;
 extern int displayHeight;
@@ -10,7 +12,7 @@ extern float displayAreaBounds[2];
 extern void initGraphics(); // should be `gfx_init` but this func is old
 extern void gfx_destroy();
 
-extern void setupFrame(int64_t const *p1, int64_t const *p2, box *prox);
+extern void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim);
 extern void tint(float r, float g, float b, float a);
 extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha);
 

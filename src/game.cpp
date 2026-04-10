@@ -37,10 +37,12 @@ static char mouseDragMode = 0;
 static int mouseDragSize = 30, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
-static char renderStats = 0;
+static char aimDownSights = 0;
+static double sensitivity = 0.0016, sensitivityAim = 0.0012;
 quat quatCamRotation = {1,0,0,0};
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
 static double domeYaw = 0, domePitch = 0;
+static char renderStats = 0;
 
 static char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
@@ -141,8 +143,9 @@ static void handleLook(double dx, double dy) {
 	quat o;
 
 	// dome look stuff
-	domeYaw   += dx*-0.0016;
-	domePitch += dy*-0.0016;
+	double sen = aimDownSights ? sensitivityAim : sensitivity;
+	domeYaw   -= dx*sen;
+	domePitch -= dy*sen;
 	while (domeYaw >  M_PI) domeYaw -= 2*M_PI;
 	while (domeYaw < -M_PI) domeYaw += 2*M_PI;
 	if (domePitch > M_PI_2) domePitch = M_PI_2;
@@ -242,6 +245,8 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 	if (button == GLFW_MOUSE_BUTTON_LEFT) {
 		if (action) activeInputs.event.shoot = 1;
 		activeInputs.state.shoot = action;
+	} else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+		aimDownSights = !!action;
 	}
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
@@ -653,7 +658,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	player *p = &gs->players[myPlayer];
 	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
-	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting);
+	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, aimDownSights);
 
 	rangeconst(i, gs->solids.num) {
 		solid *s = gs->solids[i];
@@ -679,6 +684,11 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 
 
+	// This used to go to 0 right as the camera hits the player's edge,
+	// but there are some minor inaccuracies:
+	// - Ideally we'd consider the near Z plane, not the camera itself.
+	// - Player is a cube, not round, so the angle the camera hovers at
+	//   affects the distance to the player's surface.
 	float alpha = (gfx_camDist-PLAYER_SHAPE_RADIUS) / (GFX_CAM_DIST_MAX-PLAYER_SHAPE_RADIUS) * 0.6;
 	// GL will handle clamping if `alpha` goes negative, so no worries
 	drawPlayer(p, alpha);
@@ -703,6 +713,16 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		// I'm just not sure if it might look funny b/c of
 		// pixel nonsense
 		sprite2d(0, 118, 10, 10, -5, -5);
+	}
+
+	// Health display.
+	// In third person you can see your own color, in first person we draw hearts.
+	if (aimDownSights && p->alive) {
+		centeredGrid2d(96);
+		selectTex2d(1, 64, 64);
+		rangeconst(i, 3 - p->hits) {
+			sprite2d(6, 57, 7, 7, -11.5+8*i, displayAreaBounds[1]-7);
+		}
 	}
 
 	setup2dTextDrawing();

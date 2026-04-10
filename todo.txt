@@ -4,7 +4,7 @@
 ! change angled floor vector math?
 	Actually I think I like it the way it is
 . reload anim while dead
-- ADS / third-person-angle
+. ADS / third-person-angle
 . kill plane task
 . /die, /respawn
 . Check on `prox` being okay if we just set `alive` directly
@@ -19,6 +19,11 @@ Possible things to do next:
 	monogrammed skins
 	dynamic level (e.g. gondolas)
 		Prereq for vehicles
+	Configurable settings
+		Watch config file, process when updated.
+		keybinds?
+		cam hover angle
+		aim FoV, sensitivity
 
 . mouse capture
 . better baking

@@ -35,7 +35,7 @@ char const * const texSrcFiles[NUM_TEXS] = {
 	"snakes.png",
 };
 GLuint textures[NUM_TEXS];
-static float const fovThingIdk = 1/0.7;
+static float const baseFovInverse = 1/0.7;
 static float const zNear = 100;
 
 static void populatePaneVertexData(list<GLfloat> *data);
@@ -45,6 +45,9 @@ static void populateSpriteVertexData();
 
 float gfx_camDist;
 float gfx_interpRatio = 0;
+// Corresponds to 15 degrees, maybe make this configurable later.
+float gfx_camHoverCos = 0.9659;
+float gfx_camHoverSin = 0.2588;
 
 int displayWidth = 0;
 int displayHeight = 0;
@@ -83,8 +86,7 @@ static int vtxIdx_cubeSixFace = -1;
 static int vtxIdx_pane = -1;
 
 static float matWorldToScreen[16];
-// lol actually unused at the moment, may come back later
-static float frameLook[3];
+static float camHoverDir[3];
 static offset camPos1;
 static offset camPos2;
 static list<mover*> camCastCands;
@@ -375,13 +377,13 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox) {
+static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse) {
 	camCastCands.num = 0;
 	velbox_query_ts(prox, &camCastCands);
 	unitvec dir;
-	range(i, 3) dir[i] = frameLook[i]*-FIXP; // Cast backwards
+	range(i, 3) dir[i] = camHoverDir[i]*FIXP;
 	float y = zNear;
-	float z = zNear/fovThingIdk;
+	float z = zNear/fovInverse;
 	float x = z*displayWidth/displayHeight;
 	// Pad things out a little to account for rounding errors.
 	// A couple units seems to be plenty.
@@ -392,7 +394,7 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	// This could be like a few matrix multiplications probably.
 	// This is faster and much less legible, clearly a win.
 	range(i, 3) {
-		float forward = y*matWorldToCam[1+4*i]; // could use `frameLook`, it's the same thing
+		float forward = y*matWorldToCam[1+4*i];
 		float side = x*matWorldToCam[0+4*i];
 		float vert = z*matWorldToCam[2+4*i];
 		int64_t a = forward - side - vert;
@@ -418,7 +420,7 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	return (float)best.numer*FIXP/best.denom;
 }
 
-void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
+void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
@@ -437,20 +439,33 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	quatWorldToCam[2] *= -1;
 	quatWorldToCam[3] *= -1;
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
-	frameLook[0] = matWorldToCam[1];
-	frameLook[1] = matWorldToCam[5];
-	frameLook[2] = matWorldToCam[9];
+	// Could also calculate the `camHoverDir` by applying the quaternion to a vector,
+	// but instead I'm doing this (linear combination of rotated axes).
+	camHoverDir[0] = -matWorldToCam[1] * gfx_camHoverCos + matWorldToCam[ 2] * gfx_camHoverSin;
+	camHoverDir[1] = -matWorldToCam[5] * gfx_camHoverCos + matWorldToCam[ 6] * gfx_camHoverSin;
+	camHoverDir[2] = -matWorldToCam[9] * gfx_camHoverCos + matWorldToCam[10] * gfx_camHoverSin;
 
-	if (prox) gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox);
-	else gfx_camDist = 0;
-	// Previously I'd use `p1` and `p2` directly and just set
-	// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
-	// but meant our calculations for how to draw trails were
-	// all messed up.
-	range(i, 3) {
-		int64_t shift = -frameLook[i]*gfx_camDist;
-		camPos1[i] = p1[i] + shift;
-		camPos2[i] = p2[i] + shift;
+	float fovInverse = baseFovInverse;
+	if (aim) fovInverse *= 4.0/3;
+
+	memcpy(camPos1, p1, sizeof(offset));
+	memcpy(camPos2, p2, sizeof(offset));
+	if (prox && !aim) {
+		// Right now `fovInverse` will always be `baseFovInverse`,
+		// but it still feels right to parameterize this since it's
+		// important that it match the value used in the matrix transform.
+		gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox, fovInverse);
+		// Previously I'd use `p1` and `p2` directly and just set
+		// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
+		// but meant our calculations for how to draw trails were
+		// all messed up.
+		range(i, 3) {
+			int64_t shift = camHoverDir[i]*gfx_camDist;
+			camPos1[i] += shift;
+			camPos2[i] += shift;
+		}
+	} else {
+		gfx_camDist = 0;
 	}
 
 	// Todo I'm sure I'm wasting some multiplications here.
@@ -461,8 +476,8 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox) {
 	float matPersp[16];
 	perspective(
 		matPersp,
-		fovThingIdk*displayHeight/displayWidth,
-		fovThingIdk,
+		fovInverse*displayHeight/displayWidth,
+		fovInverse,
 		zNear
 	);
 
