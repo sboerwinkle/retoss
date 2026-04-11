@@ -175,7 +175,7 @@ static void shoot(gamestate *gs, player *p) {
 	unitvec look;
 	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
 
-	fraction const limit = {.numer = 100'000, .denom = FIXP};
+	fraction const limit = {.numer = PL_SHOOT_RANGE, .denom = FIXP};
 	// Todo: I think this may be a bit sloppy at the moment, since a box that's a suitable
 	//       parent for something that large will necessarily be bigger than we need.
 	//       Might be able to improve this with a small velbox tweak involving `minParentR`.

@@ -422,7 +422,9 @@ static void* gameThreadFunc(void *startFramePtr) {
 
 		clock_gettime(CLOCK_MONOTONIC_RAW, &t1);
 
-		// Wake up and send player inputs
+		// Wake up and send player inputs.
+		// If we wanted, we should be able to pass `phantomState` here.
+		// We're about to advance it with our inputs and pass off to the gfx thread anyway.
 		handleSharedInputs(outboundFrame);
 		outboundFrame = (outboundFrame + 1) % FRAME_ID_MAX;
 

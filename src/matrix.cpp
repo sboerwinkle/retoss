@@ -318,26 +318,25 @@ void mat4Transf(float* res, float x, float y, float z){
 // Layout is X_gives, Y_gives, Z_gives, W_gives
 // (i.e. each group of 4 corresponds to one _input_ component)
 void perspective(float* m, float invSlopeX, float invSlopeY, float zNear) {
-	float const tmp_debug_offset = 0;
-	m[ 0] =  invSlopeX; 
-	m[ 1] =  0;
-	m[ 2] =  0;
-	m[ 3] =  0;
+	m[ 0] = invSlopeX;
+	m[ 1] = 0;
+	m[ 2] = 0;
+	m[ 3] = 0;
 
-	m[ 4] =  0;
-	m[ 5] =  0;
-	m[ 6] =  1;
-	m[ 7] =  1;
+	m[ 4] = 0;
+	m[ 5] = 0;
+	m[ 6] = 1;
+	m[ 7] = 1;
 
-	m[ 8] =  0;
-	m[ 9] =  invSlopeY;
-	m[10] =  0;
-	m[11] =  0;
+	m[ 8] = 0;
+	m[ 9] = invSlopeY;
+	m[10] = 0;
+	m[11] = 0;
 
-	m[12] =  0;
-	m[13] =  0;
-	m[14] = -2*zNear + tmp_debug_offset;
-	m[15] =  tmp_debug_offset;
+	m[12] = 0;
+	m[13] = 0;
+	m[14] = -2*zNear;
+	m[15] = 0;
 }
 
 // Assumes `o` isn't, like, super-duper big
