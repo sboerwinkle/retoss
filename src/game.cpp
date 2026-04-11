@@ -689,8 +689,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	// - Ideally we'd consider the near Z plane, not the camera itself.
 	// - Player is a cube, not round, so the angle the camera hovers at
 	//   affects the distance to the player's surface.
+	// GL will handle clamping if `alpha` goes negative, so no worries there.
 	float alpha = (gfx_camDist-PLAYER_SHAPE_RADIUS) / (GFX_CAM_DIST_MAX-PLAYER_SHAPE_RADIUS) * 0.6;
-	// GL will handle clamping if `alpha` goes negative, so no worries
 	drawPlayer(p, alpha);
 
 
@@ -715,9 +715,8 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 		sprite2d(0, 118, 10, 10, -5, -5);
 	}
 
-	// Health display.
-	// In third person you can see your own color, in first person we draw hearts.
-	if (aimDownSights && p->alive) {
+	// Draw hearts for player health
+	if (p->alive) {
 		centeredGrid2d(96);
 		selectTex2d(1, 64, 64);
 		rangeconst(i, 3 - p->hits) {
