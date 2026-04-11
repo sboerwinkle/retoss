@@ -35,7 +35,6 @@ char const * const texSrcFiles[NUM_TEXS] = {
 	"snakes.png",
 };
 GLuint textures[NUM_TEXS];
-static float const baseFovInverse = 1/0.7;
 static float const zNear = 100;
 
 static void populatePaneVertexData(list<GLfloat> *data);
@@ -45,9 +44,11 @@ static void populateSpriteVertexData();
 
 float gfx_camDist;
 float gfx_interpRatio = 0;
+float gfx_baseFovInverse = 1/0.7;
 // Corresponds to 15 degrees, maybe make this configurable later.
 float gfx_camHoverCos = 0.9659;
 float gfx_camHoverSin = 0.2588;
+float gfx_lookDir[3];
 
 int displayWidth = 0;
 int displayHeight = 0;
@@ -444,14 +445,17 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 	camHoverDir[0] = -matWorldToCam[1] * gfx_camHoverCos + matWorldToCam[ 2] * gfx_camHoverSin;
 	camHoverDir[1] = -matWorldToCam[5] * gfx_camHoverCos + matWorldToCam[ 6] * gfx_camHoverSin;
 	camHoverDir[2] = -matWorldToCam[9] * gfx_camHoverCos + matWorldToCam[10] * gfx_camHoverSin;
+	gfx_lookDir[0] = matWorldToCam[1];
+	gfx_lookDir[1] = matWorldToCam[5];
+	gfx_lookDir[2] = matWorldToCam[9];
 
-	float fovInverse = baseFovInverse;
+	float fovInverse = gfx_baseFovInverse;
 	if (aim) fovInverse *= 4.0/3;
 
 	memcpy(camPos1, p1, sizeof(offset));
 	memcpy(camPos2, p2, sizeof(offset));
 	if (prox && !aim) {
-		// Right now `fovInverse` will always be `baseFovInverse`,
+		// Right now `fovInverse` will always be `gfx_baseFovInverse`,
 		// but it still feels right to parameterize this since it's
 		// important that it match the value used in the matrix transform.
 		gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox, fovInverse);

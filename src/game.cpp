@@ -16,8 +16,11 @@
 #include "dl_game.h"
 #include "bctx.h"
 #include "lv.h"
+#include "player.h"
 #include "bcast.h"
 #include "task.h"
+
+#include "collision.h" // For raycasting
 
 #include "tasks/tdmScore.h"
 
@@ -649,6 +652,50 @@ static void drawPlayer(player *p, float alpha) {
 	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mesh, alpha);
 }
 
+static void drawCrosshair(gamestate *gs, player *self) {
+	fraction best = {.numer=PL_SHOOT_RANGE, .denom=FIXP};
+	unitvec dir;
+	range(i, 3) dir[i] = gfx_lookDir[i] * FIXP;
+	// Could use the stuff in vb_root, but the problem is not everything that's
+	// present while shooting is still there. For example, player boxes are
+	// cleaned up before the end of the step.
+	// For now we just try to check the same things that shooting does.
+	rangeconst(i, gs->players.num) {
+		player *p = &gs->players[i];
+		if (p == self) continue;
+		raycast_interp(&best, &p->m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+	}
+	rangeconst(i, gs->solids.num) {
+		mover *m = &gs->solids[i]->m;
+		raycast_interp(&best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+	}
+
+	float dist = gfx_camDist * gfx_camHoverCos + (float)best.numer*FIXP/best.denom;
+	float vert = gfx_camDist * gfx_camHoverSin;
+
+	centeredGrid2d(256);
+	float y;
+	if (!dist) y = 0;
+	else y = displayAreaBounds[1] * gfx_baseFovInverse * vert / dist;
+
+	// We've got it on the "font" texture for now.
+	// We double the resolution b/c we have to draw halves in some cases,
+	// and need to split a pixel for that.
+	selectTex2d(1, 128, 128);
+	if (self->cooldown) {
+		// Split crosshair
+		float distance = (self->cooldown - gfx_interpRatio)/2;
+		// src coords, size, dest coords
+		sprite2d(0, 118, 5, 10, -5-distance, y-5);
+		sprite2d(5, 118, 5, 10,    distance, y-5);
+	} else {
+		// Could draw it as 2 halves in this case as well,
+		// I'm just not sure if it might look funny b/c of
+		// pixel nonsense
+		sprite2d(0, 118, 10, 10, -5, y-5);
+	}
+}
+
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
@@ -696,24 +743,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	setup2dDrawing();
 
-	// Crosshair:
-	centeredGrid2d(256);
-	// We've got it on the "font" texture for now.
-	// We double the resolution b/c we have to draw halves in some cases,
-	// and need to split a pixel for that.
-	selectTex2d(1, 128, 128);
-	if (p->cooldown) {
-		// Split crosshair
-		float distance = (p->cooldown - interpRatio)/2;
-		// src coords, size, dest coords
-		sprite2d(0, 118, 5, 10, -5-distance, -5);
-		sprite2d(5, 118, 5, 10,    distance, -5);
-	} else {
-		// Could draw it as 2 halves in this case as well,
-		// I'm just not sure if it might look funny b/c of
-		// pixel nonsense
-		sprite2d(0, 118, 10, 10, -5, -5);
-	}
+	drawCrosshair(gs, p);
 
 	// Draw hearts for player health
 	if (p->alive) {

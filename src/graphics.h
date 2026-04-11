@@ -1,8 +1,10 @@
 extern float gfx_camDist;
 #define GFX_CAM_DIST_MAX 4000
 extern float gfx_interpRatio;
+extern float gfx_baseFovInverse;
 extern float gfx_camHoverCos;
 extern float gfx_camHoverSin;
+extern float gfx_lookDir[3];
 
 extern int displayWidth;
 extern int displayHeight;
