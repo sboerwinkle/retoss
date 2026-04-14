@@ -74,17 +74,13 @@ static int performanceFrames = 0, performanceIters = 0;
 #define PERF_FRAMES_MAX 120
 
 // 1 sec = 1 billion nanos
-#define BILLION  1000000000
-// This should be 666.. repeating,
-// but we want to step a little slower.
-// The interplay of these constants affects
-// how patient and aggressive we are when
-// it comes to watching for and responding to
-// lag spikes. I'm not sure about these values,
-// but hopefully they're about right?
-#define STEP_NANOS   67666666
-// Uhhh FASTER_NANOS got moved to a header because I need it somewhere else. Clean this up later.
-#define PENALTY_FRAMES 90
+#define BILLION  1'000'000'000
+
+// These control when more dramatic time-keeping measures kick in.
+// SERVER_MIA causes the game thread to pause until the server responds,
+// and SERVER_WAY_AHEAD causes the game thread to run as fast as it can.
+#define SERVER_MIA 60
+#define SERVER_WAY_AHEAD 5
 
 static int fasterFrames = 0;
 static time_t startSec;
@@ -387,6 +383,7 @@ static void insertOutbound(list<char> *dest, list<char> *src) {
 
 static void* gameThreadFunc(void *startFramePtr) {
 	long performanceTotal = 0;
+	char catchupMode = 0;
 	int32_t outboundFrame = *(int32_t*)startFramePtr;
 
 	list<list<char>> playerDatas;
@@ -539,7 +536,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			}
 			if (!clockOk) fasterFrames = PENALTY_FRAMES;
 		} else {
-			if (outboundData.size() >= MAX_AHEAD) {
+			if (outboundData.size() >= SERVER_MIA) {
 				puts("Game thread: Server is way behind, going to sleep until we hear something");
 				asleep = 1;
 				while (globalRunning && finalizedFrames <= 1) {
@@ -556,7 +553,23 @@ static void* gameThreadFunc(void *startFramePtr) {
 
 		if (fasterFrames) {
 			fasterFrames--;
-			destNanos += FASTER_NANOS;
+			if (finalizedFrames-1 >= SERVER_WAY_AHEAD) {
+				if (!catchupMode) {
+					printf("Game thread: %d frames behind, entering catchup mode!\n", finalizedFrames-1);
+					catchupMode = 1;
+				}
+				// Don't update destNanos.
+				// This means we'll try to run the next frame immediately.
+				// The business with `clockOk` means we might advance `destNanos`
+				// once `fasterFrames` runs out, but we'll still be going nearly
+				// as fast as we can simulate.
+			} else {
+				if (catchupMode) {
+					printf("Game thread: %d frames behind, catchup mode complete.\n", finalizedFrames-1);
+					catchupMode = 0;
+				}
+				destNanos += FASTER_NANOS;
+			}
 		} else {
 			destNanos += STEP_NANOS;
 		}

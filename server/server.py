@@ -39,7 +39,7 @@ INCR = 1/FRAMERATE
 # Kick clients that miss too many frames as well.
 # Side effect is that this limits the size of a single message to approx USAGE_POOL,
 # since they can't wait for their pool to recover w/out completing it.
-MAX_MISSED_FRAMES = 5*FRAMERATE
+MAX_MISSED_FRAMES = 10*FRAMERATE
 
 EMPTY_MSG = b'\0\0\0\0'
 

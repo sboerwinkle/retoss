@@ -5,7 +5,16 @@
 #include "bloc.h"
 #include "queue.h"
 
+// This should be 666.. repeating,
+// but we want to step a little slower.
+// The interplay of these constants affects
+// how patient and aggressive we are when
+// it comes to watching for and responding to
+// lag spikes. I'm not sure about these values,
+// but hopefully they're about right?
+#define STEP_NANOS   67666666
 #define FASTER_NANOS 66000000
+#define PENALTY_FRAMES 90
 
 #define TEXT_BUF_LEN 200
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
