@@ -110,6 +110,7 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 	}
 	updGamestate = gs;
 	updPlayer = &gs->players[myPlayer];
+	vb_now = gs->clock;
 
 	// We do this even when not `isFirstLoad` because some things
 	// (like positions) like to know when they're encountered the first time,
@@ -441,6 +442,7 @@ void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 		return;
 	}
 
+	// TODO I think this paragraph be unused in practice.
 	int* version = (int*)dlsym(fileHandle, "lvlWrVersion");
 	if (version && *version > lvlWrVersion) {
 

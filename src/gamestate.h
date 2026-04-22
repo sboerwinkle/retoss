@@ -7,14 +7,17 @@
 #include "matrix.h"
 struct mover; // "box" and "gamestate" reference each other's types
 #include "box.h"
-#include "cloneable.h"
 #include "task.h"
 
 #define PLAYER_SHAPE_RADIUS 800
 #define TRAIL_LIFETIME 45
 #define NUM_TEXS 12
 
+#define NUM_SHAPES 3
+#define T_PLAYER 32
+
 extern int32_t gs_gravity;
+extern double const shapeDiagonalMultipliers[NUM_SHAPES];
 
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
@@ -35,16 +38,14 @@ struct player {
 	box *prox;
 };
 
-#define NUM_SHAPES 3
-#define T_PLAYER 32
-
 #define solidFromMover(x) ((solid*)((char*)(x) - offsetof(solid, m)))
-struct solid : cloneable {
+struct solid {
 	mover m;
 	int64_t vel[3];
 	int64_t r;
 	int32_t tex;
 	box *b;
+	clone_t clone;
 };
 
 // Todo Could make this copy-on-write (since we never write it) to save a little effort on gamestate duplication
@@ -57,11 +58,13 @@ struct trail {
 
 struct gamestate {
 	list<player> players;
+	list<constelInst*> constels;
 	list<solid*> solids;
 	list<solid*> selection;
 	list<trail> trails;
 	list<taskInstance> tasks;
 	box *vb_root;
+	int32_t clock;
 };
 
 extern void resetPlayer(gamestate *gs, int i);

@@ -360,6 +360,18 @@ void cross(float output[3], float const a[3], float const b[3]) {
 	output[2] = a[0]*b[1]-b[0]*a[1];
 }
 
+// Todo UTs lol
+int64_t mag(offset const v) {
+	int64_t magEst = labs(v[0]) + labs(v[1]) + labs(v[2]);
+	// double has 53 significant bits (52 stored),
+	// so anything that fits in 26 bits we can accurately store the square of.
+	// I assume all hardware agrees on the sqrt (after truncation) of any such double.
+	int64_t divisor = (magEst / (1<<26)) + 1;
+	int64_t square = 0;
+	range(i, 3) square += (v[i]/divisor) * (v[i]/divisor);
+	return divisor * (int64_t)sqrt(square);
+}
+
 // `bound` should fit in (I believe) 25 bits?
 // If you need a bigger bound, use a different function (presumably that pre-scales stuff?).
 // If you're not sure on the bound's size, write both functions and then a wrapper to choose one.

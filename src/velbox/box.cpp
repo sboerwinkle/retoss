@@ -320,15 +320,33 @@ static void clearIntersects(box *b) {
 	intersects.num = 0;
 }
 
-static void remove(box *b) {
+static void kill(box *b) {
 	clearIntersects(b);
+}
+
+static void reclaim(box *b) {
 	freeBoxes.add(b);
 }
 
-// This isn't super efficient due to the linear search of `kids`
-void velbox_remove(box *o) {
-	o->parent->kids.quickRm(o);
-	remove(o);
+void velbox_remove(box *b) {
+	// Maybe there are casse where we know it's not dead, but this is safer,
+	// and this method probably isn't called too-too much, right?
+	if (b->intersects.num) {
+		// This isn't super efficient due to the linear search of `kids`
+		b->parent->kids.quickRm(b);
+		kill(b);
+	}
+	reclaim(b);
+}
+
+void velbox_reclaimDead(box *b) {
+#ifndef NODEBUG
+	if (b->intersects.num) {
+		puts("ERROR: `velbox_reclaimDead` called on a live box");
+		exit(1);
+	}
+#endif
+	reclaim(b);
 }
 
 static box* mkParent(box *level, box *n, INT minParentR) {
@@ -607,13 +625,10 @@ void velbox_update(box *b) {
 	setIntersects_leaf(b);
 }
 
+static void cleanupOld(box *root);
+
 void velbox_refresh(box *root) {
-	// Interestingly, no other place that reads `end` can possibly be looking at the root.
-	// The closest we come is `intersects()` checks with a parent's intersect, but we assume
-	// we're valid for less time than the parent, so it's never the root we pull `end` from.
-	root->end++;
-	// So we just use it as a way to track vb_now lol
-	vb_now = root->end;
+	cleanupOld(root);
 
 	// The root never needs revalidation or intersect checking,
 	// which is convenient since we assume everybody we're refreshing
@@ -661,7 +676,7 @@ void velbox_refresh(box *root) {
 	}
 }
 
-void velbox_completeTick(box *root) {
+static void cleanupOld(box *root) {
 	globalOptionsSrc->num = 0;
 	globalOptionsSrc->add(root);
 	while(globalOptionsSrc->num) {
@@ -674,15 +689,22 @@ void velbox_completeTick(box *root) {
 				box *k = kids[j];
 				char del;
 				if (isLeaf(k)) {
-					del = (k->end == vb_now+1);
+					if (k->end == vb_now) {
+						kids.quickRmAt(j);
+						j--;
+						// It's assumed the leaf owner will see this.
+						// They're responsible for `velbox_reclaimDead` in this case.
+						kill(k);
+					}
 				} else {
-					del = !(k->kids.num || k->inUse);
+					if (!k->kids.num && !k->inUse) {
+						kids.quickRmAt(j);
+						j--;
+						kill(k);
+						reclaim(k);
+					}
+					// `k` is maybe reclaimed, but not free'd, so this is fine.
 					k->inUse = 0;
-				}
-				if (del) {
-					kids.quickRmAt(j);
-					j--;
-					remove(k);
 				}
 			}
 		}
@@ -694,10 +716,10 @@ box* velbox_getRoot() {
 	box *ret = velbox_alloc();
 	// I'm not sure if this matters lol
 	ret->start = 0;
-	// This is how we track `vb_now` across ticks, so it does actually matter
+	// Interestingly, no other place that reads `end` can possibly be looking at the root.
+	// The closest we come is `intersects()` checks with a parent's intersect, but we assume
+	// we're valid for less time than the parent, so it's never the root we pull `end` from.
 	ret->end = 0;
-	// Not sure yet if this is imp't
-	vb_now = 0;
 
 	ret->parent = NULL;
 	ret->r = MAX/SCALE + 1;

@@ -1,8 +1,8 @@
 // Ugh, this is all too tangled up with the current project.
-// I want boxes to be "cloneable", but that #include can't
-// be in this file (since the relative path doesn't make sense,
+// I want boxes to have a member of `clone` type, but that #include
+// can't be in this file (since the relative path doesn't make sense,
 // given that this file is meant to be included elsewhere...)
-//#include "../cloneable.h"
+//#include "../clone.h"
 
 // If you want to define these using GCC args, that's fine -
 // an alternative is to "wrap" this file (and the .cpp file)
@@ -15,6 +15,8 @@
 // and because I'm just doing as a personal project, it's up to
 // whoever includes this file to provide those definitions.
 
+
+#define vb_live(x) (!!(x)->intersects.num)
 
 // TODO These defines aren't scoped to the velbox stuff at all,
 //      they'll be present in any file that includes this header.
@@ -70,7 +72,7 @@ struct sect {
 	int i;
 };
 
-struct box : cloneable {
+struct box {
 	// Should not exceed INT_MAX/2 (so it can be safely added to itself)
 	INT r;
 
@@ -90,6 +92,7 @@ struct box : cloneable {
 	// we can just have `list<foo*>` as the way potential intersects are returned
 	// from a query!
 	LEAF *data;
+	clone_t clone;
 };
 
 extern list<box*> boxSerizPtrs;
@@ -106,9 +109,6 @@ extern void velbox_insert(box *guess, box *n);
 extern void velbox_update(box *b);
 // This should happen as the first thing. Advances time and updates intersects as necessary.
 extern void velbox_refresh(box *root);
-// This should happen as the last thing. Cleans up expired boxes mostly,
-// so there's less stuff to dup or serizialize.
-extern void velbox_completeTick(box *root);
 
 extern box* velbox_getRoot();
 extern void velbox_freeRoot(box *r);

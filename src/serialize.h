@@ -1,7 +1,6 @@
 #pragma once
 
 #include "list.h"
-#include "cloneable.h"
 
 extern char const *const seriz_versionString;
 extern int const seriz_latestVersion;
@@ -35,7 +34,15 @@ extern int seriz_verifyHeader();
 template <typename T>
 void transItemCount(list<T> *l) {
 	trans32(&l->num);
-	if (seriz_reading) l->setMaxUp(l->num);
+	if (seriz_reading) {
+		if (l->num > 10'000) {
+			if (seriz_error()) {
+				printf("I don't trust that list size, got %d (0x%X)\n", l->num, l->num);
+				l->num = 1;
+			}
+		}
+		l->setMaxUp(l->num);
+	}
 }
 
 template <typename T>
@@ -82,8 +89,6 @@ void transStrongRef(T* itm, list<T*> *l) {
 	}
 }
 
-// `T` should probably extend `cloneable`, but I'm too lazy
-// to do all the stuff that makes pretty errors about this.
 template <typename T>
 void transRefList(list<T*> *l) {
 	// We assume the list is already initialized,

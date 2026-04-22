@@ -73,7 +73,11 @@ extern int64_t dot(offset const o, unitvec const v);
 extern int32_t dot(unitvec const a, unitvec const b);
 extern void cross(unitvec output, unitvec const a, unitvec const b);
 extern void cross(float output[3], float const a[3], float const b[3]);
+// This may underestimate it a small bit, but that should be fine?
+extern int64_t mag(offset const v);
+// `bound` should fit in (I believe) 25 bits?
 extern void bound64(offset v, int32_t bound);
+// Input vector magnitude should fit in 26 bits.
 extern void bound26(int32_t v[3], int32_t bound);
 
 // Quaternions use `sin(x/2)`, and we use quaternions in the

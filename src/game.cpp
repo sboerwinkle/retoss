@@ -696,6 +696,12 @@ static void drawCrosshair(gamestate *gs, player *self) {
 	}
 }
 
+static void drawSolid(solid *s) {
+	int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
+	// `s->tex & 31` is validated in gamestate.cpp
+	drawCube(&s->m, s->r, s->tex & 31, mesh, 1.0f);
+}
+
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
@@ -707,11 +713,17 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
 	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, aimDownSights);
 
+	// Draw normal solids
 	rangeconst(i, gs->solids.num) {
-		solid *s = gs->solids[i];
-		int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
-		// `s->tex & 31` is validated in gamestate.cpp
-		drawCube(&s->m, s->r, s->tex & 31, mesh, 1.0f);
+		drawSolid(gs->solids[i]);
+	}
+	// Draw solids in constels
+	rangeconst(i, gs->constels.num) {
+		constelInst *ci = gs->constels[i];
+		// Currently all constels are always expanded, so this is pretty easy
+		rangeconst(j, ci->solids.num) {
+			drawSolid(&ci->solids[j]);
+		}
 	}
 
 	rangeconst(i, gs->players.num) {
@@ -721,10 +733,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 	}
 	tint(0, 0, 0, 0); // Clear tint.
 
-	// I'm using this clock in more and more places,
-	// really it belongs directly on `gamestate`
-	// now that isn't not confined to velbox stuff.
-	int32_t now = gs->vb_root->end;
+	int32_t now = gs->clock;
 	rangeconst(i, gs->trails.num) {
 		trail &tr = gs->trails[i];
 		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);

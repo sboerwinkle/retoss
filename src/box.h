@@ -1,7 +1,7 @@
 #pragma once
 
 #include "util.h"
-#include "cloneable.h"
+#include "clone.h"
 #include "list.h"
 
 // "gamestate.h" and "box.h" require each other;
