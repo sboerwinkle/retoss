@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include "gamestate.h"
+#include "serialize.h"
 
 #include "constel.h"
 
@@ -70,7 +71,7 @@ void transConstel(constel **_c) {
 				printf("Constel index should be no greater than %d, but got %d (0x%X)\n", serizPtrs.num, ix, ix);
 			}
 		} else if (ix < serizPtrs.num) {
-			c = serizPtrs[i];
+			c = serizPtrs[ix];
 		} else {
 			// First record of a new constel
 			c = mkConstel();

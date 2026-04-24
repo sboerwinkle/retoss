@@ -8,7 +8,6 @@ extern int const seriz_latestVersion;
 extern char seriz_reading;
 extern int seriz_index;
 extern int seriz_version;
-extern char seriz_complain;
 extern list<char> *seriz_data;
 
 extern void write8(char v);
@@ -29,6 +28,8 @@ extern void trans64(int64_t *x);
 
 extern void seriz_writeHeader();
 extern int seriz_verifyHeader();
+
+extern char seriz_error();
 
 // Assumes the list is valid, but maybe not the right size
 template <typename T>
@@ -54,15 +55,13 @@ void transWeakRef(T** itm, list<T*> *l) {
 		} else {
 			// -1 is the correct way to encode NULL,
 			// anything else is an error.
-			if (idx != -1 && seriz_complain) {
-				fprintf(
-					stderr,
-					"ERROR: Deserialized weak ref '%d' (=0x%X) invalid, only %d items known\n",
+			if (idx != -1 && seriz_error()) {
+				printf(
+					"Deserialized weak ref '%d' (=0x%X) invalid, only %d items known\n",
 					idx,
 					idx,
 					l->num
 				);
-				seriz_complain = 0;
 			}
 			*itm = NULL;
 		}

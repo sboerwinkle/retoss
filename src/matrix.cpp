@@ -222,6 +222,25 @@ void mat3FromIquat(float *M, iquat rot) {
 	M[8] = 1-(rot[1]*rot[1]+rot[2]*rot[2])/divisor;
 }
 
+void imatFromIquat(imat M, iquat const rot) {
+	// All the operations on components of `rot`
+	// involve a `*2`, so we just include that in
+	// the calculation of our fixed-point divisor.
+	int32_t const divisor = FIXP/2;
+
+	M[0] = FIXP-(rot[2]*rot[2]+rot[3]*rot[3])/divisor;
+	M[1] =      (rot[1]*rot[2]+rot[0]*rot[3])/divisor;
+	M[2] =      (rot[1]*rot[3]-rot[0]*rot[2])/divisor;
+
+	M[3] =      (rot[1]*rot[2]-rot[0]*rot[3])/divisor;
+	M[4] = FIXP-(rot[1]*rot[1]+rot[3]*rot[3])/divisor;
+	M[5] =      (rot[2]*rot[3]+rot[0]*rot[1])/divisor;
+
+	M[6] =      (rot[1]*rot[3]+rot[0]*rot[2])/divisor;
+	M[7] =      (rot[2]*rot[3]-rot[0]*rot[1])/divisor;
+	M[8] = FIXP-(rot[1]*rot[1]+rot[2]*rot[2])/divisor;
+}
+
 // Produces a matrix that represents the reverse rotation of `rot`
 void imatFromIquatInv(imat M, iquat const rot) {
 	// All the operations on components of `rot`

@@ -6,6 +6,7 @@
 #include "gamestate.h"
 
 #include "collision.h"
+#include "constel.h"
 #include "player.h"
 
 static list<mover*> queryResults;
@@ -78,8 +79,8 @@ static void solidValidate(solid *s) {
 static void solidPutVb(solid *s, box *guess, int duration) {
 	box *tmp = velbox_alloc();
 	s->b = tmp;
-	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
-	range(i, 3) tmp->vel[i] = s->m.pos[i] = s->m.oldPos[i];
+	memcpy(tmp->pos, s->m.pos, sizeof(tmp->pos));
+	range(i, 3) tmp->vel[i] = 0;//s->m.pos[i] = s->m.oldPos[i];
 	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type];
 	tmp->end = tmp->start + duration;
 	tmp->data = &s->m;
@@ -111,8 +112,6 @@ static void cpSolid(solid *t, solid *s) {
 	s->clone.ptr = t;
 	t->b = (box*)(s->b->clone.ptr);
 	t->b->data = &t->m;
-
-	return t;
 }
 
 solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
@@ -149,6 +148,7 @@ void rmSolid(gamestate *gs, solid *s) {
 
 static void constelMoveSolids(constelInst *_ci) {
 	constelInst &ci = *_ci;
+	constel &c = *ci.c;
 	imat rot1, rot2;
 	imatFromIquat(rot1, ci.m.oldRot);
 	imatFromIquat(rot2, ci.m.rot);
@@ -160,9 +160,9 @@ static void constelMoveSolids(constelInst *_ci) {
 		offset o1, o2;
 		imat_applySm(o1, rot1, cp.o); // TODO fix dumbass "Sm" naming
 		imat_applySm(o2, rot2, cp.o);
-		range(i, 3) {
-			s.m.oldPos[i] = ci.m.oldPos[i] + o1[i];
-			s.m.pos[i] = ci.m.pos[i] + o2[i];
+		range(j, 3) {
+			s.m.oldPos[j] = ci.m.oldPos[j] + o1[j];
+			s.m.pos[j] = ci.m.pos[j] + o2[j];
 		}
 
 		iquat_mult(s.m.oldRot, cp.rot, ci.m.oldRot);
@@ -174,7 +174,6 @@ static void constelMoveSolids(constelInst *_ci) {
 
 static void constelUpdate(gamestate *gs, constelInst *_ci) {
 	constelInst &ci = *_ci;
-	constel &c = *ci.c;
 	// For my sanity, probably better if constelInst
 	// always has either child solids or the aggregate mover
 	// recorded in vb_root at the end of the tick.
@@ -238,7 +237,7 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 	ci->solids.setMaxUp(c->points.num);
 	ci->solids.num = c->points.num;
 	rangeconst(i, c->points.num) {
-		solidPt &pt = c->points[i];
+		constelPt &pt = c->points[i];
 		solid &s = ci->solids[i];
 		s.r = pt.r;
 		s.tex = pt.tex;
@@ -248,14 +247,15 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 	constelMoveSolids(ci);
 
 	box *p = gs->vb_root;
-	rangeconst(i, ci.solids.num) {
-		solidPutVb(&ci.solids[i], p, ci.duration);
-		p = ci.solids[i].b->parent;
+	rangeconst(i, ci->solids.num) {
+		solidPutVb(&ci->solids[i], p, ci->duration);
+		p = ci->solids[i].b->parent;
 	}
 
 	gs->constels.add(ci);
 }
 
+// Todo: Usages of this feel clumsy, re-think this method's responsibilities?
 void rmConstelInst(gamestate *gs, constelInst *ci) {
 	gs->constels.stableRm(ci);
 	ci->c->decr();
@@ -461,12 +461,18 @@ void init(gamestate *gs) {
 	gs->trails.init();
 	gs->tasks.init();
 	gs->vb_root = velbox_getRoot();
+	gs->constels.init();
 
 	gs->clock = 0;
 	vb_now = 0;
 }
 
 void cleanup(gamestate *gs) {
+	while (gs->constels.num) {
+		rmConstelInst(gs, gs->constels[gs->constels.num-1]);
+	}
+	gs->constels.destroy();
+
 	velbox_freeRoot(gs->vb_root);
 	rangeconst(i, gs->tasks.num) {
 		taskInstance &task = gs->tasks[i];
@@ -550,11 +556,10 @@ static void transConstelInst(constelInst *ci) {
 	// which means we have to serialize it here. Could maybe improve this somehow?
 	range(i, 3) trans64(&ci->m.pos[i]);
 	range(i, 3) trans64(&ci->m.oldPos[i]);
-	range(i, 4) trans64(&ci->m.rot[i]);
-	range(i, 4) trans64(&ci->m.oldRot[i]);
+	range(i, 4) trans32(&ci->m.rot[i]);
+	range(i, 4) trans32(&ci->m.oldRot[i]);
 	trans32(&ci->duration);
 	if (seriz_reading) {
-		ci->type = 0;
 		ci->solids.init();
 	}
 	// I'm a little groggy, and not sure about this one.
@@ -574,7 +579,7 @@ static void transAllConstelInsts(gamestate *gs) {
 		transConstelInst(gs->constels[i]);
 		if (!seriz_reading) {
 			// Will need this for the task that holds pointers to constels
-			gs->constels[i]->clone.ix = i;
+			gs->constels[i]->clone.idx = i;
 		}
 	}
 
@@ -722,6 +727,6 @@ void gamestate_init() {
 }
 
 void gamestate_destroy() {
-	tmpPlayerBoxes.init();
+	tmpPlayerBoxes.destroy();
 	queryResults.destroy();
 }

@@ -57,6 +57,7 @@ extern void mat3FromQuat(float* M, quat rot);
 extern void mat4FromQuat(float* M, quat rot);
 
 extern void mat3FromIquat(float *M, iquat rot);
+extern void imatFromIquat(imat M, iquat const rot);
 extern void imatFromIquatInv(imat M, iquat const rot);
 
 extern void imat_applySm(offset dest, imat const rot, offset const src);

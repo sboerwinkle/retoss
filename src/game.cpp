@@ -15,6 +15,7 @@
 #include "dl.h"
 #include "dl_game.h"
 #include "bctx.h"
+#include "constel.h"
 #include "lv.h"
 #include "player.h"
 #include "bcast.h"
@@ -74,6 +75,7 @@ void game_init() {
 	dl_init();
 	bctx_init();
 	bcast_init();
+	constel_init();
 }
 
 gamestate* game_init2() {
@@ -89,6 +91,7 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	constel_destroy();
 	bcast_destroy();
 	bctx_destroy();
 	dl_destroy();

@@ -13,8 +13,9 @@ int const seriz_latestVersion = 0;
 char seriz_reading = 0;
 int seriz_index = 0;
 int seriz_version = 0;
-char seriz_complain = 0; // TODO use this in a lot more places
 list<char> *seriz_data;
+
+static char showError{};
 
 void write8(char v) {
 	seriz_data->add(v);
@@ -90,7 +91,7 @@ void seriz_writeHeader() {
 	seriz_data->num += 4;
 	// Everything looks good with the header, we're starting a new serialization,
 	// if we encounter any issue we should complain.
-	seriz_complain = 1;
+	showError = 1;
 }
 
 int seriz_verifyHeader() {
@@ -121,6 +122,14 @@ int seriz_verifyHeader() {
 	seriz_index = 4;
 	// Everything looks good with the header, we're starting a new deserialization,
 	// if we encounter any issue we should complain.
-	seriz_complain = 1;
+	showError = 1;
 	return 0;
+}
+
+char seriz_error() {
+	if (!showError) return 0;
+
+	showError = 0;
+	puts("ERROR: Issue encountered during serialization/deserialization. This will be logged below, but the (likely numerous) additional errors resulting from this issue will not.");
+	return 1;
 }

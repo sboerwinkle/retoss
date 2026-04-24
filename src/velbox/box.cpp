@@ -687,7 +687,6 @@ static void cleanupOld(box *root) {
 			globalOptionsDest->addAll(&kids);
 			range(j, kids.num) {
 				box *k = kids[j];
-				char del;
 				if (isLeaf(k)) {
 					if (k->end == vb_now) {
 						kids.quickRmAt(j);
