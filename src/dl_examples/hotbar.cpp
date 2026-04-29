@@ -14,8 +14,8 @@ extern "C" void lvlUpd(gamestate *gs) {
 	/*#1
 	gp();
 	bctx.pos(pvar("pos", look(3000)));
-	bctx.scale(var("scale", 1000));
-	bctx.add(0, 4, 1000);
+	bctx.rot(rvar("rot"));
+	bctx.add(var("shape"), var("tex", 4), var("scale", 1000));
 	bctx.peek();
 	 */
 }

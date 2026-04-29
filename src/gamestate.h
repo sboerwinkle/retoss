@@ -41,7 +41,7 @@ struct player {
 #define solidFromMover(x) ((solid*)((char*)(x) - offsetof(solid, m)))
 struct solid {
 	mover m;
-	int64_t vel[3];
+	//int64_t vel[3];
 	int64_t r;
 	int32_t tex;
 	box *b;
@@ -57,7 +57,7 @@ struct constelPt {
 	offset o;
 	iquat rot;
 	int64_t r;
-	int32_t type; // TODO validation for type/tex at least
+	int32_t type;
 	int32_t tex;
 };
 
@@ -109,8 +109,16 @@ extern void softResetPlayer(player *p);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 extern void killPlayer(player *p);
 
+extern void validateSize(int64_t *_size);
+extern void validateShape(int32_t *_shape);
+extern void validateTex(int32_t *_tex);
+
 extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex);
 extern void rmSolid(gamestate *gs, solid *s);
+
+extern constelInst* mkConstelInst(constel *c, int32_t duration);
+extern void addConstelInst(gamestate *gs, constelInst *ci);
+extern void rmConstelInst(gamestate *gs, constelInst *ci);
 
 extern void runTick(gamestate *gs);
 

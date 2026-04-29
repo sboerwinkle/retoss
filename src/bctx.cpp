@@ -4,6 +4,7 @@
 #include "matrix.h"
 
 #include "gamestate.h"
+#include "constel.h"
 
 #include "bctx.h"
 
@@ -163,16 +164,36 @@ void buildCtx::resel() {
 
 void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
 	finalizeTranslate();
-	int64_t finalSize = size*transf.scale/1000;
-	if (finalSize <= 0) {
-		printf("bctx: Bad object size %ld\n", finalSize);
-		return;
-	}
-	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], finalSize, shape, tex);
+	size = size*transf.scale/1000;
+	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], size, shape, tex);
 	memcpy(s->m.rot, transf.rot, sizeof(transf.rot));
 	if (selecting) gs->selection.add(s);
 	prevBox = s->b;
 	if (solidCallback) (*solidCallback)(s);
+}
+
+void buildCtx::add(constel *c, int32_t duration) {
+	finalizeTranslate();
+	constelInst *ci = mkConstelInst(c, duration);
+	memcpy(ci->m.oldPos, transf.pos, sizeof(offset));
+	memcpy(ci->m.pos, transf.pos, sizeof(offset));
+	memcpy(ci->m.oldRot, transf.rot, sizeof(iquat));
+	memcpy(ci->m.rot, transf.rot, sizeof(iquat));
+	addConstelInst(gs, ci);
+}
+
+void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
+	finalizeTranslate();
+	constelPt &pt = c->points.add();
+	memcpy(pt.o, transf.pos, sizeof(offset));
+	memcpy(pt.rot, transf.rot, sizeof(iquat));
+	pt.r = size*transf.scale/1000;
+	pt.type = shape;
+	pt.tex = tex;
+
+	// Usually validation is in whatever method adds the thing to the gamestate,
+	// but that doesn't apply here.
+	validate(&pt);
 }
 
 void bctx_init() {

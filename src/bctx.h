@@ -39,6 +39,8 @@ struct buildCtx {
 
 	void resel();
 	void add(int32_t shape, int32_t tex, int64_t size);
+	void add(constel *c, int32_t duration);
+	void addPt(constel *c, int32_t shape, int32_t tex, int64_t size);
 };
 
 extern buildCtx bctx;

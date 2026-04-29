@@ -672,6 +672,14 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		mover *m = &gs->solids[i]->m;
 		raycast_interp(&best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
 	}
+	rangeconst(i, gs->constels.num) {
+		constelInst *ci = gs->constels[i];
+		// Currently all constels are always expanded, so this is pretty easy
+		rangeconst(j, ci->solids.num) {
+			mover *m = &ci->solids[j].m;
+			raycast_interp(&best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+		}
+	}
 
 	float dist = gfx_camDist * gfx_camHoverCos + (float)best.numer*FIXP/best.denom;
 	float vert = gfx_camDist * gfx_camHoverSin;

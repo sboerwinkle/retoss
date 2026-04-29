@@ -58,29 +58,47 @@ void killPlayer(player *p) {
 	p->cooldown = 0;
 }
 
+void validateSize(int64_t *_size) {
+	int64_t &size = *_size;
+	if (size <= 0) {
+		printf("Invalid size %ld!\n", size);
+		size = 1'000;
+	}
+}
+
+void validateShape(int32_t *_shape) {
+	int32_t &shape = *_shape;
+	if (shape < 0 || shape >= NUM_SHAPES) {
+		printf("Invalid shape type %d!!\n", shape);
+		shape = 0;
+	}
+}
+
+void validateTex(int32_t *_tex) {
+	// `s->tex & 31` is used in drawing code in main.cpp
+	int tex = *_tex & 31;
+	if (tex < 0 || tex >= NUM_TEXS) {
+		printf("Invalid shape texture %d!!\n", *_tex);
+		*_tex = 0;
+	}
+}
+
 // cube diagonal is sqrt(3), or approx 1.75 (=7/4)
 // slab diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
 // pole diagonal is like really close to 1 once you do the math
 double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2, 33.0f/32};
 
 static void solidValidate(solid *s) {
-	if (s->m.type < 0 || s->m.type >= NUM_SHAPES) {
-		printf("Invalid shape type %d!!\n", s->m.type);
-		s->m.type = 0;
-	}
-	// `s->tex & 31` is used in drawing code in main.cpp
-	int tex = s->tex & 31;
-	if (tex < 0 || tex >= NUM_TEXS) {
-		printf("Invalid shape texture %d!!\n", s->tex);
-		s->tex = 0;
-	}
+	validateSize(&s->r);
+	validateShape(&s->m.type);
+	validateTex(&s->tex);
 }
 
 static void solidPutVb(solid *s, box *guess, int duration) {
 	box *tmp = velbox_alloc();
 	s->b = tmp;
-	memcpy(tmp->pos, s->m.pos, sizeof(tmp->pos));
-	range(i, 3) tmp->vel[i] = 0;//s->m.pos[i] = s->m.oldPos[i];
+	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
+	range(i, 3) tmp->vel[i] = s->m.pos[i] - s->m.oldPos[i];
 	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type];
 	tmp->end = tmp->start + duration;
 	tmp->data = &s->m;
@@ -121,7 +139,7 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	s->m.oldPos[1] = s->m.pos[1] = y;
 	s->m.oldPos[2] = s->m.pos[2] = z;
 	s->m.type = shape;
-	s->vel[0] = s->vel[1] = s->vel[2] = 0;
+	//s->vel[0] = s->vel[1] = s->vel[2] = 0;
 	s->r = r;
 	s->tex = tex;
 	s->m.rot[0] = FIXP;
@@ -155,7 +173,6 @@ static void constelMoveSolids(constelInst *_ci) {
 	rangeconst(i, ci.solids.num) {
 		solid &s = ci.solids[i];
 		constelPt &cp = c.points[i];
-		// TODO validation that number of solids == number of pts
 
 		offset o1, o2;
 		imat_applySm(o1, rot1, cp.o); // TODO fix dumbass "Sm" naming
@@ -167,8 +184,6 @@ static void constelMoveSolids(constelInst *_ci) {
 
 		iquat_mult(s.m.oldRot, cp.rot, ci.m.oldRot);
 		iquat_mult(s.m.rot   , cp.rot, ci.m.rot   );
-
-		// TODO is solid.vel used? Do I need to populate that here?
 	}
 }
 
@@ -195,7 +210,6 @@ static void constelUpdate(gamestate *gs, constelInst *_ci) {
 			}
 		}
 	}
-	// TODO gotta make sure the connection between a constelInst solid and its box is kept during seriz
 }
 
 static void cpConstelInst(constelInst *b, constelInst *a) {
@@ -206,6 +220,7 @@ static void cpConstelInst(constelInst *b, constelInst *a) {
 	b->duration = a->duration;
 
 	b->solids.init(a->solids.num);
+	b->solids.num = a->solids.num;
 	rangeconst(i, a->solids.num) {
 		cpSolid(&b->solids[i], &a->solids[i]);
 	}
@@ -516,7 +531,7 @@ static void transBlock(void *mem, int len) {
 
 static void transSolid(solid *s) {
 	transBlock(s->m.pos, sizeof(s->m.pos));
-	transBlock(s->vel, sizeof(s->vel));
+	//transBlock(s->vel, sizeof(s->vel));
 	trans64(&s->r);
 	trans32(&s->m.type);
 	trans32(&s->tex);

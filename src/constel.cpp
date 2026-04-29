@@ -97,6 +97,7 @@ static void transConstelPts(constel *c) {
 		trans64(&pt.r);
 		trans32(&pt.type);
 		trans32(&pt.tex);
+		validate(&pt);
 	}
 }
 
@@ -116,6 +117,12 @@ void constelSerizFinalize() {
 		c->decr();
 	}
 	serizPtrs.num = 0;
+}
+
+void validate(constelPt *pt) {
+	validateSize(&pt->r);
+	validateShape(&pt->type);
+	validateTex(&pt->tex);
 }
 
 void constel_init() {

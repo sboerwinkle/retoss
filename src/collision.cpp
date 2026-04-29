@@ -302,7 +302,7 @@ foundSampleNorm:;
 	imat_applySm(v2, rot2, magicPt);
 	// For now the other thing is a player (a sphere that doesn't spin),
 	// so its contact point doesn't matter.
-	range(i, 3) contactVel_out[i] = p->vel[i] - s->vel[i] + v1[i] - v2[i];
+	range(i, 3) contactVel_out[i] = p->vel[i] - s->m.pos[i] + s->m.oldPos[i] + v1[i] - v2[i];
 
 	return dist;
 }
