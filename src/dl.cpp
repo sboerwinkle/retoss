@@ -18,7 +18,6 @@
 
 // DL (Dynamic Load) stuff
 
-static int lvlWrVersion = -1;
 static void *fileHandle = NULL;
 static void (*lvlUpdFn)(gamestate*) = NULL;
 static FILE* editEventsFifo = NULL;
@@ -76,11 +75,6 @@ static void lookAtGp_test(solid *s) {
 	if (raycast(&lookAtGp_best, &s->m, lookAtGp_origin, lookAtGp_dir)) {
 		strcpy(lookAtGp_winner, currentGroup->name);
 	}
-}
-
-static void lvlWr_reset(gamestate *gs) {
-	// May do more here eventually
-	prepareGamestateForLoad(gs, 0);
 }
 
 // This should only run in code where the mutex is locked.
@@ -440,21 +434,6 @@ void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 	if (!fileHandle) {
 		printDlError("`dlopen` failed");
 		return;
-	}
-
-	// TODO I think this paragraph be unused in practice.
-	int* version = (int*)dlsym(fileHandle, "lvlWrVersion");
-	if (version && *version > lvlWrVersion) {
-
-		void (*lvlWrFn)(gamestate*) = (void (*)(gamestate*)) dlsym(fileHandle, "lvlWr");
-		if (lvlWrFn) {
-			lvlWr_reset(gs);
-			(*lvlWrFn)(gs);
-			lvlWrVersion = *version;
-		} else {
-			printf("Unable to load \"lvlWr\" despite \"lvlWrVersion\" increasing from %d to %d.\n", lvlWrVersion, *version);
-			printDlError("`dlSym` says:");
-		}
 	}
 
 	lvlUpdFn = (void (*)(gamestate*)) dlsym(fileHandle, "lvlUpd");

@@ -64,6 +64,17 @@ void validateSize(int64_t *_size) {
 		printf("Invalid size %ld!\n", size);
 		size = 1'000;
 	}
+	if (size >= (int64_t)1<<47) {
+		// Limit here is based on needing to multiply by shapeDiagonalMultipliers
+		// and still have the result be exactly representable by a double.
+		// Doubles can represent any integer under 1<<53, and the biggest numerator
+		// in shapeDiagonalMultipliers is 33 (just over 1<<5, treat as 1<<6),
+		// so we take 53-6=47 as our limit.
+		// I think this is a few bits less than the other limit, which is that
+		// for any offset `o`, the value `FIXP*o` must not overflow.
+		printf("Invalid size %ld (too big)!\n", size);
+		size = (int64_t)1<<46; // This is bafflingly large
+	}
 }
 
 void validateShape(int32_t *_shape) {
@@ -270,9 +281,7 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 	gs->constels.add(ci);
 }
 
-// Todo: Usages of this feel clumsy, re-think this method's responsibilities?
-void rmConstelInst(gamestate *gs, constelInst *ci) {
-	gs->constels.stableRm(ci);
+void deleteConstelInst(constelInst *ci) {
 	ci->c->decr();
 	rangeconst(i, ci->solids.num) {
 		velbox_remove(ci->solids[i].b);
@@ -483,9 +492,7 @@ void init(gamestate *gs) {
 }
 
 void cleanup(gamestate *gs) {
-	while (gs->constels.num) {
-		rmConstelInst(gs, gs->constels[gs->constels.num-1]);
-	}
+	rangeconst(i, gs->constels.num) deleteConstelInst(gs->constels[i]);
 	gs->constels.destroy();
 
 	velbox_freeRoot(gs->vb_root);
@@ -551,7 +558,6 @@ static void transSolid(solid *s) {
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
 		s->b->data = &s->m;
 	}
-	// TODO is `s->clone` not in use?
 }
 
 static void transAllSolids(gamestate *gs) {
@@ -559,11 +565,13 @@ static void transAllSolids(gamestate *gs) {
 	rangeconst(i, gs->solids.num) {
 		if (seriz_reading) gs->solids[i] = new solid();
 		transSolid(gs->solids[i]);
+
+		// Unused, so untested
+		if (!seriz_reading) gs->solids[i]->clone.idx = i;
 	}
 }
 
 static void transConstelInst(constelInst *ci) {
-	// TODO definitely need a magic byte update lol
 	transConstel(&ci->c);
 
 	// At the moment, `constelInst`s don't move themselves, somebody else moves them
@@ -585,6 +593,8 @@ static void transConstelInst(constelInst *ci) {
 	// but that's probably well worth it. Maybe this is a smaller Todo.
 	transItemCount(&ci->solids);
 	rangeconst(i, ci->solids.num) transSolid(&ci->solids[i]);
+	// We have no way to serialize a reference to a constelInst's solid right now,
+	// which is related to not setting clone.idx here (wouldn't be helpful).
 }
 
 static void transAllConstelInsts(gamestate *gs) {
@@ -608,7 +618,8 @@ static void transAllConstelInsts(gamestate *gs) {
 			constelInst *ci = gs->constels[i];
 			if (ci->solids.num && ci->solids.num != ci->c->points.num) {
 				if (seriz_error()) puts("Encountered a constelInst with the wrong # of pts");
-				rmConstelInst(gs, ci);
+				deleteConstelInst(ci);
+				gs->constels.stableRmAt(i);
 				i--;
 			}
 		}

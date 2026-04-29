@@ -45,6 +45,8 @@ struct solid {
 	int64_t r;
 	int32_t tex;
 	box *b;
+
+	// Currently this is only being used for `gs->selection`.
 	clone_t clone;
 };
 
@@ -118,7 +120,7 @@ extern void rmSolid(gamestate *gs, solid *s);
 
 extern constelInst* mkConstelInst(constel *c, int32_t duration);
 extern void addConstelInst(gamestate *gs, constelInst *ci);
-extern void rmConstelInst(gamestate *gs, constelInst *ci);
+extern void deleteConstelInst(constelInst *ci);
 
 extern void runTick(gamestate *gs);
 

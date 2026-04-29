@@ -29,7 +29,6 @@ void constel::estimateRadius() {
 			printf("ERROR: constel: bad constelPt.type: %d\n", pt.type);
 			ptRadius = pt.r;
 		} else {
-			// TODO: Bounds check that result fits losslessly in `double` (before type casting).
 			ptRadius = pt.r * shapeDiagonalMultipliers[pt.type];
 		}
 		ptRadius += mag(pt.o);
