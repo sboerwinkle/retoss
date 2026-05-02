@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "util.h"
 #include "serialize.h"
 
 char const *const seriz_versionString = "rTs0";
@@ -40,8 +41,8 @@ void trans8(unsigned char *x) {
 }
 
 // This one can be used outside of serialization if we want
-void write32Raw(list<char> *data, int offset, int32_t v) {
-	*(int32_t*)(data->items + offset) = htonl(v);
+void write32Raw(list<char> *data, int addr, int32_t v) {
+	*(int32_t*)(data->items + addr) = htonl(v);
 }
 
 void write32(int32_t v) {
@@ -83,6 +84,14 @@ int64_t read64() {
 void trans64(int64_t *x) {
 	if (seriz_reading) *x = read64();
 	else write64(*x);
+}
+
+void transOffset(offset o) {
+	range(i, 3) trans64(&o[i]);
+}
+
+void transIquat(iquat r) {
+	range(i, 4) trans32(&r[i]);
 }
 
 void seriz_writeHeader() {

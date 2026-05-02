@@ -86,3 +86,6 @@ extern void bound26(int32_t v[3], int32_t bound);
 // computers, though, so this function finds the req'd value
 // in 5-degree increments. Input wraps appropriately.
 extern int32_t quatSin(int deg5);
+
+extern int32_t shittyASin(int32_t input);
+extern int32_t shittySin(int32_t input);

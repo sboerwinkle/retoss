@@ -310,7 +310,7 @@ static void step(gamestate *gs, void *_data) {
 	}
 }
 
-static void trans(void **ptr) {
+static char trans(gamestate *gs, void **ptr) {
 	tskTdmData *&data = *(tskTdmData**)ptr;
 	if (seriz_reading) {
 		data = (tskTdmData*)malloc(sizeof(tskTdmData));
@@ -332,6 +332,7 @@ static void trans(void **ptr) {
 	range(i, data->numSpawns) {
 		range(j, 3) trans64(&data->spawns[i][j]);
 	}
+	return 0;
 }
 
 static void copy(void **to, void *from) {

@@ -5,6 +5,7 @@
 
 #include "gamestate.h"
 #include "constel.h"
+#include "tasks/rails.h"
 
 #include "bctx.h"
 
@@ -172,7 +173,7 @@ void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
 	if (solidCallback) (*solidCallback)(s);
 }
 
-void buildCtx::add(constel *c, int32_t duration) {
+constelInst* buildCtx::add(constel *c, int32_t duration) {
 	finalizeTranslate();
 	constelInst *ci = mkConstelInst(c, duration);
 	memcpy(ci->m.oldPos, transf.pos, sizeof(offset));
@@ -180,6 +181,7 @@ void buildCtx::add(constel *c, int32_t duration) {
 	memcpy(ci->m.oldRot, transf.rot, sizeof(iquat));
 	memcpy(ci->m.rot, transf.rot, sizeof(iquat));
 	addConstelInst(gs, ci);
+	return ci;
 }
 
 void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
@@ -194,6 +196,16 @@ void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
 	// Usually validation is in whatever method adds the thing to the gamestate,
 	// but that doesn't apply here.
 	validate(&pt);
+}
+
+void buildCtx::addPt(tskRailsInstructions *instr, int32_t time) {
+	finalizeTranslate();
+	tskRailsPt &pt = instr->pts.add();
+	memcpy(pt.pos, transf.pos, sizeof(offset));
+	memcpy(pt.rot, transf.rot, sizeof(iquat));
+	pt.time = time;
+	// I don't think we have any validation on this at the moment,
+	// the task itself handles weird values OK I believe.
 }
 
 void bctx_init() {

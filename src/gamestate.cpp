@@ -640,19 +640,32 @@ static void transTrails(gamestate *gs) {
 	}
 }
 
-static void transTask(taskInstance *task) {
+static char transTask(gamestate *gs, taskInstance *task) {
 	if (seriz_reading) {
-		task->defn = taskLookup(read32());
+		int32_t taskId = read32();
+		task->defn = taskLookup(taskId);
+		if (!task->defn) {
+			if (seriz_error()) {
+				printf("Bad task defn ID %d\n", taskId);
+			}
+			return 1;
+		}
 	} else {
 		write32(task->defn->id);
 	}
-	(*task->defn->trans)(&task->data);
+	return (*task->defn->trans)(gs, &task->data);
 }
 
 static void transTasks(gamestate *gs) {
 	transItemCount(&gs->tasks);
-	rangeconst(i, gs->tasks.num) {
-		transTask(&gs->tasks[i]);
+	range(i, gs->tasks.num) {
+		char err = transTask(gs, &gs->tasks[i]);
+		if (err && seriz_reading) {
+			// Shouldn't get an err during writing,
+			// if we do somehow we'll just ignore it.
+			i--;
+			gs->tasks.num--;
+		}
 	}
 }
 

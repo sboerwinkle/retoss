@@ -1,11 +1,13 @@
 #include "util.h"
 #include "list.h"
 #include "matrix.h"
+#include "gamestate.h"
 
 #include "task.h"
 
 #include "tasks/tdmScore.h"
 #include "tasks/killPlane.h"
+#include "tasks/rails.h"
 
 static list<taskDefn> taskDefns;
 
@@ -34,6 +36,7 @@ void task_init() {
 
 	add(TSK_TDM, &defineTask_tdmScore);
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
+	add(TSK_RAILS, &defineTask_rails);
 }
 
 void task_destroy() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "list.h"
+#include "matrix.h"
 
 extern char const *const seriz_versionString;
 extern int const seriz_latestVersion;
@@ -25,6 +26,10 @@ extern void trans32(int32_t *x);
 extern void write64(int64_t v);
 extern int64_t read64();
 extern void trans64(int64_t *x);
+
+extern void transOffset(offset o);
+
+extern void transIquat(iquat r);
 
 extern void seriz_writeHeader();
 extern int seriz_verifyHeader();

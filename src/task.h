@@ -5,7 +5,7 @@ struct gamestate;
 struct taskDefn {
 	int id;
 	void (*step)(gamestate *gs, void *data);
-	void (*trans)(void **data);
+	char (*trans)(gamestate *gs, void **data);
 	void (*copy)(void **to, void *from);
 	void (*destroy)(void *data);
 };
@@ -18,6 +18,7 @@ struct taskInstance {
 enum {
 	TSK_TDM,
 	TSK_KILL_PLANE,
+	TSK_RAILS,
 };
 
 extern taskDefn* taskLookup(int id);

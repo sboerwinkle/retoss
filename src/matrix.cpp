@@ -450,3 +450,49 @@ int32_t quatSin(int deg5) {
 char fraction::lt(fraction const &other) const {
 	return numer*other.denom < other.numer*denom;
 }
+
+// I wrote this all out before I realized I already had a `sinTab` (dummy!),
+// and I ain't fixing it now!
+static int32_t sinTab2[10] = {
+	0x0000,
+	0x18F8,
+	0x30FB,
+	0x471C,
+	0x5A82,
+	0x6A6D,
+	0x7641,
+	0x7D8A,
+	0x8000, // == FIXP
+	0x8000, // Edge case handling
+};
+// Could also make a table of the sinTab2 deltas since we use them for interpolation,
+// but not bothering with that for now.
+static int asinTab[17] = {
+	0, 0, 0, 0, // [0x00, 0x20)
+	1, 1, 1, 2, // [0x20, 0x40)
+	2, 3, 3, 3, // [0x40, 0x60)
+	4, 4, 5, 6, // [0x60, 0x80)
+	6 // Lowballing the entry for [0x80,0x88) means that range won't break things
+};
+int32_t shittyASin(int32_t input) {
+	int prefix = input >> 11;
+	if (prefix < 0 || prefix >= 17) {
+		printf("WARN: Invalid input to shittyASin: %d\n", input);
+		return 0;
+	}
+	// This branch is probably unpredictable,
+	// but `asinTab` means there's only 1 such branch at least.
+	int entry = asinTab[prefix];
+	if (input > sinTab2[entry+1]) entry++;
+	// Interpolate
+	return (entry<<12) + (1<<12)*(input-sinTab2[entry])/(sinTab2[entry+1]-sinTab2[entry]);
+}
+int32_t shittySin(int32_t input) {
+	int entry = input>>12;
+	if (entry < 0 || entry >= 9) {
+		printf("WARN: Invalid input to shittySin: %d\n", input);
+		return 0;
+	}
+	// This is pretty straightforward, just interpolate.
+	return sinTab2[entry] + (sinTab2[entry+1]-sinTab2[entry]) * (input & ((1<<12)-1)) / (1<<12);
+}

@@ -13,12 +13,13 @@ static void step(gamestate *gs, void *data) {
 	}
 }
 
-static void trans(void **ptr) {
+static char trans(gamestate *gs, void **ptr) {
 	int64_t *&data = *(int64_t**)ptr;
 	if (seriz_reading) {
 		data = (int64_t*)malloc(sizeof(int64_t));
 	}
 	trans64(data);
+	return 0;
 }
 
 static void copy(void **to, void *from) {
