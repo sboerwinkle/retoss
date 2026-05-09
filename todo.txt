@@ -11,6 +11,9 @@
 . double check save path safety
 . (update magic byte again)
 
+- Edit mode: show if gp is dirty
+	Show if var dirty?
+	Show if any gp dirty?
 . hearts always
 - no health regain?
 	- UrT cited as nice

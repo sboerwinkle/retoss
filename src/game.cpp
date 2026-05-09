@@ -476,8 +476,10 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		} else if (v.type == VAR_T_ROT) {
 			// Input system maps up-down as Z (axis 2) and scroll as Y (axis 1),
 			// but we want these two flipped for rotation inputs
-			// (e.g. up-down is pitch (axis 1))
+			// (e.g. up-down is pitch (axis 1)).
+			// Separately, axis 0 feels backwards so flip it.
 			if (axis > 0) axis = 3-axis;
+			else amt *= -1;
 			int32_t angle = v.value.rotation.angles[axis];
 			angle += amt * v.incr;
 			while (angle >  180) angle -= 360;

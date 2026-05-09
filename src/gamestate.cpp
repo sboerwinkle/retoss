@@ -299,7 +299,9 @@ static void playerUpdate(gamestate *gs, player *p) {
 	// We copy `rot`=>`oldRot` when player input happens.
 	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
 	if (!p->alive) {
-		int divisor = (p->shoot & 1) ? 16 : 64;
+		int divisor = 64;
+		// TODO some way to go real slow (but I'm out of net inputs for now lol)
+		if (p->shoot & 1) divisor /= 4;
 		range(i, 3) p->m.pos[i] += p->inputs[i] / divisor;
 
 		p->prox = gs->vb_root;
