@@ -42,10 +42,15 @@ static int mouseDragSize = 30, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
 static char aimDownSights = 0;
+static char aimAtCamera = 1;
 static double sensitivity = 0.0016, sensitivityAim = 0.0012;
 quat quatCamRotation = {1,0,0,0};
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
 static double domeYaw = 0, domePitch = 0;
+// I'm pretty sure writes to a `float` are already atomic on most architectures,
+// so I think this compiles about the same as a normal float?
+// Todo: Look into std::atomic<float>::is_always_lock_free, maybe warn at compile time if false.
+static std::atomic<float> aimAtCamTan = 0;
 static char renderStats = 0;
 
 static char editMenuState = -1;
@@ -340,6 +345,29 @@ static void serializeEvent(char *event, char state, char *sentState, char const 
 	}
 }
 
+static void computeAimAtCamRotation(iquat output) {
+	double y = domeYaw/2;
+
+	double p = domePitch;
+	float tan = aimAtCamTan.load(std::memory_order::relaxed);
+	if (isfinite(tan)) {
+		p += atan(tan);
+		if (tan < 0) p += M_PI;
+	} else {
+		// Limit case, looking straight up
+		p += M_PI_2;
+	}
+	p /= 2;
+
+	quat yawRot = {(float)cos(y), 0, 0, (float)sin(y)};
+	quat pitchRot = {(float)cos(p), (float)sin(p), 0, 0};
+	quat o;
+	quat_mult(o, pitchRot, yawRot);
+	range(i, 4) {
+		output[i] = round(FIXP*o[i]);
+	}
+}
+
 // In theory I think this would let us have a dynamic size of input data per-frame.
 // In practice we don't use that, partly because anything that *might* winds up
 // being better implemented as a command, which ensures delivery (even if late,
@@ -370,7 +398,11 @@ void serializeInputs(char * dest) {
 	}
 
 	range(i, 3) p[i] = FIXP*moveWorld[i];
-	range(i, 4) p[3+i] = quatCamRotation[i]*FIXP;
+	if (aimAtCamera) {
+		computeAimAtCamRotation(p+3);
+	} else {
+		range(i, 4) p[3+i] = round(quatCamRotation[i]*FIXP);
+	}
 
 	// jump stuff.
 	serializeEvent(&sharedInputs.event.jump, sharedInputs.state.jump, &sentJumpState, "/_J", "/_j");
@@ -657,8 +689,10 @@ static void drawPlayer(player *p, float alpha) {
 	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mesh, alpha);
 }
 
-static void drawCrosshair(gamestate *gs, player *self) {
-	fraction best = {.numer=PL_SHOOT_RANGE, .denom=FIXP};
+static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction *best) {
+	best->numer=PL_SHOOT_RANGE;
+	best->denom=FIXP;
+
 	unitvec dir;
 	range(i, 3) dir[i] = gfx_lookDir[i] * FIXP;
 	// Could use the stuff in vb_root, but the problem is not everything that's
@@ -668,28 +702,63 @@ static void drawCrosshair(gamestate *gs, player *self) {
 	rangeconst(i, gs->players.num) {
 		player *p = &gs->players[i];
 		if (p == self) continue;
-		raycast_interp(&best, &p->m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+		raycast_interp(best, &p->m, p1, p2, dir, gfx_interpRatio);
 	}
 	rangeconst(i, gs->solids.num) {
 		mover *m = &gs->solids[i]->m;
-		raycast_interp(&best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
 	}
 	rangeconst(i, gs->constels.num) {
 		constelInst *ci = gs->constels[i];
 		// Currently all constels are always expanded, so this is pretty easy
 		rangeconst(j, ci->solids.num) {
 			mover *m = &ci->solids[j].m;
-			raycast_interp(&best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio);
+			raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
 		}
 	}
+}
 
-	float dist = gfx_camDist * gfx_camHoverCos + (float)best.numer*FIXP/best.denom;
-	float vert = gfx_camDist * gfx_camHoverSin;
-
+static void drawCrosshair(gamestate *gs, player *self) {
 	centeredGrid2d(256);
 	float y;
-	if (!dist) y = 0;
-	else y = displayAreaBounds[1] * gfx_baseFovInverse * vert / dist;
+
+	if (aimAtCamera) {
+		y = 0;
+		// We just draw the crosshair in the middle in this case.
+		// The other thread will use the distance calculated here
+		// to determine the angle the player is looking, however.
+		fraction best;
+		offset p1, p2;
+		memcpy(p1, gfx_camPos1, sizeof(offset));
+		memcpy(p2, gfx_camPos2, sizeof(offset));
+		// To keep the camera out of geometry, we ensure the corners of the near clipping plane
+		// aren't inside anything. However, the camera *itself* can still be inside geometry,
+		// which would mess up our raycast here. So, we "start" our raycast a bit in front of the
+		// camera (and the +2 is arbitrary padding).
+		// This can still fail for "pointy" geometry that sticks through the middle of the
+		// zNear plane, I'd have to add a 5th raycast point (center) when calculating
+		// `gfx_camDist` if I wanted to fix that. Not a big deal, but don't want to bother
+		// with such an edge case.
+		float start = GFX_Z_NEAR + 2;
+		range(i, 3) {
+			p1[i] += start * gfx_lookDir[i];
+			p2[i] += start * gfx_lookDir[i];
+		}
+		castCam(gs, self, p1, p2, &best);
+
+		float dist = (float)best.numer*FIXP/best.denom - (gfx_camDist*gfx_camHoverCos - start);
+		float vert = gfx_camDist * gfx_camHoverSin;
+		aimAtCamTan.store(vert/dist, std::memory_order::relaxed);
+	} else {
+		fraction best;
+		castCam(gs, self, self->m.oldPos, self->m.pos, &best);
+
+		float dist = gfx_camDist * gfx_camHoverCos + (float)best.numer*FIXP/best.denom;
+		float vert = gfx_camDist * gfx_camHoverSin;
+
+		if (!dist) y = 0;
+		else y = displayAreaBounds[1] * gfx_baseFovInverse * vert / dist;
+	}
 
 	// We've got it on the "font" texture for now.
 	// We double the resolution b/c we have to draw halves in some cases,

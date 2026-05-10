@@ -1,3 +1,4 @@
+#define GFX_Z_NEAR 100
 extern float gfx_camDist;
 #define GFX_CAM_DIST_MAX 4000
 extern float gfx_interpRatio;
@@ -10,6 +11,8 @@ extern int displayWidth;
 extern int displayHeight;
 extern float scaleX, scaleY;
 extern float displayAreaBounds[2];
+extern offset gfx_camPos1;
+extern offset gfx_camPos2;
 
 extern void initGraphics(); // should be `gfx_init` but this func is old
 extern void gfx_destroy();

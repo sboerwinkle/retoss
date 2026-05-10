@@ -35,7 +35,6 @@ char const * const texSrcFiles[NUM_TEXS] = {
 	"snakes.png",
 };
 GLuint textures[NUM_TEXS];
-static float const zNear = 100;
 
 static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
@@ -54,6 +53,8 @@ int displayWidth = 0;
 int displayHeight = 0;
 float scaleX, scaleY;
 float displayAreaBounds[2];
+offset gfx_camPos1;
+offset gfx_camPos2;
 
 static char startupFailed = 0;
 static GLuint main_prog;
@@ -88,8 +89,6 @@ static int vtxIdx_pane = -1;
 
 static float matWorldToScreen[16];
 static float camHoverDir[3];
-static offset camPos1;
-static offset camPos2;
 static list<mover*> camCastCands;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
@@ -383,8 +382,8 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	velbox_query_ts(prox, &camCastCands);
 	unitvec dir;
 	range(i, 3) dir[i] = camHoverDir[i]*FIXP;
-	float y = zNear;
-	float z = zNear/fovInverse;
+	float y = GFX_Z_NEAR;
+	float z = GFX_Z_NEAR/fovInverse;
 	float x = z*displayWidth/displayHeight;
 	// Pad things out a little to account for rounding errors.
 	// A couple units seems to be plenty.
@@ -452,8 +451,8 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 	float fovInverse = gfx_baseFovInverse;
 	if (aim) fovInverse *= 4.0/3;
 
-	memcpy(camPos1, p1, sizeof(offset));
-	memcpy(camPos2, p2, sizeof(offset));
+	memcpy(gfx_camPos1, p1, sizeof(offset));
+	memcpy(gfx_camPos2, p2, sizeof(offset));
 	if (prox && !aim) {
 		// Right now `fovInverse` will always be `gfx_baseFovInverse`,
 		// but it still feels right to parameterize this since it's
@@ -465,8 +464,8 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 		// all messed up.
 		range(i, 3) {
 			int64_t shift = camHoverDir[i]*gfx_camDist;
-			camPos1[i] += shift;
-			camPos2[i] += shift;
+			gfx_camPos1[i] += shift;
+			gfx_camPos2[i] += shift;
 		}
 	} else {
 		gfx_camDist = 0;
@@ -482,7 +481,7 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 		matPersp,
 		fovInverse*displayHeight/displayWidth,
 		fovInverse,
-		zNear
+		GFX_Z_NEAR
 	);
 
 	mat4Multf(matWorldToScreen, matPersp, matWorldToCam);
@@ -523,8 +522,8 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha) {
 	float matWorld[16];
 	float translate[3];
 	range(i, 3) {
-		int64_t x1 = m->oldPos[i] - camPos1[i];
-		int64_t x2 = m->pos[i]    - camPos2[i];
+		int64_t x1 = m->oldPos[i] - gfx_camPos1[i];
+		int64_t x2 = m->pos[i]    - gfx_camPos2[i];
 		translate[i] = x1 + gfx_interpRatio*(x2-x1);
 	}
 	matEmbiggen(matWorld, rot_data, translate[0], translate[1], translate[2]);
@@ -583,7 +582,7 @@ void drawTrail(offset const start, unitvec const dir, int64_t len, float age_int
 		// if that actually represented any useful savings. Things that aren't trails don't use
 		// these values, since they don't play well with floats at high speeds. Trails don't
 		// move though, so they won't play well at high speeds anyway.
-		int64_t cam = camPos1[i] + gfx_interpRatio*(camPos2[i]-camPos1[i]);
+		int64_t cam = gfx_camPos1[i] + gfx_interpRatio*(gfx_camPos2[i]-gfx_camPos1[i]);
 		translate[i] = start[i]-cam+forward[i];
 	}
 	// `sideways` is the trickiest to produce,

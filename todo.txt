@@ -14,6 +14,10 @@
 - Edit mode: show if gp is dirty
 	Show if var dirty?
 	Show if any gp dirty?
+- ADS doesn't change between 1st/3rd person, just changes view params
+- Settings toggle for 1st vs 3rd person?
+- Tall Guy?
+
 . hearts always
 - no health regain?
 	- UrT cited as nice

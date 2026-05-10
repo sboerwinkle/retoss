@@ -161,6 +161,14 @@ static void destroy(void *_data) {
 // it won't handle really really large numbers efficiently.
 void tskRails_timeHelper(tskRailsData *data) {
 	list<tskRailsPt> &pts = data->instr->pts;
+
+	// Avoids some infinite loop issues when editing and route is fresh
+	int32_t sum = 0;
+	rangeconst(i, pts.num) {
+		sum += pts[i].time;
+	}
+	if (sum <= 0) return;
+
 	while (1) {
 		int next = (data->ic+1)%pts.num;
 		if (data->time < pts[next].time) return;
