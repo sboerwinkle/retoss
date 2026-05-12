@@ -20,6 +20,7 @@
 #include "player.h"
 #include "bcast.h"
 #include "task.h"
+#include "config.h"
 
 #include "collision.h" // For raycasting
 
@@ -27,6 +28,7 @@
 
 #include "game.h"
 #include "game_callbacks.h"
+#include "game_graphics.h"
 
 struct timing {
 	long minNanos, maxNanos;
@@ -41,9 +43,9 @@ static char mouseDragMode = 0;
 static int mouseDragSize = 30, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
-static char aimDownSights = 0;
-static char aimAtCamera = 1;
-static double sensitivity = 0.0016, sensitivityAim = 0.0012;
+enum { AIM_NONE, AIM_LOW, AIM_HIGH };
+static lookConfig look1, look2; // TODO init these, maybe update when config items are set
+static lookConfig* look = &look1;
 quat quatCamRotation = {1,0,0,0};
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
 static double domeYaw = 0, domePitch = 0;
@@ -72,6 +74,89 @@ struct {
 } activeInputs = {}, sharedInputs = {};
 static char sentJumpState = 0, sentShootState = 0;
 
+//// Config parsing stuff ////
+
+// Could move this to config.cpp,
+// but at the moment that file doesn't concern itself with
+// the *meaning* of any config values.
+// Todo: Maybe a config2.cpp.
+
+static u8 parseAimType(char const *str) {
+	if (!strcmp(str, "NONE")) return AIM_NONE;
+	if (!strcmp(str, "LOW")) return AIM_LOW;
+	if (!strcmp(str, "HIGH")) return AIM_HIGH;
+	printf(
+		"Unknown aim option \"%s\". Defaulting to \"LOW\". Options are:\n"
+		"\tNONE: Crosshair drawn in center of screen, player shoots forwards.\n"
+		"\tLOW: Crosshair drawn where player would shoot.\n"
+		"\tHIGH: Crosshair drawn in center of screen, player shoots at crosshair.\n"
+		,
+		str
+	);
+	return AIM_LOW;
+}
+
+static cfg_item& fallback(cfg_item &a, cfg_item &b) {
+	return a.present ? a : b;
+}
+
+static void initLookConfigs() {
+	if (!cfg_sensitivity_1.present) {
+		cfg_sensitivity_1.set("0.0016");
+		if (!cfg_sensitivity_2.present) {
+			cfg_sensitivity_2.set("0.0012");
+		}
+	}
+	if (!cfg_fov_1.present) {
+		cfg_fov_1.set("70");
+		if (!cfg_fov_2.present) {
+			cfg_fov_2.set("55.4");
+		}
+	}
+	if (!cfg_cam_angle_1.present) {
+		cfg_cam_angle_1.set("15");
+		// We don't care about cam_angle_2,
+		// since by default look_2 is first-person.
+	}
+	if (!cfg_cam_dist_1.present) {
+		cfg_cam_dist_1.set("4000");
+		if (!cfg_cam_dist_2.present) {
+			cfg_cam_dist_2.set("0");
+		}
+	}
+	if (!cfg_aim_1.present) {
+		cfg_aim_1.set("LOW");
+		if (!cfg_aim_2.present) {
+			cfg_aim_2.set("NONE");
+		}
+	}
+
+	look1.sensitivity = cfg_sensitivity_1.getDouble();
+	look2.sensitivity = fallback(cfg_sensitivity_2, cfg_sensitivity_1).getDouble();
+
+	// Our "fovInv" corresponds to the cotangent.
+	// Rather than compute `1/tan(x)`, we compute `tan(90-x)` (b/c division sux).
+	// `/2` is because we need the angle from the center, not the whole fov.
+	// And of course the last bit is just degrees-to-radians conversion.
+	look1.fovInv = tan((90 - cfg_fov_1.getDouble()/2)*M_PI/180);
+	look2.fovInv = tan((90 - fallback(cfg_fov_2, cfg_fov_1).getDouble()/2)*M_PI/180);
+
+	double rads = cfg_cam_angle_1.getDouble()*M_PI/180;
+	look1.hovCos = cos(rads);
+	look1.hovSin = sin(rads);
+	rads = fallback(cfg_cam_angle_2, cfg_cam_angle_1).getDouble()*M_PI/180;
+	look2.hovCos = cos(rads);
+	look2.hovSin = sin(rads);
+
+	look1.hovDist = cfg_cam_dist_1.getDouble();
+	look2.hovDist = fallback(cfg_cam_dist_2, cfg_cam_dist_1).getDouble();
+
+	look1.aimType = parseAimType(cfg_aim_1.get());
+	look2.aimType = parseAimType(fallback(cfg_aim_2, cfg_aim_1).get());
+}
+
+//// Boring init stuff ////
+
 void game_init() {
 	initGraphics();
 	task_init();
@@ -84,6 +169,8 @@ void game_init() {
 }
 
 gamestate* game_init2() {
+	initLookConfigs();
+
 	gamestate *gs = (gamestate*)malloc(sizeof(gamestate));
 	// It's okay to do level gen in this method, but correct initialization of the gamestate
 	// is handled by gamestate.cpp (in this call)
@@ -105,6 +192,8 @@ void game_destroy() {
 	task_destroy();
 	gfx_destroy();
 }
+
+//// Input callbacks + related stuff ////
 
 void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos) {
 	long totalNanos = inputs_nanos + update_nanos + follow_nanos;
@@ -154,9 +243,8 @@ static void handleLook(double dx, double dy) {
 	quat o;
 
 	// dome look stuff
-	double sen = aimDownSights ? sensitivityAim : sensitivity;
-	domeYaw   -= dx*sen;
-	domePitch -= dy*sen;
+	domeYaw   -= dx*look->sensitivity;
+	domePitch -= dy*look->sensitivity;
 	while (domeYaw >  M_PI) domeYaw -= 2*M_PI;
 	while (domeYaw < -M_PI) domeYaw += 2*M_PI;
 	if (domePitch > M_PI_2) domePitch = M_PI_2;
@@ -257,7 +345,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 		if (action) activeInputs.event.shoot = 1;
 		activeInputs.state.shoot = action;
 	} else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-		aimDownSights = !!action;
+		look = action ? &look2 : &look1;
 	}
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
@@ -329,6 +417,8 @@ void copyInputs() {
 	}
 }
 
+//// Player control stuff ////
+
 static void serializeEvent(char *event, char state, char *sentState, char const *cmdUp, char const *cmdDown) {
 	if (*event) {
 		*event = 0;
@@ -398,7 +488,7 @@ void serializeInputs(char * dest) {
 	}
 
 	range(i, 3) p[i] = FIXP*moveWorld[i];
-	if (aimAtCamera) {
+	if (look->aimType == AIM_HIGH) {
 		computeAimAtCamRotation(p+3);
 	} else {
 		range(i, 4) p[3+i] = round(quatCamRotation[i]*FIXP);
@@ -437,6 +527,8 @@ void playerInputs(player *p, char const *data, int size) {
 	range(i, 4) p->m.rot[i] = ptr[3+i];
 }
 
+//// Text command stuff ////
+
 static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 	quat composedRotation;
 	quat_mult(composedRotation, quatCamRotation, v->value.position.rot);
@@ -458,9 +550,6 @@ static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 	*out_axis = bestAxis;
 	*out_sign = bestSign;
 }
-
-
-//// Text command stuff ////
 
 static int64_t* pvarUpdatePtr(dl_var *v) {
 	if (v->value.position.pinned) {
@@ -722,7 +811,7 @@ static void drawCrosshair(gamestate *gs, player *self) {
 	centeredGrid2d(256);
 	float y;
 
-	if (aimAtCamera) {
+	if (look->aimType == AIM_HIGH) {
 		y = 0;
 		// We just draw the crosshair in the middle in this case.
 		// The other thread will use the distance calculated here
@@ -746,18 +835,20 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		}
 		castCam(gs, self, p1, p2, &best);
 
-		float dist = (float)best.numer*FIXP/best.denom - (gfx_camDist*gfx_camHoverCos - start);
-		float vert = gfx_camDist * gfx_camHoverSin;
+		float dist = (float)best.numer*FIXP/best.denom - (gfx_camDist*look->hovCos - start);
+		float vert = gfx_camDist * look->hovSin;
 		aimAtCamTan.store(vert/dist, std::memory_order::relaxed);
-	} else {
+	} else if (look->aimType == AIM_LOW) {
 		fraction best;
 		castCam(gs, self, self->m.oldPos, self->m.pos, &best);
 
-		float dist = gfx_camDist * gfx_camHoverCos + (float)best.numer*FIXP/best.denom;
-		float vert = gfx_camDist * gfx_camHoverSin;
+		float dist = gfx_camDist * look->hovCos + (float)best.numer*FIXP/best.denom;
+		float vert = gfx_camDist * look->hovSin;
 
 		if (!dist) y = 0;
-		else y = displayAreaBounds[1] * gfx_baseFovInverse * vert / dist;
+		else y = displayAreaBounds[1] * look->fovInv * vert / dist;
+	} else { // AIM_NONE
+		y = 0;
 	}
 
 	// We've got it on the "font" texture for now.
@@ -793,7 +884,7 @@ void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, lon
 
 	player *p = &gs->players[myPlayer];
 	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
-	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, aimDownSights);
+	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, look);
 
 	// Draw normal solids
 	rangeconst(i, gs->solids.num) {

@@ -43,7 +43,6 @@ static void populateSpriteVertexData();
 
 float gfx_camDist;
 float gfx_interpRatio = 0;
-float gfx_baseFovInverse = 1/0.7;
 // Corresponds to 15 degrees, maybe make this configurable later.
 float gfx_camHoverCos = 0.9659;
 float gfx_camHoverSin = 0.2588;
@@ -377,7 +376,7 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse) {
+static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse, int64_t hovDist) {
 	camCastCands.num = 0;
 	velbox_query_ts(prox, &camCastCands);
 	unitvec dir;
@@ -410,7 +409,7 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 		corners2[2][i] = p2[i] + c;
 		corners2[3][i] = p2[i] + d;
 	}
-	fraction best = {.numer=GFX_CAM_DIST_MAX, .denom=FIXP};
+	fraction best = {.numer=hovDist, .denom=FIXP};
 	rangeconst(i, camCastCands.num) {
 		mover *m = camCastCands[i];
 		range(j, 4) {
@@ -420,7 +419,7 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	return (float)best.numer*FIXP/best.denom;
 }
 
-void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
+void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
@@ -441,23 +440,17 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 	mat4FromQuat(matWorldToCam, quatWorldToCam);
 	// Could also calculate the `camHoverDir` by applying the quaternion to a vector,
 	// but instead I'm doing this (linear combination of rotated axes).
-	camHoverDir[0] = -matWorldToCam[1] * gfx_camHoverCos + matWorldToCam[ 2] * gfx_camHoverSin;
-	camHoverDir[1] = -matWorldToCam[5] * gfx_camHoverCos + matWorldToCam[ 6] * gfx_camHoverSin;
-	camHoverDir[2] = -matWorldToCam[9] * gfx_camHoverCos + matWorldToCam[10] * gfx_camHoverSin;
+	camHoverDir[0] = -matWorldToCam[1] * lookCfg->hovCos + matWorldToCam[ 2] * lookCfg->hovSin;
+	camHoverDir[1] = -matWorldToCam[5] * lookCfg->hovCos + matWorldToCam[ 6] * lookCfg->hovSin;
+	camHoverDir[2] = -matWorldToCam[9] * lookCfg->hovCos + matWorldToCam[10] * lookCfg->hovSin;
 	gfx_lookDir[0] = matWorldToCam[1];
 	gfx_lookDir[1] = matWorldToCam[5];
 	gfx_lookDir[2] = matWorldToCam[9];
 
-	float fovInverse = gfx_baseFovInverse;
-	if (aim) fovInverse *= 4.0/3;
-
 	memcpy(gfx_camPos1, p1, sizeof(offset));
 	memcpy(gfx_camPos2, p2, sizeof(offset));
-	if (prox && !aim) {
-		// Right now `fovInverse` will always be `gfx_baseFovInverse`,
-		// but it still feels right to parameterize this since it's
-		// important that it match the value used in the matrix transform.
-		gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox, fovInverse);
+	if (prox && lookCfg->hovDist) {
+		gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox, lookCfg->fovInv, lookCfg->hovDist);
 		// Previously I'd use `p1` and `p2` directly and just set
 		// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
 		// but meant our calculations for how to draw trails were
@@ -479,8 +472,8 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, char aim) {
 	float matPersp[16];
 	perspective(
 		matPersp,
-		fovInverse*displayHeight/displayWidth,
-		fovInverse,
+		lookCfg->fovInv*displayHeight/displayWidth,
+		lookCfg->fovInv,
 		GFX_Z_NEAR
 	);
 

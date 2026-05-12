@@ -2,7 +2,7 @@
 
 #include "../gamestate.h"
 #include "../bctx.h"
-#include "../dl.h"
+#include "../dl_helpers.h"
 
 extern "C" void lvlUpd(gamestate *gs) {
 	bctx.resel();

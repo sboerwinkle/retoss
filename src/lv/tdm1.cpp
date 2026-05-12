@@ -2,7 +2,7 @@
 
 #include "../gamestate.h"
 #include "../bctx.h"
-#include "../dl.h"
+#include "../dl_helpers.h"
 
 #include "../comp/house1.h"
 #include "../comp/house2.h"

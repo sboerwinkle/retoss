@@ -41,20 +41,7 @@ extern mtx_t dl_varMtx;
 extern dl_varGroup *dl_selectedGroup;
 extern int dl_selectedVar;
 
-extern int64_t* look(int64_t dist);
-
-extern void gp(char const* groupName);
 extern void dl_selectGp(char const* groupName);
-extern void pinNext();
-extern void pushVarIgnore();
-extern void popVarIgnore();
-
-extern int64_t var(char const *name);
-extern int64_t var(char const *name, int64_t val);
-extern int64_t const * pvar(char const *name);
-extern int64_t const * pvar(char const *name, offset const val);
-extern int32_t const * rvar(char const *name);
-extern int32_t const * rvar(char const *name, int32_t const val[3]);
 
 extern void dl_processFile(char const *filename, gamestate *gs, int myPlayer);
 extern void dl_upd(gamestate *gs, int myPlayer);

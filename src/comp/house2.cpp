@@ -1,6 +1,6 @@
 #include "../gamestate.h"
 #include "../bctx.h"
-#include "../dl.h"
+#include "../dl_helpers.h"
 
 void house2(gamestate *gs, int64_t wall, int32_t const * r1) {
 	pushVarIgnore();

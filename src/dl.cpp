@@ -14,6 +14,7 @@
 #include "collision.h"
 
 #include "dl.h"
+#include "dl_helpers.h"
 #include "dl_game.h"
 
 // DL (Dynamic Load) stuff

@@ -838,7 +838,7 @@ int main(int argc, char **argv) {
 			portSrc = "program argument";
 		}
 	} else {
-		char const *configHost = config_getHost(), *configPort = config_getPort();
+		char const *configHost = cfg_host.get(), *configPort = cfg_port.get();
 		if (!*configHost) {
 			puts("You must specify a host to connect to, as none was found in the config!");
 			return 1;
@@ -882,8 +882,8 @@ int main(int argc, char **argv) {
 	isLoader = (numPlayers == 1);
 	// Connection was at least mostly successful,
 	// record the `host` and `port` that we used.
-	config_setHost(host);
-	config_setPort(port);
+	cfg_host.set(host);
+	cfg_port.set(port);
 
 	net2_init(numPlayers, startFrame);
 	watch_init();

@@ -383,6 +383,7 @@ static void writeString(list<char> *data, char *str) {
 static void writeObj(list<char> *data, jsonValue *v, int indent) {
 	char useIndent = 0;
 	if (indent >= 0) {
+		/*
 		for (int i = 0; i < v->d.obj.num; i++) {
 			elementType t = v->d.obj[i].value.type;
 			if (t == J_OBJ || t == J_ARR) {
@@ -391,6 +392,12 @@ static void writeObj(list<char> *data, jsonValue *v, int indent) {
 				break;
 			}
 		}
+		*/
+		// Original would keep "simple" objects on one line.
+		// This version always makes objects multi-line
+		// (when `indent` is requested)
+		indent++;
+		useIndent = 1;
 	}
 
 	data->add('{');

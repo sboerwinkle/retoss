@@ -6,82 +6,105 @@
 #include "json.h"
 #include "file.h"
 
+#include "config.h"
+
 #define CONFIG_NAME "retoss"
 
-#define BUF_LEN 200
+static char configDir[CFG_BUF_LEN] = {0};
+static char configFile[CFG_BUF_LEN] = {0};
+static char modified = 0;
 
-static char configDir[BUF_LEN];
-static char configFile[BUF_LEN];
-static char modified;
-
-static char host[BUF_LEN];
-static char port[BUF_LEN];
-
-#define NUM_KEYS 2
-static struct {
-	const char *jsonKey;
-	char *dest;
-} mappings[NUM_KEYS] = {
-	{.jsonKey="host", .dest=host},
-	{.jsonKey="port", .dest=port},
-};
-
-///// getters & setters for config properties /////
-// (Getters just add a "const" qualifier)
-
-char const* config_getHost() {
-	return host;
+char const* cfg_item::get() {
+	// Returned as a `char const*` so the caller
+	// doesn't accidentally change it somehow.
+	return _data;
 }
 
-char const* config_getPort() {
-	return port;
-}
-
-static void setConfigVal(char *dest, char const *src) {
-	if (strcmp(dest, src)) {
-		snprintf(dest, BUF_LEN, "%s", src);
+void cfg_item::set(char const *str) {
+	if (!present || strcmp(_data, str)) {
+		snprintf(_data, CFG_BUF_LEN, "%s", str);
+		present = 1;
 		modified = 1;
 	}
 }
 
-void config_setHost(char const* str) {
-	setConfigVal(host, str);
+void cfg_item::unset() {
+	present = 0;
 }
 
-void config_setPort(char const* str) {
-	setConfigVal(port, str);
+double cfg_item::getDouble() {
+	return strtod(_data, NULL);
+}
+
+cfg_item cfg_host = {.name="host"};
+cfg_item cfg_port = {.name="port"};
+cfg_item cfg_fov_1 = {.name="fov_1"};
+cfg_item cfg_fov_2 = {.name="fov_2"};
+cfg_item cfg_sensitivity_1 = {.name="sensitivity_1"};
+cfg_item cfg_sensitivity_2 = {.name="sensitivity_2"};
+cfg_item cfg_aim_1 = {.name="aim_1"};
+cfg_item cfg_aim_2 = {.name="aim_2"};
+cfg_item cfg_cam_angle_1 = {.name="cam_angle_1"};
+cfg_item cfg_cam_angle_2 = {.name="cam_angle_2"};
+cfg_item cfg_cam_dist_1 = {.name="cam_dist_1"};
+cfg_item cfg_cam_dist_2 = {.name="cam_dist_2"};
+
+static cfg_item *allItems[] = {
+	&cfg_host,
+	&cfg_port,
+	&cfg_fov_1,
+	&cfg_fov_2,
+	&cfg_sensitivity_1,
+	&cfg_sensitivity_2,
+	&cfg_aim_1,
+	&cfg_aim_2,
+	&cfg_cam_angle_1,
+	&cfg_cam_angle_2,
+	&cfg_cam_dist_1,
+	&cfg_cam_dist_2,
+	NULL
+};
+
+static cfg_item dummy = {.name=""};
+
+cfg_item* cfg_lookup(char const *name) {
+	cfg_item **x = allItems;
+	for (; *x; x++) {
+		if (!strcmp(name, (*x)->name)) {
+			return *x;
+		}
+	}
+	printf("No config item with name \"%s\"\n", name);
+	return &dummy;
 }
 
 ///// Logic for the on-disk config file /////
 
-static void consumeString(jsonValue *root, char const *name, char *destBuf) {
+static void consumeString(jsonValue *root, cfg_item *item) {
+	char const *name = item->name;
+	char *dest = item->_data;
 	jsonValue *v = root->get(name);
 	if (!v) return;
 	if (v->type != J_STR) {
 		fprintf(stderr, "Config value for key '%s' should have type J_STR but is %s\n", name, typeStr(v->type));
 		return;
 	}
-	snprintf(destBuf, BUF_LEN, "%s", v->getString());
+	item->present = 1;
+	snprintf(dest, CFG_BUF_LEN, "%s", v->getString());
 	root->rm(name);
 }
 
 void config_init() {
-	// Set up some defaults, so if anything goes awry we can safely just return.
-	configDir[0] = '\0';
-	configFile[0] = '\0';
-	modified = 0;
-	host[0] = port[0] = '\0';
-
 	char const *xdg_config_home = getenv("XDG_CONFIG_HOME");
 	if (xdg_config_home && *xdg_config_home) {
 		printf("XDG_CONFIG_HOME='%s'\n", xdg_config_home);
-		snprintf(configDir, BUF_LEN, "%s/" CONFIG_NAME, xdg_config_home);
+		snprintf(configDir, CFG_BUF_LEN, "%s/" CONFIG_NAME, xdg_config_home);
 	} else {
 		puts("XDG_CONFIG_HOME not set, checking HOME.");
 		char const *home = getenv("HOME");
 		if (home && *home) {
 			printf("HOME='%s'\n", home);
-			snprintf(configDir, BUF_LEN, "%s/.config/" CONFIG_NAME, home);
+			snprintf(configDir, CFG_BUF_LEN, "%s/.config/" CONFIG_NAME, home);
 		} else {
 			puts("HOME not set either, config files will be stored in the working directory.");
 			strcpy(configDir, ".");
@@ -105,8 +128,8 @@ void config_init() {
 		// struct internals, so we need an explicit type check here.
 		fprintf(stderr, "Config file top-level item should be J_OBJ but is %s. No configs will be loaded.\n", typeStr(configJson->type));
 	} else {
-		range(i, NUM_KEYS) {
-			consumeString(configJson, mappings[i].jsonKey, mappings[i].dest);
+		for (cfg_item **x = allItems; *x; x++) {
+			consumeString(configJson, *x);
 		}
 
 		range(i, configJson->d.obj.num) {
@@ -148,9 +171,10 @@ void config_write() {
 
 	jsonValue root;
 	root.initObj();
-	range(i, NUM_KEYS) {
-		if (*mappings[i].dest) {
-			root.set(mappings[i].jsonKey)->initStr(strdup(mappings[i].dest));
+	for (cfg_item **x = allItems; *x; x++) {
+		cfg_item &item = **x;
+		if (item.present) {
+			root.set(item.name)->initStr(strdup(item._data));
 		}
 	}
 

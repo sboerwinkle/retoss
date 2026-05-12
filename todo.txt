@@ -16,6 +16,8 @@
 	Show if any gp dirty?
 - ADS doesn't change between 1st/3rd person, just changes view params
 - Settings toggle for 1st vs 3rd person?
+- "crouch" for slow walking near edge
+	Can also use this as my "slow ghost" key!
 - Tall Guy?
 
 . hearts always

@@ -1,0 +1,137 @@
+#include <stdio.h>
+
+#include "../gamestate.h"
+#include "../bctx.h"
+#include "../constel.h"
+#include "../dl_helpers.h"
+
+#include "../tasks/rails.h"
+
+static void trolleyHalf(constel *c) {
+	bctx.push();
+	gp("b");
+	bctx.pos(pvar("pos", (offset const){2400, 0, 0}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.addPt(c, var("shape", 1), var("tex", 8), var("scale", 1200));
+	bctx.peek();
+	gp("c");
+	bctx.pos(pvar("pos", (offset const){2400, 1350, 1350}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 23170, 0}));
+	bctx.addPt(c, var("shape", 1), var("tex", 8), var("scale", 1200));
+	bctx.peek();
+	gp("d");
+	bctx.pos(pvar("pos", (offset const){2400, -1350, 1350}));
+	bctx.rot(rvar("rot", (int32_t const[]){32768, 23170, 0}));
+	bctx.addPt(c, var("shape", 1), var("tex", 8), var("scale", 1200));
+	bctx.peek();
+	gp("e");
+	bctx.pos(pvar("pos", (offset const){3750, 0, 1350}));
+	bctx.rot(rvar("rot", (int32_t const[]){-23170, 23170, 0}));
+	bctx.addPt(c, var("shape", 1), var("tex", 8), var("scale", 1200));
+	bctx.peek();
+
+	gp("wing");
+	bctx.pos(pvar("pos", (offset const){0, 2700, 200}));
+	bctx.rot(rvar("rot", (int32_t const[]){23170, 0, 0}));
+	bctx.addPt(c, var("shape", 2), var("tex", 8), var("scale", 1200));
+	bctx.peek();
+
+	bctx.pop();
+}
+
+static void addRoute(tskRailsData *data) {
+	tskRailsInstructions *instr = data->instr;
+	gp("route");
+	int32_t boardTime = var("board_t", 60);
+	int32_t turnTime = var("turn_t", 45);
+	int32_t dwellTime = var("dwell_t", 10);
+	int32_t travelTime = var("travel_t", 90);
+	bctx.push();
+	bctx.addPt(instr, travelTime);
+	bctx.addPt(instr, boardTime);
+	iquat r1;
+	memcpy(r1, bctx.transf.rot, sizeof(iquat));
+	bctx.rot((int32_t const[]){32768,0,0});
+	bctx.addPt(instr, turnTime);
+	bctx.addPt(instr, dwellTime);
+	bctx.pos(pvar("pos", (offset const){30000, 0, 0}));
+	bctx.addPt(instr, travelTime);
+	bctx.addPt(instr, boardTime);
+	// Restore previous rotation exactly
+	memcpy(bctx.transf.rot, r1, sizeof(iquat));
+	bctx.addPt(instr, turnTime);
+	bctx.addPt(instr, dwellTime);
+	bctx.pop();
+}
+
+extern "C" void lvlUpd(gamestate *gs) {
+	bctx.resel();
+	int existingTasks = var("tsk_num", gs->tasks.num);
+	if (existingTasks < gs->tasks.num) {
+		for (int i = existingTasks; i < gs->tasks.num; i++) {
+			taskInstance &task = gs->tasks[i];
+			(*task.defn->destroy)(task.data);
+		}
+		gs->tasks.num = existingTasks;
+	}
+	int existingCis = var("ci_num", gs->constels.num);
+	if (existingCis < gs->constels.num) {
+		for (int i = existingCis; i < gs->constels.num; i++) {
+			// This breaks things if anybody is
+			// referencing that constelInst...
+			deleteConstelInst(gs->constels[i]);
+		}
+		gs->constels.num = existingCis;
+	}
+
+	bctx.push();
+	constel *trolley = mkConstel();
+
+	gp("a");
+	bctx.pos(pvar("pos", (offset const){0, 0, 0}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.addPt(trolley, var("shape", 1), var("tex", 8), var("scale", 1700));
+	bctx.peek();
+	trolleyHalf(trolley);
+	bctx.rot((int32_t const[]){32768,0,0});
+	trolleyHalf(trolley);
+	bctx.peek();
+	// This is basically finalizing the `constel`,
+	// though you could also specify the radius
+	// manually if you knew it. This will only actually
+	// matter once we have an "implicit" state for
+	// constels to go into.
+	trolley->estimateRadius();
+
+	gp("t1");
+	bctx.pos(pvar("pos", (offset const){0, 2700, 200}));
+	bctx.add(trolley, 15);
+	bctx.peek();
+	//#add_here
+
+	gp("t2");
+	bctx.pos(pvar("pos", (offset const){0, -6000, -5400}));
+	constelInst *ti = bctx.add(trolley, 15);
+	tskRailsData *railsData = tskRails_create(gs, ti);
+	addRoute(railsData);
+	gp("t2");
+	railsData->time = var("time", 0);
+	tskRails_timeHelper(railsData);
+	bctx.peek();
+
+	trolley->decr();
+
+	/*
+	range(i, 71) {
+		printf("%d\n", shittySin(shittyASin(FIXP*i/70)));
+	}
+	*/
+
+	/*#1
+	gp();
+	bctx.pos(pvar("pos", look(3000)));
+	bctx.rot(rvar("rot"));
+	bctx.add(var("shape"), var("tex", 4), var("scale", 1000));
+	bctx.peek();
+	 */
+}
