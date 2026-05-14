@@ -23,7 +23,7 @@
 char const * const texSrcFiles[NUM_TEXS] = {
 	"",
 	"font.png",
-	"dirt.png",
+	NULL,
 	"guy.3.png",
 	"stop.png",
 	"wall.png",
@@ -153,6 +153,7 @@ static GLuint mkShader(GLenum type, const char* path) {
 }
 
 static void loadTexture(int i) {
+	if (!texSrcFiles[i]) return;
 	char *imageData;
 	int width, height;
 	char path[200];
