@@ -871,8 +871,11 @@ static void drawCrosshair(gamestate *gs, player *self) {
 	} else {
 		// Could draw it as 2 halves in this case as well,
 		// I'm just not sure if it might look funny b/c of
-		// pixel nonsense
-		sprite2d(0, 118, 10, 10, -5, y-5);
+		// pixel nonsense.
+		// You never have the split cursor if you're dead,
+		// so we only handle the "dead" case here.
+		int x = self->alive ? 0 : 28;
+		sprite2d(x, 118, 10, 10, -5, y-5);
 	}
 }
 
