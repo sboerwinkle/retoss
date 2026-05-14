@@ -42,7 +42,7 @@ static void drawSmallScores(u8 const scores[2]) {
 static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float interp) {
 	drawSmallScores(dests);
 
-	selectTex2d(11, 40, 40);
+	selectTex2d(TEX_SNAKE, 40, 40);
 	// Color multiple is set different for text, need to reset it for sprites.
 	spriteColorMult(1, 1, 1, 1);
 	// We have 5 display units per score point,
@@ -137,12 +137,16 @@ void taskTdm_draw(void *_data, float interp) {
 	drawSnakes(data, dests, heads, interp);
 }
 
-static int32_t rand(uint32_t input) {
-	return splitmix32(&input);
-}
+static int32_t getSpawnPts(gamestate const *gs, tskTdmData *data) {
+	int numPts = data->numSpawns;
+	if (!numPts) return 0;
 
-static char getSpawnFlip(gamestate const *gs) {
-	return 1 & rand(gs->vb_root->end);
+	uint32_t seed = gs->clock;
+	u8 s1 = splitmix32(&seed) % numPts;
+	u8 s2 = splitmix32(&seed) % (numPts-1);
+	if (s2 >= s1) s2++;
+
+	return 0x100 * s1 + s2;
 }
 
 static void handlePlay(gamestate *gs, tskTdmData *data) {
@@ -227,28 +231,33 @@ static void handleChompAnim(tskTdmData *data) {
 	data->animDest = 45;
 }
 
-static void spawn(gamestate *gs, int i, tskTdmData *data, char flip) {
+static int32_t rand(uint32_t input) {
+	return splitmix32(&input);
+}
+
+static void spawn(gamestate *gs, int i, tskTdmData *data, int32_t spawnPts) {
 	player *p = &gs->players[i];
 	if (data->numSpawns < 2) return;
 
 	softResetPlayer(p);
 
 	char team = p->team;
-	u8 spawn;
-	if (team >= 0 && team < 2) {
-		spawn = team ^ flip;
-	} else {
-		spawn = 1 & rand(gs->vb_root->end + i);
+	if (team < 0 || team >= 2) {
+		team = 1 & rand(gs->clock + i + 1);
 	}
+
+	u8 spawn;
+	// Take either first 8 bits, or next 8 bits, from `spawnPts`
+	spawn = 0xFF & (spawnPts >> (team*8));
 	memcpy(p->m.pos, data->spawns[spawn], sizeof(offset));
 	// IDK if we technically need this as well, seems reasonable
 	memcpy(p->m.oldPos, data->spawns[spawn], sizeof(offset));
 }
 
 static void beginRound(gamestate *gs, tskTdmData *data) {
-	char flip = getSpawnFlip(gs);
+	int32_t spawnPts = getSpawnPts(gs, data);
 	rangeconst(i, gs->players.num) {
-		spawn(gs, i, data, flip);
+		spawn(gs, i, data, spawnPts);
 	}
 
 	data->state = TSK_TDM_ST_PLAY;
@@ -265,10 +274,10 @@ static void handlePrepAgain(gamestate *gs, tskTdmData *data) {
 static void handlePrepStart(gamestate *gs, tskTdmData *data) {
 	char hasUndecided = 0;
 	char hasDead = 0;
-	char flip = getSpawnFlip(gs);
+	int32_t spawnPts = getSpawnPts(gs, data);
 	rangeconst(i, gs->players.num) {
 		if (!gs->players[i].alive) {
-			spawn(gs, i, data, flip);
+			spawn(gs, i, data, spawnPts);
 			hasDead = 1;
 		}
 		char team = gs->players[i].team;
@@ -286,9 +295,9 @@ static void handlePrepStart(gamestate *gs, tskTdmData *data) {
 }
 
 static void handleDone(gamestate *gs, tskTdmData *data) {
-	char flip = getSpawnFlip(gs);
+	int32_t spawnPts = getSpawnPts(gs, data);
 	rangeconst(i, gs->players.num) {
-		if (!gs->players[i].alive) spawn(gs, i, data, flip);
+		if (!gs->players[i].alive) spawn(gs, i, data, spawnPts);
 	}
 }
 
@@ -377,9 +386,9 @@ tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore) {
 
 void taskTdm_spawnAll(gamestate *gs, void *_data) {
 	tskTdmData *data = (tskTdmData*)_data;
-	char flip = getSpawnFlip(gs);
+	int32_t spawnPts = getSpawnPts(gs, data);
 	rangeconst(i, gs->players.num) {
-		if (gs->players[i].alive) spawn(gs, i, data, flip);
+		if (gs->players[i].alive) spawn(gs, i, data, spawnPts);
 	}
 }
 

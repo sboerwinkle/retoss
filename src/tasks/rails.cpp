@@ -26,7 +26,8 @@ static void decr(tskRailsInstructions *instr) {
 	free(instr);
 }
 
-static void step(gamestate *gs, void *_data) {
+// `tskRails_timeHelper` currently depends on the gamestate being unused
+static void step(gamestate *_unused, void *_data) {
 	tskRailsData *data = (tskRailsData*)_data;
 	int numPts = data->instr->pts.num;
 	if (!numPts) return;
@@ -60,6 +61,13 @@ static void step(gamestate *gs, void *_data) {
 		r1Inv[3] = -p1.rot[3];
 		iquat difference;
 		iquat_mult(difference, p2.rot, r1Inv);
+
+		// I'll be honest - I wrote most of this without knowing
+		// that the `w` in a quaternion could be negative. Turns
+		// out the interpolation gets weird in that case, but it
+		// looks like you can keep the "same" quaternion even if
+		// you flip the signs on everything!
+		if (difference[0] < 0) range(i, 4) difference[i] *= -1;
 
 		// Scale that rotation by the fraction `time/duration`.
 		// I feel like I could probably improve this (do I need 2 `sqrt`s?),
@@ -171,10 +179,34 @@ void tskRails_timeHelper(tskRailsData *data) {
 
 	while (1) {
 		int next = (data->ic+1)%pts.num;
-		if (data->time < pts[next].time) return;
+		if (data->time < pts[next].time) break;
 		data->time -= pts[next].time;
 		data->ic = next;
 	}
+
+	// Roll `time` back one step.
+	// I'm not sure if negative time is okay,
+	// so we dance around a bit (`while` loop instead of `if`) to avoid
+	// any zero-time instructions (which might be present while editing).
+	while (data->time == 0) {
+		data->time = pts[data->ic].time;
+		data->ic = (data->ic+pts.num-1) % pts.num;
+	}
+	data->time--;
+	// Steps that don't rotate don't bother updating the rotation,
+	// so we do that here in case we're in the middle of some such step.
+	memcpy(data->ci->m.rot, pts[data->ic].rot, sizeof(iquat));
+	// And finally run one step (undoing the "one step backwards"),
+	// this has all the usual logic about interping positions / rotations
+	// so the things spawn in without snapping even if in the middle
+	// of their instructions!
+	step(NULL, data);
+	// This happens at a different time than it would during a normal step,
+	// but I can't think of any way that would break?
+	// Only problem is that the `constelInst` might be out of sync with its
+	// solids and/or velboxes, but hopefully nothing cares?
+	// Worst case, I can make this function mandatory, and hold off adding
+	// `data->ci` to `gs` until here. Would require changing how it's built I guess.
 }
 
 tskRailsData* tskRails_create(gamestate *gs, constelInst *ci) {

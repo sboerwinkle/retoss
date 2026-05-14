@@ -11,7 +11,9 @@ struct mover; // "box" and "gamestate" reference each other's types
 
 #define PLAYER_SHAPE_RADIUS 800
 #define TRAIL_LIFETIME 45
-#define NUM_TEXS 12
+#define NUM_TEXS 13
+#define TEX_SNAKE 12
+#define TEX_TEAM_SHIRT 10
 
 #define NUM_SHAPES 3
 #define T_PLAYER 32

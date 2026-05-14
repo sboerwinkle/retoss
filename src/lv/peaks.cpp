@@ -5,8 +5,25 @@
 #include "../bctx.h"
 #include "../dl_helpers.h"
 
+#include "../tasks/killPlane.h"
 #include "../tasks/rails.h"
+#include "../tasks/tdmScore.h"
 #include "../comp/plank.h"
+
+// Could I make this struct anon? Too scared to try rn
+struct blah { offset pos; };
+static list<blah> spawns;
+
+static void addSpawn(offset const o) {
+	bctx.pos(o);
+	bctx.finalizeTranslate();
+	int64_t *dest = spawns.add().pos;
+	memcpy(dest, bctx.transf.pos, sizeof(offset));
+
+	// Technically this makes some assumptions about how the method is called,
+	// but it's a static function so it's not as big a deal
+	bctx.peek();
+}
 
 static void trolleyHalf(constel *c) {
 	bctx.push();
@@ -43,78 +60,56 @@ static void trolleyHalf(constel *c) {
 static void addHangarDoorRoute(tskRailsData *data) {
 	tskRailsInstructions *instr = data->instr;
 	gp("rte_door");
-	int32_t dwellTime = var("dwell_t", 15);
+	int32_t dwellTime = var("dwell_t", 135);
 	int32_t travelTime = var("travel_t", 10);
 	bctx.addPt(instr, travelTime);
 	bctx.addPt(instr, dwellTime);
 	bctx.pos(0, -5286*2, 0);
 	bctx.addPt(instr, travelTime);
 	bctx.addPt(instr, dwellTime);
+	data->time = var("time", 0);
 }
 
-extern "C" void lvlUpd(gamestate *gs) {
-	bctx.resel();
-
-	int existingTasks = var("tsk_num", gs->tasks.num);
-	if (existingTasks < gs->tasks.num) {
-		for (int i = existingTasks; i < gs->tasks.num; i++) {
-			taskInstance &task = gs->tasks[i];
-			(*task.defn->destroy)(task.data);
-		}
-		gs->tasks.num = existingTasks;
-	}
-	// TODO make this common? I'm going to need
-	//      some variant of this consistently if
-	//      I'm editing in `constelInst`s.
-	int existingCis = var("ci_num", 0);
-	if (existingCis < gs->constels.num) {
-		for (int i = existingCis; i < gs->constels.num; i++) {
-			// This breaks things if anybody is
-			// referencing that constelInst...
-			deleteConstelInst(gs->constels[i]);
-		}
-		gs->constels.num = existingCis;
-	}
-
-
+static void addTrolleyRoute(tskRailsData *data) {
+	tskRailsInstructions *instr = data->instr;
+	gp("rte_trolley");
+	int32_t boardTime = var("board_t", 90);
+	int32_t turnTime = var("turn_t", 22);
+	int32_t dwellTime = var("dwell_t", 11);
+	int32_t travelTime = var("travel_t", 290);
+	int32_t const *turn90 = (int32_t const[]){23170, 0, 0};
 	bctx.push();
+	iquat baseRot;
+	memcpy(baseRot, bctx.transf.rot, sizeof(iquat));
 
-	// Trolley def'n, may move this to a
-	// dedicated file at some point.
-	constel *trolley = mkConstel();
-	gp("trolley");
-	bctx.addPt(trolley, var("shape", 1), var("tex", 8), var("scale", 1700));
-	bctx.peek();
-	trolleyHalf(trolley);
-	bctx.rot((int32_t const[]){32768,0,0});
-	trolleyHalf(trolley);
-	bctx.peek();
-	// This is basically finalizing the `constel`,
-	// though you could also specify the radius
-	// manually if you knew it. This will only actually
-	// matter once we have an "implicit" state for
-	// constels to go into.
-	trolley->estimateRadius();
+	bctx.addPt(instr, travelTime);
+	bctx.addPt(instr, boardTime);
+	bctx.rot(turn90);
+	bctx.addPt(instr, turnTime);
+	bctx.rot(turn90);
+	bctx.addPt(instr, turnTime);
+	bctx.addPt(instr, dwellTime);
+	bctx.pos(pvar("pos", (offset const){68000, 2000, 0}));
 
-	constel *bigPlate = mkConstel();
-	gp("bigPlate");
-	bctx.addPt(bigPlate, 1, var("tex", 8), var("scale", 5000));
-	bigPlate->estimateRadius();
+	bctx.addPt(instr, travelTime);
+	bctx.addPt(instr, boardTime);
+	bctx.rot(turn90);
+	bctx.addPt(instr, turnTime);
+	// Restore previous rotation exactly
+	memcpy(bctx.transf.rot, baseRot, sizeof(iquat));
+	bctx.addPt(instr, turnTime);
+	bctx.addPt(instr, dwellTime);
+	bctx.pop();
 
-	gp("0");
-	bctx.pos(pvar("pos", (offset const){0, 0, -10000}));
-	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(var("shape", 1), var("tex", 7), var("scale", 80000));
-	bctx.peek();
-	gp("1");
-	bctx.pos(pvar("pos", (offset const){0, 0, 0}));
-	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 1000));
-	bctx.peek();
+	data->time = var("time", 5);
+}
+
+static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t trolleyStagger) {
+	bctx.push();
 	gp("2");
 	bctx.pos(pvar("pos", (offset const){39326, -44, 575}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 1429, -286}));
-	bctx.add(var("shape", 1), var("tex", 4), var("scale", 30000));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 30000));
 	bctx.peek();
 	gp("3");
 	bctx.pos(pvar("pos", (offset const){39280, 224, 8847}));
@@ -124,12 +119,12 @@ extern "C" void lvlUpd(gamestate *gs) {
 	gp("4");
 	bctx.pos(pvar("pos", (offset const){24457, 15635, 11075}));
 	bctx.rot(rvar("rot", (int32_t const[]){-28660, 11743, 0}));
-	bctx.add(var("shape", 1), var("tex", 7), var("scale", 10900));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 10900));
 	bctx.peek();
 	gp("5");
 	bctx.pos(pvar("pos", (offset const){42709, 18982, 15585}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 5800));
+	bctx.add(var("shape", 0), var("tex", 7), var("scale", 5800));
 	bctx.peek();
 	gp("6");
 	bctx.pos(pvar("pos", (offset const){20518, 14016, 10377}));
@@ -159,47 +154,47 @@ extern "C" void lvlUpd(gamestate *gs) {
 	gp("11");
 	bctx.pos(pvar("pos", (offset const){53376, 9482, 16134}));
 	bctx.rot(rvar("rot", (int32_t const[]){6813, -13328, 23965}));
-	bctx.add(var("shape", 1), var("tex", 4), var("scale", 6345));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 6345));
 	bctx.peek();
 	gp("12");
 	bctx.pos(pvar("pos", (offset const){58104, 3443, 7818}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 3940));
+	bctx.add(var("shape", 0), var("tex", 9), var("scale", 3940));
 	bctx.peek();
 	gp("13");
 	bctx.pos(pvar("pos", (offset const){54805, 9764, 7309}));
 	bctx.rot(rvar("rot", (int32_t const[]){-4560, 0, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 3000));
+	bctx.add(var("shape", 0), var("tex", 9), var("scale", 3000));
 	bctx.peek();
 	gp("14");
 	bctx.pos(pvar("pos", (offset const){58969, -3712, 11980}));
 	bctx.rot(rvar("rot", (int32_t const[]){8481, -9580, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 2130));
+	bctx.add(var("shape", 0), var("tex", 9), var("scale", 2130));
 	bctx.peek();
 	gp("15");
 	bctx.pos(pvar("pos", (offset const){55934, 2886, 13479}));
 	bctx.rot(rvar("rot", (int32_t const[]){6252, -11207, 0}));
-	bctx.add(var("shape", 2), var("tex", 4), var("scale", 3600));
+	bctx.add(var("shape", 2), var("tex", 9), var("scale", 3600));
 	bctx.peek();
 	gp("16");
 	bctx.pos(pvar("pos", (offset const){53130, -14077, 6442}));
 	bctx.rot(rvar("rot", (int32_t const[]){-10397, -286, -572}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 8700));
+	bctx.add(var("shape", 0), var("tex", 9), var("scale", 8700));
 	bctx.peek();
 	gp("17");
 	bctx.pos(pvar("pos", (offset const){56159, -26799, 2779}));
 	bctx.rot(rvar("rot", (int32_t const[]){-6813, 5690, 1429}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 5100));
+	bctx.add(var("shape", 0), var("tex", 9), var("scale", 5100));
 	bctx.peek();
 	gp("18");
 	bctx.pos(pvar("pos", (offset const){54402, -34408, 120}));
 	bctx.rot(rvar("rot", (int32_t const[]){32488, 2000, 0}));
-	bctx.add(var("shape", 1), var("tex", 4), var("scale", 4000));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 4000));
 	bctx.peek();
 	gp("19");
 	bctx.pos(pvar("pos", (offset const){54636, -32902, 925}));
 	bctx.rot(rvar("rot", (int32_t const[]){32488, 9307, 0}));
-	bctx.add(var("shape", 1), var("tex", 4), var("scale", 4000));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 4000));
 	bctx.peek();
 	gp("20");
 	bctx.pos(pvar("pos", (offset const){61602, -34908, 1530}));
@@ -209,7 +204,7 @@ extern "C" void lvlUpd(gamestate *gs) {
 	gp("21");
 	bctx.pos(pvar("pos", (offset const){62574, -18542, 10073}));
 	bctx.rot(rvar("rot", (int32_t const[]){-10126, -286, -19028}));
-	bctx.add(var("shape", 1), var("tex", 4), var("scale", 6500));
+	bctx.add(var("shape", 1), var("tex", 9), var("scale", 6500));
 	bctx.peek();
 	gp("22");
 	bctx.pos(pvar("pos", (offset const){49080, 24394, 17401}));
@@ -286,15 +281,29 @@ extern "C" void lvlUpd(gamestate *gs) {
 	bctx.rot(rvar("rot", (int32_t const[]){-8481, -7371, -2571}));
 	bctx.add(var("shape", 0), var("tex", 7), var("scale", 5600));
 	bctx.peek();
+	gp("45");
+	bctx.pos(pvar("pos", (offset const){41503, -18707, 17232}));
+	bctx.rot(rvar("rot", (int32_t const[]){27166, 5690, 0}));
+	bctx.add(var("shape", 2), var("tex", 5), var("scale", 7500));
+	bctx.peek();
+	gp("46");
+	bctx.pos(pvar("pos", (offset const){41003, -16937, 21032}));
+	bctx.rot(rvar("rot", (int32_t const[]){-18324, 5690, 0}));
+	bctx.add(var("shape", 2), var("tex", 5), var("scale", 7500));
+	bctx.peek();
+	gp("47");
+	bctx.pos(pvar("pos", (offset const){64844, 21327, 7332}));
+	bctx.rot(rvar("rot", (int32_t const[]){3141, 1429, 0}));
+	bctx.add(var("shape", 2), var("tex", 8), var("scale", 6000));
+	bctx.peek();
+	gp("49");
+	bctx.pos(pvar("pos", (offset const){57246, -11240, 21925}));
+	bctx.rot(rvar("rot", (int32_t const[]){25822, 22763, 0}));
+	bctx.add(var("shape", 1), var("tex", 4), var("scale", 1000));
+	bctx.peek();
 	//#add_here
 
 	// Taking a break from building the mound, let's build house now.
-
-	gp("t1");
-	bctx.pos(pvar("pos", (offset const){34000, 6500, 31300}));
-	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(trolley, 15);
-	bctx.peek();
 
 	gp("floor");
 	bctx.pos(pvar("pos", (offset const){39800, 1000, 24100}));
@@ -371,7 +380,7 @@ extern "C" void lvlUpd(gamestate *gs) {
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, -23170}));
 	bctx.add(var("shape", 1), var("tex", 5), var("scale", 3565));
 	bctx.peek();
-	gp("door1");
+	gp("hall1");
 	bctx.pos(pvar("pos", (offset const){28732, 2203, 27590}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, -23170}));
 	plank(
@@ -381,7 +390,7 @@ extern "C" void lvlUpd(gamestate *gs) {
 		var("pad", 0)
 	);
 	bctx.peek();
-	gp("door2");
+	gp("hall2");
 	bctx.pos(pvar("pos", (offset const){38932, -203, 27590}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, -23170}));
 	plank(
@@ -391,14 +400,113 @@ extern "C" void lvlUpd(gamestate *gs) {
 		var("pad", 0)
 	);
 	bctx.peek();
+	gp("48");
+	bctx.pos(pvar("pos", (offset const){53953, -4146, 29852}));
+	bctx.rot(rvar("rot", (int32_t const[]){23170, 21063, 0}));
+	bctx.add(var("shape", 2), var("tex", 8), var("scale", 6100));
+	bctx.peek();
+
 	gp("d1");
 	bctx.pos(pvar("pos", (offset const){28376, 6286, 35268}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, -23170}));
 	constelInst *ci = bctx.add(bigPlate, 1);
 	// TODO constelInst's should be selectable in-game
-	// TODO: Improve rails creation so constelInst doesn't
-	//       snap around on first frame.
 	addHangarDoorRoute(tskRails_create(gs, ci));
+	bctx.peek();
+
+	gp("t1");
+	bctx.pos(pvar("pos", (offset const){34000, 6500, 31300}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	ci = bctx.add(trolley, 15);
+	tskRailsData *trolleyRails = tskRails_create(gs, ci);
+	addTrolleyRoute(trolleyRails);
+	trolleyRails->time += trolleyStagger;
+	bctx.peek();
+
+	gp("s1");
+	addSpawn(pvar("pos", (offset const){35521, 21027, 7585}));
+	gp("s2");
+	addSpawn(pvar("pos", (offset const){54119, 1706, 24789}));
+	gp("s3");
+	addSpawn(pvar("pos", (offset const){56374, -27692, 9180}));
+	gp("s4");
+	addSpawn(pvar("pos", (offset const){40793, 1815, 26463}));
+
+	bctx.pop();
+}
+
+extern void lv_peaks(gamestate *gs) {
+	pushVarIgnore(); // I'm not sure this line (and the related pop) are necessary, but they're harmless.
+	bctx.reset(gs);
+	/*
+	bctx.resel();
+
+	int existingTasks = var("tsk_num", 0);
+	if (existingTasks < gs->tasks.num) {
+		for (int i = existingTasks; i < gs->tasks.num; i++) {
+			taskInstance &task = gs->tasks[i];
+			(*task.defn->destroy)(task.data);
+		}
+		gs->tasks.num = existingTasks;
+	}
+	// TODO make this common? I'm going to need
+	//      some variant of this consistently if
+	//      I'm editing in `constelInst`s.
+	int existingCis = var("ci_num", 0);
+	if (existingCis < gs->constels.num) {
+		for (int i = existingCis; i < gs->constels.num; i++) {
+			// This breaks things if anybody is
+			// referencing that constelInst...
+			deleteConstelInst(gs->constels[i]);
+		}
+		gs->constels.num = existingCis;
+	}
+	*/
+
+
+	spawns.init();
+	bctx.push();
+
+	// Trolley def'n, may move this to a
+	// dedicated file at some point.
+	constel *trolley = mkConstel();
+	gp("trolley");
+	bctx.addPt(trolley, var("shape", 1), var("tex", 8), var("scale", 1700));
+	bctx.peek();
+	trolleyHalf(trolley);
+	bctx.rot((int32_t const[]){32768,0,0});
+	trolleyHalf(trolley);
+	bctx.peek();
+	// This is basically finalizing the `constel`,
+	// though you could also specify the radius
+	// manually if you knew it. This will only actually
+	// matter once we have an "implicit" state for
+	// constels to go into.
+	trolley->estimateRadius();
+
+	constel *bigPlate = mkConstel();
+	gp("bigPlate");
+	bctx.addPt(bigPlate, 1, var("tex", 8), var("scale", 5000));
+	bigPlate->estimateRadius();
+
+	gp("land");
+	bctx.pos(pvar("pos", (offset const){0, 0, -10000}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.add(var("shape", 1), var("tex", 7), var("scale", 80000));
+	bctx.peek();
+	gp("50");
+	bctx.pos(pvar("pos", (offset const){0, 0, -17112}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.add(var("shape", 0), var("tex", 4), var("scale", 3000));
+	bctx.peek();
+
+	taskKillPlane_create(gs, -30000);
+
+	gp("rte_trolley");
+	int32_t trolleyStagger = var("stagger", 290);
+	mountain(gs, trolley, bigPlate, 0);
+	bctx.rot((int32_t const[]){32768,0,0});
+	mountain(gs, trolley, bigPlate, trolleyStagger);
 	bctx.peek();
 
 	// To scroll time for all `rails` items as one
@@ -410,6 +518,11 @@ extern "C" void lvlUpd(gamestate *gs) {
 		tskRailsData *railsData = (tskRailsData*)ti.data;
 		railsData->time += time;
 		tskRails_timeHelper(railsData);
+	}
+
+	tskTdmData *tdmData = taskTdm_create(gs, spawns.num, 7);
+	rangeconst(i, spawns.num) {
+		memcpy(tdmData->spawns[i], spawns[i].pos, sizeof(offset));
 	}
 
 	/*#1
@@ -439,7 +552,10 @@ extern "C" void lvlUpd(gamestate *gs) {
 	bctx.peek();
 	*/
 
+	spawns.destroy();
 	// This file has a reference, but we're done with it now!
 	trolley->decr();
 	bigPlate->decr();
+
+	popVarIgnore();
 }

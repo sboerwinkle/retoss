@@ -24,14 +24,15 @@ char const * const texSrcFiles[NUM_TEXS] = {
 	"",
 	"font.png",
 	"dirt.png",
-	"guy.png",
+	"guy.3.png",
 	"stop.png",
 	"wall.png",
 	"trail.png",
 	"grass.png",
 	"metal.png",
+	"stone.png",
+	"guy.png",
 	"guy.2.png",
-	"guy.3.png",
 	"snakes.png",
 };
 GLuint textures[NUM_TEXS];

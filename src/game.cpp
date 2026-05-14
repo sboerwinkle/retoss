@@ -741,6 +741,11 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 			prepareGamestateForLoad(gs, 0);
 			lv_swarm(gs);
 		}
+	} else if (isCmd(str, "/lv_peaks")) {
+		if (isReal) {
+			prepareGamestateForLoad(gs, 0);
+			lv_peaks(gs);
+		}
 	} else if (isCmd(str, "/die")) {
 		killPlayer(p);
 	} else if (isCmd(str, "/respawn")) {
@@ -771,9 +776,11 @@ static void drawPlayer(player *p, float alpha) {
 	int sprite;
 	int mesh = 32;
 
-	if (p->team == 0) sprite = 3;
-	else if (p->team == 1) sprite = 9;
-	else sprite = 10;
+	if (p->team >= 0 && p->team < 2) {
+		sprite = TEX_TEAM_SHIRT + p->team;
+	} else {
+		sprite = 3;
+	}
 
 	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mesh, alpha);
 }
