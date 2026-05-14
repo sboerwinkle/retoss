@@ -7,9 +7,10 @@
 #include "net.h"
 #include "net2.h"
 #include "watch.h"
+#include "http.h"
 #include "main.h"
 
-#define NUMFDS 2
+#define NUMFDS 3
 static struct pollfd fds[NUMFDS];
 
 void* mypoll_threadFunc(void *arg) {
@@ -38,6 +39,12 @@ void* mypoll_threadFunc(void *arg) {
 		if (fds[1].revents & POLLIN) {
 			watch_read();
 		}
+
+		if (fds[2].revents & POLLIN) {
+			if (http_read()) {
+				fds[2].fd = -1;
+			}
+		}
 	}
 }
 
@@ -47,13 +54,14 @@ void mypoll_init() {
 	// The init order is hardcoded, so the only thing I can think of is
 	// if one of these other components fails without calling `exit()`.
 	if (net_fd == -1) {
-		puts("net_fd == -1");
+		puts("ERROR: net_fd == -1");
 		exit(1);
 	}
 	if (watch_fd == -1) {
-		puts("watch_fd == -1");
+		puts("ERROR: watch_fd == -1");
 		exit(1);
 	}
+	// We don't check http_fd, it's not crucial for operation.
 
 	// That out of the way, it's just boring setup stuff.
 	fds[0].fd = net_fd;
@@ -61,6 +69,9 @@ void mypoll_init() {
 
 	fds[1].fd = watch_fd;
 	fds[1].events = POLLIN;
+
+	fds[2].fd = http_fd;
+	fds[2].events = POLLIN;
 }
 
 void mypoll_destroy() {

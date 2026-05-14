@@ -8,6 +8,7 @@
 #include "matrix.h"
 #include "mtx.h"
 
+// TODO sort some of this
 #include "main.h"
 #include "gamestate.h"
 #include "graphics.h"
@@ -16,6 +17,7 @@
 #include "dl_game.h"
 #include "bctx.h"
 #include "constel.h"
+#include "http.h"
 #include "lv.h"
 #include "player.h"
 #include "bcast.h"
@@ -166,6 +168,8 @@ void game_init() {
 	bctx_init();
 	bcast_init();
 	constel_init();
+
+	http_init();
 }
 
 gamestate* game_init2() {
@@ -183,6 +187,8 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	http_destroy();
+
 	constel_destroy();
 	bcast_destroy();
 	bctx_destroy();
