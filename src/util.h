@@ -4,6 +4,12 @@
 #define range(var, lim) for(int var = 0; var < lim; var++)
 #define rangeconst(var, lim) for(int var = 0, var##_count = lim; var < var##_count; var++)
 
+// "32;2" is "green and dim". I like how this looks, but if it's too dim,
+// you can remove the ";2". Apparently it's less widely supported anyway,
+// so some people may just get the "green" part. Even so, it should still
+// be easier to pick out the non-quiet messages.
+#define QUIET(x) "\033[32;2m" x "\033[0m"
+
 // Will need to keep an eye on this file, I think I see a spot of rust
 typedef unsigned char u8;
 

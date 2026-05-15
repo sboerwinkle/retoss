@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include "util.h"
 #include "main.h"
 
 #define BUF_SIZE 4096
@@ -74,9 +75,9 @@ char initSocket(const char *srvAddr, const char* port){
 		puts("Failed to get address name");
 	}
 	if(addrinfo->ai_addr->sa_family == AF_INET){
-		printf("Connecting to server at %s:%s\n", hostbuf, portbuf);
+		printf(QUIET("Connecting to server at %s:%s\n"), hostbuf, portbuf);
 	}else{
-		printf("Connecting to server at [%s]:%s\n", hostbuf, portbuf);
+		printf(QUIET("Connecting to server at [%s]:%s\n"), hostbuf, portbuf);
 	}
 	if(connect(net_fd, addrinfo->ai_addr, addrinfo->ai_addrlen)){
 		printf("Failed to connect to server: '%s'\n", strerror(errno));
