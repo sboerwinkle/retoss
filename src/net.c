@@ -62,7 +62,7 @@ char initSocket(const char *srvAddr, const char* port){
 		printf("(for host \"%s\" + port \"%s\")\n", srvAddr, port);
 		return 1;
 	}
-	net_fd = socket(addrinfo->ai_addr->sa_family, SOCK_STREAM, 0);
+	net_fd = socket(addrinfo->ai_addr->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if(net_fd < 0){
 		printf("Failed to create socket: '%s'\n", strerror(errno));
 		return 1;
@@ -113,6 +113,7 @@ char readData(void *dst_arg, int len) {
 		}
 		if (ret < 0) {
 			if (globalRunning) {
+				// Todo: I've got better descriptions of errno in many places
 				printf(
 					"Error encountered while reading from socket, errno is %d\n"
 					"\t(hint: `errno` is a command that can help!)\n",

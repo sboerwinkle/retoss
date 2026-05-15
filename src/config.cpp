@@ -1,6 +1,8 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "util.h"
 #include "json.h"
@@ -113,10 +115,20 @@ void config_init() {
 	snprintf(configFile, 200, "%s/config.json", configDir);
 	printf("Using config file path: '%s'\n", configFile);
 
-	FILE* configStream = fopen(configFile, "r");
+	int configFd = open(configFile, O_RDONLY | O_CLOEXEC);
+	if (configFd == -1) {
+		if (errno == ENOENT) {
+			puts("Config file doesn't exist, no configs loaded.");
+		} else {
+			printf("`open` failed for config file. No configs will be loaded. Error is %s (%s).\n", strerrorname_np(errno), strerror(errno));
+		}
+		return;
+	}
+	FILE* configStream = fdopen(configFd, "r");
 	if (!configStream) {
-		// This doesn't go to `stderr` only because this is perfectly normal for a first launch
-		printf("Couldn't open config file. No configs will be loaded, but this isn't fatal. Error is %s (%s).\n", strerrorname_np(errno), strerror(errno));
+		// This is... less expected.
+		printf("`fdopen` failed for config file. No configs will be loaded. Error is %s (%s).\n", strerrorname_np(errno), strerror(errno));
+		close(configFd);
 		return;
 	}
 	jsonValue *configJson = jsonLoad(configStream);

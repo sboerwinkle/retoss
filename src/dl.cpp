@@ -530,7 +530,7 @@ void dl_init() {
 	currentGroup = NULL; // Have to reset this after our call to `gp` earlier
 	locked = 0;
 
-	int fifoFd = open("edit_events.fifo", O_WRONLY | O_NONBLOCK);
+	int fifoFd = open("edit_events.fifo", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fifoFd == -1) {
 		if (errno == ENOENT) {
 			puts("Couldn't find edit_events.fifo, assuming no edit mode");

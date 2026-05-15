@@ -11,7 +11,7 @@
 static int data_fd = -1;
 
 void file_init() {
-	data_fd = open("data", O_PATH | O_DIRECTORY);
+	data_fd = open("data", O_PATH | O_DIRECTORY | O_CLOEXEC);
 
 	if (data_fd == -1) {
 		fprintf(stderr, "Failed to get file descriptor for ./data - `open` gave error %s (%s)\n", strerrorname_np(errno), strerror(errno));
@@ -50,7 +50,7 @@ static char verifyPath(const char* path) {
 }
 
 static char writeFileInternal(int relativeTo, const char *name, const list<char> *data) {
-	int fd = openat(relativeTo, name, O_WRONLY | O_CREAT | O_TRUNC, 0664); // perms: rw-rw-r--
+	int fd = openat(relativeTo, name, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664); // perms: rw-rw-r--
 	if (fd == -1) {
 		fprintf(
 			stderr,
@@ -90,7 +90,7 @@ char writeSystemFile(const char *name, const list<char> *data) {
 }
 
 static char readFileInternal(int relativeTo, char const *name, list<char> *out) {
-	int fd = openat(relativeTo, name, O_RDONLY);
+	int fd = openat(relativeTo, name, O_RDONLY | O_CLOEXEC);
 	if (fd == -1) {
 		fprintf(
 			stderr,

@@ -42,7 +42,7 @@ char http_read() {
 }
 
 void http_init() {
-	http_fd = socket(AF_INET, SOCK_STREAM, 0);
+	http_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (http_fd == -1) {
 		printf("%s`socket` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
 		return;
