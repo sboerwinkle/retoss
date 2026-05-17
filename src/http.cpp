@@ -1,21 +1,21 @@
-// Todo: Review these includes, they were just copied from "net.c"
+#include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <stdio.h>
-#include <errno.h>
+#include <spawn.h>
 #include <string.h>
+
+extern char **environ;
+
+#include "util.h"
 
 #include "http.h"
 
 #define BUF_SIZE 4096
 
 int http_fd = -1;
-int http_port = -1;
+static int serverPort = -1;
 
 //static char buf[BUF_SIZE];
 
@@ -39,6 +39,27 @@ char http_read() {
 	write(fd, payload, strlen(payload));
 	close(fd);
 	return 0;
+}
+
+extern void http_spawnClient() {
+	if (http_fd == -1) {
+		puts("HTTP server didn't start successfully, so not launching browser.");
+		return;
+	}
+	char url[25];
+	snprintf(url, 25, "http://localhost:%d", serverPort);
+	// TODO: Maybe close stdout / stdin?
+	//       Could either mark them as CLOEXEC before we get here,
+	//       or manually request them to be closed with one of the fancy args.
+	// TODO: Selectable browser, but `xdg-open` is a good default
+	char name[10];
+	// TODO bounds check
+	strcpy(name, "xdg-open");
+	char *const argv[] = {name, url, NULL};
+	pid_t ignore;
+	posix_spawnp(&ignore, name, NULL, NULL, argv, environ);
+	// Todo: Could check for errors I guess,
+	//       but it's kind of hard to get useful info
 }
 
 void http_init() {
@@ -78,8 +99,14 @@ void http_init() {
 		return;
 	}
 
-	http_port = ntohs(address.sin_port);
-	printf("Ephemeral port: %d\n", http_port);
+	serverPort = ntohs(address.sin_port);
+
+	// Set `FD_CLOEXEC` on stdin/stdout/stderr.
+	// Might move this later, but for now `http` is the only file that spawns processes,
+	// so setting these flags is this file's concern.
+	range(i, 3) {
+		fcntl(i, F_SETFD, FD_CLOEXEC | fcntl(i, F_GETFD));
+	}
 }
 
 void http_destroy() {

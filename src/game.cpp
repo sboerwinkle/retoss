@@ -181,6 +181,7 @@ gamestate* game_init2() {
 	init(gs);
 
 	lv_tdm1(gs);
+	http_spawnClient();
 
 	return gs;
 }
