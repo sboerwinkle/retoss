@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<body style="background: #aaa;">
+Team select
+<br/>
+<div id="teams">
+	<label style="background: #f8f"><input type="radio" name="team" value="/team2"/><span>Unset</span></label><br/>
+	<label style="background: #f88"><input type="radio" name="team" value="/team0"/><span>Team 0</span></label><br/>
+	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label><br/>
+</div>
+<button id="teamSubmit" type="button">Submit</button>
+</body>
+<script>
+	"use strict";
+	let id = x=>document.getElementById(x);
+	let names = ['Submit', 'Apply', 'Select', 'Pick', 'Send', 'Choose', 'OK', '\uD83D\uDC4D'];
+	let teamInputs = [...id('teams').children].filter(x => x.tagName=='LABEL').map(label=>label.children[0]);
+
+	let teamSubmit = id('teamSubmit');
+	teamSubmit.innerText = names[Math.floor(Math.random() * names.length)];
+	teamSubmit.addEventListener('click', () => {
+		teamInputs.filter(x => x.checked).map(x => fetch(x.value));
+	});
+</script>
+</html>

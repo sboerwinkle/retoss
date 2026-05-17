@@ -505,8 +505,15 @@ void serializeInputs(char * dest) {
 	serializeEvent(&sharedInputs.event.jump, sharedInputs.state.jump, &sentJumpState, "/_J", "/_j");
 	serializeEvent(&sharedInputs.event.shoot, sharedInputs.state.shoot, &sentShootState, "/_S", "/_s");
 
-	if (watch_dlFlag.load(std::memory_order::acquire)) {
-		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
+	char x;
+	if ((x = watch_dlFlag.load(std::memory_order::acquire))) {
+		if (x == 1) {
+			// Candidate for DL loading
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
+		} else if (x == 2) {
+			// Command from HTTP server
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s", watch_dlPath);
+		}
 		watch_dlFlag.store(0, std::memory_order::release);
 	}
 }

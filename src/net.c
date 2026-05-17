@@ -132,8 +132,7 @@ char readData(void *dst_arg, int len) {
 	return 0;
 }
 
-// TODO: Is there a more elegant way to handle this?
-//       Like, should I wait for the output buffer to clear or smthng?
+// Todo: Nearly duplicated in http.cpp
 char sendData(char *src, int len) {
 	while (len) {
 		int ret = write(net_fd, src, len);

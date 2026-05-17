@@ -9,34 +9,112 @@
 extern char **environ;
 
 #include "util.h"
+#include "watch_flags.h"
 
 #include "http.h"
 
 #define BUF_SIZE 4096
+static char staticBuffer[BUF_SIZE];
 
 int http_fd = -1;
 static int serverPort = -1;
 
-//static char buf[BUF_SIZE];
-
 static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI will be unavailable. Issue is:\n\t";
-static char const *payload = "HTTP/1.1 200 OK\r\nContent-Length: 38\r\nContent-Type: text/html\r\n\r\n"
-"<html><body>Lookit that</body></html>\n";
-// TODO: <!DOCTYPE html>
+static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n";
+
+#include "http.d/onlyGets.include"
+#include "http.d/noContent.include"
+#include "http.d/default.include"
+
+// Todo: Nearly duplicated in net.c
+static void writeAll(int fd, char const *src, int len) {
+	while (len) {
+		int ret = write(fd, src, len);
+		if (ret < 0) {
+			printf("WARN: `write` to HTTP client failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+			return;
+		}
+		src += ret;
+		len -= ret;
+	}
+}
+
+static void writeHtml(int fd, char const *html, int len) {
+	char headers[80];
+	int headerBytes = snprintf(headers, 80, OK_HEADERS, len);
+	// Check size. We use `>=` because `headerBytes` is the number
+	// of non-null bytes that `snprintf` *wanted* to write, and it
+	// always saves one for the null byte at the end.
+	if (headerBytes >= 80) {
+		puts("WARN: HTTP ran out of buffer to write headers");
+		return;
+	}
+	writeAll(fd, headers, headerBytes);
+	writeAll(fd, html, len);
+}
+
+static void sendCommand(char const *cmd) {
+	// TODO:
+	// - These vars shouldn't be called "watch_" anymore
+	// - Need msg for if it's already set
+	// - Need length validation for what I'm writing
+	// Don't need to worry about contention though,
+	// this is the same thread that already writes these.
+	if (!watch_dlFlag.load(std::memory_order::acquire)) {
+		strcpy(watch_dlPath, cmd);
+		watch_dlFlag.store(2, std::memory_order::release);
+	}
+}
+
+static void read_inner(int fd) {
+	// This would be a problem if we were multi-threaded!
+	char *buf = staticBuffer;
+
+	ssize_t size = read(fd, buf, BUF_SIZE-1);
+	if (size == -1) {
+		printf("WARN: HTTP `read` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+		return;
+	}
+	buf[size] = '\0';
+
+	if (size < 4 || strncmp("GET ", buf, 4)) {
+		writeAll(fd, onlyGets_bytes, onlyGets_len);
+		return;
+	}
+	buf += 4;
+
+	// Convert first space (if any) to a NULL byte.
+	// `buf` now holds just the requested path.
+	*strchrnul(buf, ' ') = '\0';
+
+	if (!strcmp(buf, "/team0")) {
+		sendCommand("/team 0");
+		writeAll(fd, noContent_bytes, noContent_len);
+	} else if (!strcmp(buf, "/team1")) {
+		sendCommand("/team 1");
+		writeAll(fd, noContent_bytes, noContent_len);
+	} else if (!strcmp(buf, "/team2")) {
+		sendCommand("/team 2");
+		writeAll(fd, noContent_bytes, noContent_len);
+	} else if (!strcmp(buf, "/")){
+		writeHtml(fd, default_bytes, default_len);
+	} else {
+		// TODO: Log, and send 404 instead of 204
+		writeAll(fd, noContent_bytes, noContent_len);
+	}
+}
 
 char http_read() {
 	int fd;
 	if (-1 == (fd = accept(http_fd, NULL, NULL))) {
 		printf("WARN: HTTP `accept` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
 		// Currently we always leave http_fd open,
-		// but if we ever opt to close it we could
-		// return `1`.
+		// but we would return `1` if we ever were
+		// to close it.
 		return 0;
 	}
 
-	// Right now we are the world's dumbest "http server".
-	// TODO: Don't ignore result of `write`! Maybe fixup `sendData` from net.c and use that?
-	write(fd, payload, strlen(payload));
+	read_inner(fd);
 	close(fd);
 	return 0;
 }
