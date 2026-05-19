@@ -10,6 +10,8 @@ extern char **environ;
 
 #include "util.h"
 #include "watch_flags.h"
+#include "config.h"
+#include "json.h"
 
 #include "http.h"
 
@@ -20,11 +22,25 @@ int http_fd = -1;
 static int serverPort = -1;
 
 static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI will be unavailable. Issue is:\n\t";
-static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n";
+static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
 #include "http.d/onlyGets.include"
 #include "http.d/noContent.include"
 #include "http.d/default.include"
+
+static cfg_item *httpConfigs[] = {
+	&cfg_fov_1,
+	&cfg_fov_2,
+	&cfg_sensitivity_1,
+	&cfg_sensitivity_2,
+	&cfg_aim_1,
+	&cfg_aim_2,
+	&cfg_cam_angle_1,
+	&cfg_cam_angle_2,
+	&cfg_cam_dist_1,
+	&cfg_cam_dist_2,
+	NULL
+};
 
 // Todo: Nearly duplicated in net.c
 static void writeAll(int fd, char const *src, int len) {
@@ -39,13 +55,13 @@ static void writeAll(int fd, char const *src, int len) {
 	}
 }
 
-static void writeHtml(int fd, char const *html, int len) {
-	char headers[80];
-	int headerBytes = snprintf(headers, 80, OK_HEADERS, len);
+static void write200(int fd, char const *html, int len, char const *contentType) {
+	char headers[100];
+	int headerBytes = snprintf(headers, 100, OK_HEADERS, len, contentType);
 	// Check size. We use `>=` because `headerBytes` is the number
 	// of non-null bytes that `snprintf` *wanted* to write, and it
 	// always saves one for the null byte at the end.
-	if (headerBytes >= 80) {
+	if (headerBytes >= 100) {
 		puts("WARN: HTTP ran out of buffer to write headers");
 		return;
 	}
@@ -66,18 +82,91 @@ static void sendCommand(char const *cmd) {
 	}
 }
 
+static void writeConfigs(int fd) {
+	jsonValue root;
+	root.initObj();
+	for (cfg_item **x = httpConfigs; *x; x++) {
+		cfg_item &item = **x;
+		if (item.present) {
+			root.set(item.name)->initStr(strdup(item._data));
+		}
+	}
+
+	list<char> buffer;
+	buffer.init();
+	jsonSerialize(&buffer, &root, -1);
+	buffer.add('\n'); // Probly don't need this but oh well
+	root.destroy();
+
+	write200(fd, buffer.items, buffer.num, "application/json");
+	buffer.destroy();
+}
+
+// Very similar to `cfg_lookup`, but only checks `httpConfigs`, and may return `NULL`.
+static cfg_item* findConfig(char *str) {
+	for (cfg_item **x = httpConfigs; *x; x++) {
+		if (!strcmp(str, (*x)->name)) {
+			return *x;
+		}
+	}
+	return NULL;
+}
+
+static void readConfigs(char *str) {
+	while (1) {
+		char *equals = strchr(str, '=');
+		if (!equals) return;
+		*equals = '\0';
+		cfg_item *cfg = findConfig(str);
+		if (!cfg) {
+			printf("WARN: http: No config by name '%s'\n", str);
+			return;
+		}
+		str = equals+1;
+
+		char *amp = strchr(str, '&');
+		if (amp) *amp = '\0';
+
+		// Can't set a config to the empty string with the HTML UI for now
+		if (*str) cfg->set(str);
+		else cfg->unset();
+
+		if (!amp) return;
+		str = amp+1;
+	}
+}
+
+static char readFirstLine(int fd) {
+	char *buf = staticBuffer;
+	int remaining = BUF_SIZE - 1;
+
+	while (1) {
+		ssize_t size = read(fd, buf, remaining);
+		if (size == 0) {
+			puts("WARN: HTTP `read` found EOF, that doesn't seem right");
+			return 1;
+		}
+		if (size == -1) {
+			printf("WARN: HTTP `read` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+			return 1;
+		}
+		buf[size] = '\0';
+		char *end = strchr(buf, '\r');
+		if (end) {
+			*end = '\0';
+			return 0;
+		}
+		buf += size;
+		remaining -= size;
+	}
+}
+
 static void read_inner(int fd) {
+	if (readFirstLine(fd)) return;
 	// This would be a problem if we were multi-threaded!
 	char *buf = staticBuffer;
 
-	ssize_t size = read(fd, buf, BUF_SIZE-1);
-	if (size == -1) {
-		printf("WARN: HTTP `read` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
-		return;
-	}
-	buf[size] = '\0';
-
-	if (size < 4 || strncmp("GET ", buf, 4)) {
+	if (strncmp("GET ", buf, 4)) {
 		writeAll(fd, onlyGets_bytes, onlyGets_len);
 		return;
 	}
@@ -96,10 +185,18 @@ static void read_inner(int fd) {
 	} else if (!strcmp(buf, "/team2")) {
 		sendCommand("/team 2");
 		writeAll(fd, noContent_bytes, noContent_len);
-	} else if (!strcmp(buf, "/")){
-		writeHtml(fd, default_bytes, default_len);
+	} else if (!strcmp(buf, "/")) {
+		write200(fd, default_bytes, default_len, "text/html");
+	} else if (!strcmp(buf, "/config")) {
+		writeConfigs(fd);
+	} else if (!strncmp(buf, "/camera?", 8)) {
+		readConfigs(buf+8);
+		sendCommand("/_camcfg");
+		writeAll(fd, noContent_bytes, noContent_len);
 	} else {
-		// TODO: Log, and send 404 instead of 204
+		fputs("WARN: Unhandled HTTP request to: ", stdout);
+		puts(buf);
+		// todo: Send 404 instead of 204?
 		writeAll(fd, noContent_bytes, noContent_len);
 	}
 }

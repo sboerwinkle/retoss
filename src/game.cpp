@@ -46,7 +46,7 @@ static int mouseDragSize = 30, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
 enum { AIM_NONE, AIM_LOW, AIM_HIGH };
-static lookConfig look1, look2; // TODO init these, maybe update when config items are set
+static lookConfig look1, look2;
 static lookConfig* look = &look1;
 quat quatCamRotation = {1,0,0,0};
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
@@ -102,6 +102,31 @@ static cfg_item& fallback(cfg_item &a, cfg_item &b) {
 	return a.present ? a : b;
 }
 
+static void readLookConfigs() {
+	look1.sensitivity = cfg_sensitivity_1.getDouble();
+	look2.sensitivity = fallback(cfg_sensitivity_2, cfg_sensitivity_1).getDouble();
+
+	// Our "fovInv" corresponds to the cotangent.
+	// Rather than compute `1/tan(x)`, we compute `tan(90-x)` (b/c division sux).
+	// `/2` is because we need the angle from the center, not the whole fov.
+	// And of course the last bit is just degrees-to-radians conversion.
+	look1.fovInv = tan((90 - cfg_fov_1.getDouble()/2)*M_PI/180);
+	look2.fovInv = tan((90 - fallback(cfg_fov_2, cfg_fov_1).getDouble()/2)*M_PI/180);
+
+	double rads = cfg_cam_angle_1.getDouble()*M_PI/180;
+	look1.hovCos = cos(rads);
+	look1.hovSin = sin(rads);
+	rads = fallback(cfg_cam_angle_2, cfg_cam_angle_1).getDouble()*M_PI/180;
+	look2.hovCos = cos(rads);
+	look2.hovSin = sin(rads);
+
+	look1.hovDist = cfg_cam_dist_1.getDouble();
+	look2.hovDist = fallback(cfg_cam_dist_2, cfg_cam_dist_1).getDouble();
+
+	look1.aimType = parseAimType(cfg_aim_1.get());
+	look2.aimType = parseAimType(fallback(cfg_aim_2, cfg_aim_1).get());
+}
+
 static void initLookConfigs() {
 	if (!cfg_sensitivity_1.present) {
 		cfg_sensitivity_1.set("0.0016");
@@ -133,28 +158,7 @@ static void initLookConfigs() {
 		}
 	}
 
-	look1.sensitivity = cfg_sensitivity_1.getDouble();
-	look2.sensitivity = fallback(cfg_sensitivity_2, cfg_sensitivity_1).getDouble();
-
-	// Our "fovInv" corresponds to the cotangent.
-	// Rather than compute `1/tan(x)`, we compute `tan(90-x)` (b/c division sux).
-	// `/2` is because we need the angle from the center, not the whole fov.
-	// And of course the last bit is just degrees-to-radians conversion.
-	look1.fovInv = tan((90 - cfg_fov_1.getDouble()/2)*M_PI/180);
-	look2.fovInv = tan((90 - fallback(cfg_fov_2, cfg_fov_1).getDouble()/2)*M_PI/180);
-
-	double rads = cfg_cam_angle_1.getDouble()*M_PI/180;
-	look1.hovCos = cos(rads);
-	look1.hovSin = sin(rads);
-	rads = fallback(cfg_cam_angle_2, cfg_cam_angle_1).getDouble()*M_PI/180;
-	look2.hovCos = cos(rads);
-	look2.hovSin = sin(rads);
-
-	look1.hovDist = cfg_cam_dist_1.getDouble();
-	look2.hovDist = fallback(cfg_cam_dist_2, cfg_cam_dist_1).getDouble();
-
-	look1.aimType = parseAimType(cfg_aim_1.get());
-	look2.aimType = parseAimType(fallback(cfg_aim_2, cfg_aim_1).get());
+	readLookConfigs();
 }
 
 //// Boring init stuff ////
@@ -686,6 +690,10 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 	if (isCmd(buf, "/hotbar")) {
 		if (buf[7]) dl_hotbar(buf+8);
 		else dl_hotbar("");
+		return 1;
+	}
+	if (isCmd(buf, "/_camcfg")) {
+		readLookConfigs();
 		return 1;
 	}
 	return 0;

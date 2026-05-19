@@ -1,5 +1,7 @@
 *.o
 *.so
+# These are also compiled artifacts
+/src/http.d/*.include
 
 vgcore*
 game

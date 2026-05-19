@@ -69,6 +69,7 @@ static cfg_item *allItems[] = {
 
 static cfg_item dummy = {.name=""};
 
+// http.cpp has something similar (with some differences) called `findConfig`
 cfg_item* cfg_lookup(char const *name) {
 	cfg_item **x = allItems;
 	for (; *x; x++) {
@@ -97,6 +98,13 @@ static void consumeString(jsonValue *root, cfg_item *item) {
 }
 
 void config_init() {
+	// The polling thread also writes these configs (when serving HTTP requests).
+	// Since the buffers are statically allocated it's not as big a deal, but the
+	// final byte should still be zeroed so we're guaranteed to find a null byte.
+	for (cfg_item **x = allItems; *x; x++) {
+		(*x)->_data[CFG_BUF_LEN-1] = '\0';
+	}
+
 	char const *xdg_config_home = getenv("XDG_CONFIG_HOME");
 	if (xdg_config_home && *xdg_config_home) {
 		printf(QUIET("XDG_CONFIG_HOME='%s'\n"), xdg_config_home);

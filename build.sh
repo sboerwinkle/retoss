@@ -2,7 +2,12 @@
 
 # This is the super-naive version
 # If you want a really robust way to ensure the working dir matches the script location, look it up!
-cd `dirname "$0"`
+cd "$(dirname "$0")"
+
+# Converts some data files to hexdump snippets suitable for including in C source
+src/http.d/compile.sh
+
+echo 'Compiling...'
 
 shopt -s nullglob
 
@@ -18,3 +23,5 @@ g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-trunca
 	src/{,lv/,comp/,tasks/}*.{c,cpp} \
 	$L_GLFW3 -pthread -lm -lGL -o game
 #src/*.cpp src/*.c src/lv/*.cpp src/lv/*.c \
+
+echo 'Done'

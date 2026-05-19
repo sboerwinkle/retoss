@@ -9,17 +9,47 @@ Team select
 	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label><br/>
 </div>
 <button id="teamSubmit" type="button">Submit</button>
+<details style="border: 1px solid black;">
+	<summary style="cursor: pointer;">Camera Settings</summary>
+	<form id="camForm">
+		<input type="text" id="fov_1"/><input type="text" id="fov_2"/>Vertical field of view (degrees)<br/>
+		<input type="text" id="sensitivity_1"/><input type="text" id="sensitivity_2"/>Mouse sensitivity<br/>
+		<input type="text" id="cam_dist_1"/><input type="text" id="cam_dist_2"/>Camera distance from player (0-4000)<br/>
+		<input type="text" id="cam_angle_1"/><input type="text" id="cam_angle_2"/>Camera hover direction (degrees, 0-15)<br/>
+		<input type="text" id="aim_1"/><input type="text" id="aim_2"/>Aim mode (LOW, HIGH, or NONE)<br/>
+		<button id="camSubmit">Submit</button>
+	</form>
+</details>
+<span id="loading" style="background: #fc8; border: 1px solid black;">Loading configs...</span>
 </body>
 <script>
 	"use strict";
 	let id = x=>document.getElementById(x);
-	let names = ['Submit', 'Apply', 'Select', 'Pick', 'Send', 'Choose', 'OK', '\uD83D\uDC4D'];
+
+	let name = ['Submit', 'Apply', 'Send', 'OK', '\uD83D\uDC4D'];
+	name = name[Math.floor(Math.random() * name.length)];
+	['teamSubmit', 'camSubmit'].map(x=>id(x).innerText=name);
+
 	let teamInputs = [...id('teams').children].filter(x => x.tagName=='LABEL').map(label=>label.children[0]);
 
 	let teamSubmit = id('teamSubmit');
-	teamSubmit.innerText = names[Math.floor(Math.random() * names.length)];
 	teamSubmit.addEventListener('click', () => {
 		teamInputs.filter(x => x.checked).map(x => fetch(x.value));
+	});
+
+	let camInputs = ['fov', 'sensitivity', 'cam_dist', 'cam_angle', 'aim'].flatMap(x=>[x+'_1', x+'_2']).map(x=>id(x));
+	id('camForm').addEventListener('submit', e => {
+		e.preventDefault();
+		// At some point I should actually do URL encoding (here, and server)
+		let params = camInputs.map(e=>e.id+'='+e.value).join('&');
+		fetch('/camera?' + params);
+	});
+
+	fetch('/config').then(x=>x.json()).then(x=>{
+		for (let key in x) {
+			id(key).value=x[key];
+		}
+		id('loading').remove();
 	});
 </script>
 </html>
