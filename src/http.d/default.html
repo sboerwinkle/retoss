@@ -1,5 +1,10 @@
 <!DOCTYPE html>
 <html>
+<head><style>
+details, #loading { border: 1px solid black; }
+summary { cursor: pointer; }
+ul { margin: 0; }
+</style></head>
 <body style="background: #aaa;">
 Team select
 <br/>
@@ -9,41 +14,58 @@ Team select
 	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label><br/>
 </div>
 <button id="teamSubmit" type="button">Submit</button>
-<details style="border: 1px solid black;">
-	<summary style="cursor: pointer;">Camera Settings</summary>
+<details>
+	<summary>Camera Settings</summary>
 	<form id="camForm">
 		<input type="text" id="fov_1"/><input type="text" id="fov_2"/>Vertical field of view (degrees)<br/>
 		<input type="text" id="sensitivity_1"/><input type="text" id="sensitivity_2"/>Mouse sensitivity<br/>
 		<input type="text" id="cam_dist_1"/><input type="text" id="cam_dist_2"/>Camera distance from player (0-4000)<br/>
 		<input type="text" id="cam_angle_1"/><input type="text" id="cam_angle_2"/>Camera hover direction (degrees, 0-15)<br/>
 		<input type="text" id="aim_1"/><input type="text" id="aim_2"/>Aim mode (LOW, HIGH, or NONE)<br/>
-		<button id="camSubmit">Submit</button>
+		<button>Submit</button>
 	</form>
 </details>
-<span id="loading" style="background: #fc8; border: 1px solid black;">Loading configs...</span>
+<details>
+	<summary>Prediction Settings</summary>
+	<form id="predForm">
+		How to handle shots that are predicted to happen, but not yet canon.
+		<ul>
+			<li>0 - don't show</li>
+			<li>1 - show, but no damage</li>
+			<li>2 - show + damage (default)</li>
+		</ul>
+		<input type="text" id="pred_shot_self"/>My shots<br/>
+		<input type="text" id="pred_shot_others"/>Others' shots<br/>
+		<button>Submit</button>
+	</form>
+</details>
+<span id="loading" style="background: #fc8;">Loading configs...</span>
 </body>
 <script>
 	"use strict";
 	let id = x=>document.getElementById(x);
 
-	let name = ['Submit', 'Apply', 'Send', 'OK', '\uD83D\uDC4D'];
+	let name = ['Submit', 'Apply', 'Send', 'OK', 'Confirm', '\u2705'];
 	name = name[Math.floor(Math.random() * name.length)];
-	['teamSubmit', 'camSubmit'].map(x=>id(x).innerText=name);
+	document.querySelectorAll('button').forEach(x=>x.innerText=name);
 
-	let teamInputs = [...id('teams').children].filter(x => x.tagName=='LABEL').map(label=>label.children[0]);
+	let teamInputs = [...id('teams').querySelectorAll('input')];
 
-	let teamSubmit = id('teamSubmit');
-	teamSubmit.addEventListener('click', () => {
+	id('teamSubmit').addEventListener('click', () => {
 		teamInputs.filter(x => x.checked).map(x => fetch(x.value));
 	});
 
-	let camInputs = ['fov', 'sensitivity', 'cam_dist', 'cam_angle', 'aim'].flatMap(x=>[x+'_1', x+'_2']).map(x=>id(x));
-	id('camForm').addEventListener('submit', e => {
-		e.preventDefault();
-		// At some point I should actually do URL encoding (here, and server)
-		let params = camInputs.map(e=>e.id+'='+e.value).join('&');
-		fetch('/camera?' + params);
-	});
+	let formLogic = (form, urlBase) => {
+		let inputs = [...form.querySelectorAll('input')];
+		form.addEventListener('submit', e => {
+			e.preventDefault();
+			// At some point I should actually do URL encoding (here, and server)
+			let params = inputs.map(e=>e.id+'='+e.value).join('&');
+			fetch('/'+urlBase+'?'+params);
+		});
+	};
+	formLogic(id('camForm'), 'camera');
+	formLogic(id('predForm'), 'prediction');
 
 	fetch('/config').then(x=>x.json()).then(x=>{
 		for (let key in x) {

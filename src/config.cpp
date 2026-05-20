@@ -32,6 +32,7 @@ void cfg_item::set(char const *str) {
 
 void cfg_item::unset() {
 	present = 0;
+	modified = 1;
 }
 
 double cfg_item::getDouble() {
@@ -50,6 +51,8 @@ cfg_item cfg_cam_angle_1 = {.name="cam_angle_1"};
 cfg_item cfg_cam_angle_2 = {.name="cam_angle_2"};
 cfg_item cfg_cam_dist_1 = {.name="cam_dist_1"};
 cfg_item cfg_cam_dist_2 = {.name="cam_dist_2"};
+cfg_item cfg_pred_shot_self = {.name="pred_shot_self"};
+cfg_item cfg_pred_shot_others = {.name="pred_shot_others"};
 
 static cfg_item *allItems[] = {
 	&cfg_host,
@@ -64,6 +67,8 @@ static cfg_item *allItems[] = {
 	&cfg_cam_angle_2,
 	&cfg_cam_dist_1,
 	&cfg_cam_dist_2,
+	&cfg_pred_shot_self,
+	&cfg_pred_shot_others,
 	NULL
 };
 

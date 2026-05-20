@@ -1,7 +1,10 @@
 #include <math.h>
 
 #include "gamestate.h"
+
 #include "bcast.h"
+#include "game.h"
+#include "main.h"
 
 #include "player.h"
 
@@ -171,6 +174,11 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 }
 
 static void shoot(gamestate *gs, player *p) {
+	int shotRule;
+	if (gs == rootState) shotRule = 2;
+	else shotRule = shotPredictionRules[p != &gs->players[myPlayer]];
+
+	if (!shotRule) return;
 	// Todo: Surely we'll need this more often, right? Save it somewhere?
 	unitvec look;
 	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
@@ -192,7 +200,7 @@ static void shoot(gamestate *gs, player *p) {
 		time = limit;
 		result = NULL;
 	}
-	if (result && result->type & T_PLAYER) {
+	if (result && (result->type & T_PLAYER) && shotRule != 1) {
 		player *shootee = playerFromMover(result);
 		if (shootee->hits < 2) {
 			shootee->hits++;

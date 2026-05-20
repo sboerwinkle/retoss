@@ -29,6 +29,7 @@ extern char loopbackCommandBuffer[TEXT_BUF_LEN];
 struct gamestate;
 
 extern char globalRunning;
+extern int myPlayer;
 extern gamestate *rootState;
 
 extern char isCmd(const char* input, const char *cmd);

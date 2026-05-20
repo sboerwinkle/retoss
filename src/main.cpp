@@ -29,8 +29,7 @@
 #include "graphics_callbacks.h"
 
 char globalRunning = 1;
-
-static int myPlayer;
+int myPlayer;
 
 // Text input / sending queued text is
 // something I'm putting in the "core"
@@ -271,7 +270,7 @@ static void processLoopbackCommand() {
 		syncData.num = 0;
 		syncData.add(BIN_CMD_SYNC);
 		serialize(rootState, &syncData);
-	} else if (!customLoopbackCommand(rootState, myPlayer, c)) {
+	} else if (!customLoopbackCommand(rootState, c)) {
 		printf("Unknown loopback command: %s\n", c);
 	}
 }
@@ -698,7 +697,7 @@ static void* renderThreadFunc(void *_arg) {
 
 		// Computation of `p` should be safe, even the initial `renderedState`
 		// is populated after we know the number of players in the game.
-		draw(renderedState, myPlayer, interpRatio, drawingNanos, totalNanos);
+		draw(renderedState, interpRatio, drawingNanos, totalNanos);
 		long time1 = nowNanos();
 
 		glfwSwapBuffers(display);

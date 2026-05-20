@@ -39,6 +39,8 @@ static cfg_item *httpConfigs[] = {
 	&cfg_cam_angle_2,
 	&cfg_cam_dist_1,
 	&cfg_cam_dist_2,
+	&cfg_pred_shot_self,
+	&cfg_pred_shot_others,
 	NULL
 };
 
@@ -191,7 +193,11 @@ static void read_inner(int fd) {
 		writeConfigs(fd);
 	} else if (!strncmp(buf, "/camera?", 8)) {
 		readConfigs(buf+8);
-		sendCommand("/_camcfg");
+		sendCommand("/_cfgcam");
+		writeAll(fd, noContent_bytes, noContent_len);
+	} else if (!strncmp(buf, "/prediction?", 12)) {
+		readConfigs(buf+12);
+		sendCommand("/_cfgpred");
 		writeAll(fd, noContent_bytes, noContent_len);
 	} else {
 		fputs("WARN: Unhandled HTTP request to: ", stdout);

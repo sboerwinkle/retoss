@@ -65,6 +65,8 @@ static char doLookGp = 0;
 // For now this is just for editing, will need to update it some if it becomes for other stuff too
 static int numberPressed = 0;
 
+char shotPredictionRules[2];
+
 struct {
 	struct {
 		char u, d, l, r, z, Z;
@@ -100,6 +102,19 @@ static u8 parseAimType(char const *str) {
 
 static cfg_item& fallback(cfg_item &a, cfg_item &b) {
 	return a.present ? a : b;
+}
+
+static void readPredictionConfigs() {
+	if (cfg_pred_shot_self.present) {
+		shotPredictionRules[0] = cfg_pred_shot_self.getDouble();
+	} else {
+		shotPredictionRules[0] = 2;
+	}
+	if (cfg_pred_shot_others.present) {
+		shotPredictionRules[1] = cfg_pred_shot_others.getDouble();
+	} else {
+		shotPredictionRules[1] = 2;
+	}
 }
 
 static void readLookConfigs() {
@@ -142,23 +157,19 @@ static void initLookConfigs() {
 	}
 	if (!cfg_cam_angle_1.present) {
 		cfg_cam_angle_1.set("15");
-		// We don't care about cam_angle_2,
-		// since by default look_2 is first-person.
 	}
 	if (!cfg_cam_dist_1.present) {
 		cfg_cam_dist_1.set("4000");
 		if (!cfg_cam_dist_2.present) {
-			cfg_cam_dist_2.set("0");
+			cfg_cam_dist_2.set("200");
 		}
 	}
 	if (!cfg_aim_1.present) {
-		cfg_aim_1.set("LOW");
-		if (!cfg_aim_2.present) {
-			cfg_aim_2.set("NONE");
-		}
+		cfg_aim_1.set("HIGH");
 	}
 
 	readLookConfigs();
+	readPredictionConfigs();
 }
 
 //// Boring init stuff ////
@@ -692,14 +703,18 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		else dl_hotbar("");
 		return 1;
 	}
-	if (isCmd(buf, "/_camcfg")) {
+	if (isCmd(buf, "/_cfgcam")) {
 		readLookConfigs();
+		return 1;
+	}
+	if (isCmd(buf, "/_cfgpred")) {
+		readPredictionConfigs();
 		return 1;
 	}
 	return 0;
 }
 
-char customLoopbackCommand(gamestate *gs, int myPlayer, char const * str) {
+char customLoopbackCommand(gamestate *gs, char const * str) {
 	if (isCmd(str, "/dl")) {
 		if (!str[3]) {
 			puts("/dl requires an arg!");
@@ -910,7 +925,7 @@ static void drawSolid(solid *s) {
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
-void draw(gamestate *gs, int myPlayer, float interpRatio, long drawingNanos, long totalNanos) {
+void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) {
 	updateTiming(&renderTiming, drawingNanos);
 	gfx_interpRatio = interpRatio;
 
