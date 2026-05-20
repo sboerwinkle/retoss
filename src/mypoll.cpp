@@ -10,8 +10,17 @@
 #include "http.h"
 #include "main.h"
 
+#include "mypoll.h"
+
 #define NUMFDS 3
 static struct pollfd fds[NUMFDS];
+
+// Todo "poll_" prefix on these vars would be nice.
+std::atomic<char> texReloadFlag = 0;
+char texReloadPath[POLL_BUF_LEN];
+
+std::atomic<char> poll_game_flag = 0;
+char poll_game_data[POLL_BUF_LEN];
 
 void* mypoll_threadFunc(void *arg) {
 	while (1) {

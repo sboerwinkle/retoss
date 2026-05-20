@@ -10,18 +10,11 @@
 #include <unistd.h>
 
 #include "main.h"
+#include "mypoll.h"
 
 #include "watch.h"
-#include "watch_flags.h"
 
 int watch_fd = -1;
-
-// Todo "watch_" prefix on these vars would be nice.
-std::atomic<char> texReloadFlag = 0;
-char texReloadPath[WATCH_PATH_LEN];
-
-std::atomic<char> watch_dlFlag = 0;
-char watch_dlPath[WATCH_PATH_LEN];
 
 static int watchDesc_dl, watchDesc_gfx;
 
@@ -65,7 +58,7 @@ void watch_read() {
 			continue;
 		}
 
-		if (ev->len > WATCH_PATH_LEN) {
+		if (ev->len > POLL_BUF_LEN) {
 			// Note that `ev->len` can be longer than `strlen(ev->name)+1`,
 			// because multiple null bytes can be included at the end to
 			// pad out the structure for memory aligment reasons. This shouldn't
@@ -111,12 +104,12 @@ void watch_read() {
 			// including keeping a few different DL handles open at a time.
 			// I guess the sensible thing to do would be to have a similar setup to gfx for now,
 			// and the game thread (I guess) can deal with whatever logic.
-			if (watch_dlFlag.load(std::memory_order::acquire)) {
+			if (poll_game_flag.load(std::memory_order::acquire)) {
 				printf("Missed change for watched file '%s' (dl)\n", ev->name);
 			} else {
 				printf("Saw update for '%s' (dl)\n", ev->name);
-				memcpy(watch_dlPath, ev->name, ev->len);
-				watch_dlFlag.store(1, std::memory_order::release);
+				memcpy(poll_game_data, ev->name, ev->len);
+				poll_game_flag.store(1, std::memory_order::release);
 			}
 		}
 	}
@@ -128,15 +121,6 @@ void watch_init() {
 		perror("inotify_init");
 		exit(1);
 	}
-
-	/* This will probably be "src" or something, IDK yet where exactly I'm going to watch!
-	watchDesc_dl = inotify_add_watch(watch_fd, "../dl_srm", IN_CLOSE_WRITE);
-	if (watchDesc_dl == -1) {
-		perror("inotify_add_watch for dl");
-		close(watch_fd);
-		exit(1);
-	}
-	*/
 
 	watchDesc_gfx = inotify_add_watch(watch_fd, "assets", IN_CLOSE_WRITE);
 	if (watchDesc_gfx == -1) {

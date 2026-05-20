@@ -9,9 +9,9 @@
 extern char **environ;
 
 #include "util.h"
-#include "watch_flags.h"
 #include "config.h"
 #include "json.h"
+#include "mypoll.h"
 
 #include "http.h"
 
@@ -73,14 +73,13 @@ static void write200(int fd, char const *html, int len, char const *contentType)
 
 static void sendCommand(char const *cmd) {
 	// TODO:
-	// - These vars shouldn't be called "watch_" anymore
 	// - Need msg for if it's already set
 	// - Need length validation for what I'm writing
 	// Don't need to worry about contention though,
 	// this is the same thread that already writes these.
-	if (!watch_dlFlag.load(std::memory_order::acquire)) {
-		strcpy(watch_dlPath, cmd);
-		watch_dlFlag.store(2, std::memory_order::release);
+	if (!poll_game_flag.load(std::memory_order::acquire)) {
+		strcpy(poll_game_data, cmd);
+		poll_game_flag.store(2, std::memory_order::release);
 	}
 }
 

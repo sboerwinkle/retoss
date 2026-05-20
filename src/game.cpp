@@ -12,13 +12,13 @@
 #include "main.h"
 #include "gamestate.h"
 #include "graphics.h"
-#include "watch_flags.h"
 #include "dl.h"
 #include "dl_game.h"
 #include "bctx.h"
 #include "constel.h"
 #include "http.h"
 #include "lv.h"
+#include "mypoll.h"
 #include "player.h"
 #include "bcast.h"
 #include "task.h"
@@ -521,15 +521,15 @@ void serializeInputs(char * dest) {
 	serializeEvent(&sharedInputs.event.shoot, sharedInputs.state.shoot, &sentShootState, "/_S", "/_s");
 
 	char x;
-	if ((x = watch_dlFlag.load(std::memory_order::acquire))) {
+	if ((x = poll_game_flag.load(std::memory_order::acquire))) {
 		if (x == 1) {
 			// Candidate for DL loading
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", watch_dlPath);
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", poll_game_data);
 		} else if (x == 2) {
 			// Command from HTTP server
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s", watch_dlPath);
+			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s", poll_game_data);
 		}
-		watch_dlFlag.store(0, std::memory_order::release);
+		poll_game_flag.store(0, std::memory_order::release);
 	}
 }
 

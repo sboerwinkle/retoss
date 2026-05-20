@@ -8,11 +8,11 @@
 #include "file.h"
 #include "util.h"
 #include "matrix.h"
-#include "game_graphics.h"
 #include "png.h"
-#include "watch_flags.h"
+#include "game_graphics.h"
 #include "gamestate.h"
 #include "collision.h" // For raycasting, for camera position
+#include "mypoll.h"
 
 #include "graphics.h"
 #include "graphics_callbacks.h"
