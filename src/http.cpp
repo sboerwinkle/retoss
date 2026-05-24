@@ -41,6 +41,7 @@ static cfg_item *httpConfigs[] = {
 	&cfg_cam_dist_2,
 	&cfg_pred_shot_self,
 	&cfg_pred_shot_others,
+	&cfg_no_ui,
 	NULL
 };
 
@@ -72,14 +73,13 @@ static void write200(int fd, char const *html, int len, char const *contentType)
 }
 
 static void sendCommand(char const *cmd) {
-	// TODO:
-	// - Need msg for if it's already set
-	// - Need length validation for what I'm writing
-	// Don't need to worry about contention though,
-	// this is the same thread that already writes these.
+	// We're on the "poll" thread, which is the only one that's
+	// supposed to be writing to `poll_game_data`.
 	if (!poll_game_flag.load(std::memory_order::acquire)) {
-		strcpy(poll_game_data, cmd);
+		snprintf(poll_game_data, POLL_BUF_LEN, "%s", cmd);
 		poll_game_flag.store(2, std::memory_order::release);
+	} else {
+		printf("http couldn't send cmd to main thread: %s\n", cmd);
 	}
 }
 
@@ -197,6 +197,9 @@ static void read_inner(int fd) {
 	} else if (!strncmp(buf, "/prediction?", 12)) {
 		readConfigs(buf+12);
 		sendCommand("/_cfgpred");
+		writeAll(fd, noContent_bytes, noContent_len);
+	} else if (!strncmp(buf, "/misc?", 6)) {
+		readConfigs(buf+6);
 		writeAll(fd, noContent_bytes, noContent_len);
 	} else {
 		fputs("WARN: Unhandled HTTP request to: ", stdout);

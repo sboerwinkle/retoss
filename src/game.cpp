@@ -142,7 +142,7 @@ static void readLookConfigs() {
 	look2.aimType = parseAimType(fallback(cfg_aim_2, cfg_aim_1).get());
 }
 
-static void initLookConfigs() {
+static void initConfigs() {
 	if (!cfg_sensitivity_1.present) {
 		cfg_sensitivity_1.set("0.0016");
 		if (!cfg_sensitivity_2.present) {
@@ -188,7 +188,7 @@ void game_init() {
 }
 
 gamestate* game_init2() {
-	initLookConfigs();
+	initConfigs();
 
 	gamestate *gs = (gamestate*)malloc(sizeof(gamestate));
 	// It's okay to do level gen in this method, but correct initialization of the gamestate
@@ -196,7 +196,7 @@ gamestate* game_init2() {
 	init(gs);
 
 	lv_tdm1(gs);
-	http_spawnClient();
+	if (!cfg_no_ui.present) http_spawnClient();
 
 	return gs;
 }
@@ -589,6 +589,10 @@ static int64_t* pvarUpdatePtr(dl_var *v) {
 }
 
 char handleLocalCommand(char * buf, list<char> * outData) {
+	if (isCmd(buf, "/ui")) {
+		http_spawnClient();
+		return 1;
+	}
 	if (isCmd(buf, "/dl") || isCmd(buf, "/selall")) {
 		strcpy(loopbackCommandBuffer, buf);
 		return 1;

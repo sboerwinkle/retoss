@@ -26,6 +26,7 @@ extern cfg_item cfg_cam_dist_1;
 extern cfg_item cfg_cam_dist_2;
 extern cfg_item cfg_pred_shot_self;
 extern cfg_item cfg_pred_shot_others;
+extern cfg_item cfg_no_ui;
 
 extern cfg_item* cfg_lookup(char const *name);
 

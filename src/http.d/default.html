@@ -4,6 +4,11 @@
 details, #loading { border: 1px solid black; }
 summary { cursor: pointer; }
 ul { margin: 0; }
+pre {
+	display: inline;
+	background: lightgray;
+	font-family: monospace;
+}
 </style></head>
 <body style="background: #aaa;">
 Team select
@@ -39,6 +44,13 @@ Team select
 		<button>Submit</button>
 	</form>
 </details>
+<details>
+	<summary>Misc Settings</summary>
+	<form id="miscForm">
+		<label><input type="checkbox" id="no_ui"/>Skip <pre>/ui</pre> (this page) on startup</label><br/>
+		<button>Submit</button>
+	</form>
+</details>
 <span id="loading" style="background: #fc8;">Loading configs...</span>
 </body>
 <script>
@@ -55,21 +67,34 @@ Team select
 		teamInputs.filter(x => x.checked).map(x => fetch(x.value));
 	});
 
+	let toParam = (e) => {
+		let value;
+		if (e.type == 'text') value = e.value;
+		else if (e.type == 'checkbox') value = e.checked ? 'y' : '';
+		else return 'ohno='+e.id;
+		return e.id+'='+value;
+	}
+
 	let formLogic = (form, urlBase) => {
 		let inputs = [...form.querySelectorAll('input')];
 		form.addEventListener('submit', e => {
 			e.preventDefault();
 			// At some point I should actually do URL encoding (here, and server)
-			let params = inputs.map(e=>e.id+'='+e.value).join('&');
+			let params = inputs.map(toParam).join('&');
 			fetch('/'+urlBase+'?'+params);
 		});
 	};
 	formLogic(id('camForm'), 'camera');
 	formLogic(id('predForm'), 'prediction');
+	formLogic(id('miscForm'), 'misc');
 
 	fetch('/config').then(x=>x.json()).then(x=>{
 		for (let key in x) {
-			id(key).value=x[key];
+			let elem = id(key);
+			let value = x[key];
+			if (elem.type == 'text') elem.value = value;
+			else if (elem.type == 'checkbox') elem.checked = true;
+			else console.log('No suitable element for key: ' + key, elem);
 		}
 		id('loading').remove();
 	});

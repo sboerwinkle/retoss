@@ -53,6 +53,7 @@ cfg_item cfg_cam_dist_1 = {.name="cam_dist_1"};
 cfg_item cfg_cam_dist_2 = {.name="cam_dist_2"};
 cfg_item cfg_pred_shot_self = {.name="pred_shot_self"};
 cfg_item cfg_pred_shot_others = {.name="pred_shot_others"};
+cfg_item cfg_no_ui = {.name="no_ui"};
 
 static cfg_item *allItems[] = {
 	&cfg_host,
@@ -69,6 +70,7 @@ static cfg_item *allItems[] = {
 	&cfg_cam_dist_2,
 	&cfg_pred_shot_self,
 	&cfg_pred_shot_others,
+	&cfg_no_ui,
 	NULL
 };
 
