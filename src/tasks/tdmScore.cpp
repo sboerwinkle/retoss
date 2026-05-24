@@ -32,11 +32,11 @@ static void drawSmallScores(u8 const scores[2]) {
 	}
 }
 
-#define SNAKE_BASIC 2
-#define SNAKE_OHNO  3
-#define SNAKE_CHOMP_1 1
+#define SNAKE_BASIC 0
+#define SNAKE_OHNO  1
+#define SNAKE_CHOMP_1 3
 // Didn't wind up drawing a separate sprite, it re-uses SNAKE_BASIC
-#define SNAKE_CHOMP_2 2
+#define SNAKE_CHOMP_2 0
 
 // Whole space avail
 static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float interp) {
@@ -57,14 +57,14 @@ static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float i
 		int shift = i*10;
 		float snakeY = -displayAreaBounds[1] + shift;
 		// tail
-		sprite2d(0, shift, 10, 10, left, snakeY);
+		sprite2d(0, 40-shift, 10, 10, left, snakeY);
 		// segments
 		for (int x = 0; x < amt; x += 5) {
-			sprite2d(10, shift, 5, 10, left+10+x, snakeY);
+			sprite2d(10, 40-shift, 5, 10, left+10+x, snakeY);
 		}
 		// head
 		float headX = 20*(heads[i] & 1) + 5;
-		float headY = 10*(heads[i] & 2) + shift;
+		float headY = 10*(heads[i] & 2) + 20 - shift;
 		sprite2d(headX, headY, 15, 10, left+amt+5, snakeY);
 	}
 }

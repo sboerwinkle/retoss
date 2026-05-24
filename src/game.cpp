@@ -903,8 +903,8 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		// Split crosshair
 		float distance = (self->cooldown - gfx_interpRatio)/2;
 		// src coords, size, dest coords
-		sprite2d(0, 118, 5, 10, -5-distance, y-5);
-		sprite2d(5, 118, 5, 10,    distance, y-5);
+		sprite2d(0, 10, 5, 10, -5-distance, y-5);
+		sprite2d(5, 10, 5, 10,    distance, y-5);
 	} else {
 		// Could draw it as 2 halves in this case as well,
 		// I'm just not sure if it might look funny b/c of
@@ -912,7 +912,7 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		// You never have the split cursor if you're dead,
 		// so we only handle the "dead" case here.
 		int x = self->alive ? 0 : 28;
-		sprite2d(x, 118, 10, 10, -5, y-5);
+		sprite2d(x, 10, 10, 10, -5, y-5);
 	}
 }
 
@@ -979,7 +979,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		centeredGrid2d(96);
 		selectTex2d(1, 64, 64);
 		rangeconst(i, 3 - p->hits) {
-			sprite2d(6, 57, 7, 7, -11.5+8*i, displayAreaBounds[1]-7);
+			sprite2d(6, 7, 7, 7, -11.5+8*i, displayAreaBounds[1]-7);
 		}
 	}
 

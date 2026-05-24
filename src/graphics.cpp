@@ -37,6 +37,7 @@ char const * const texSrcFiles[NUM_TEXS] = {
 };
 GLuint textures[NUM_TEXS];
 
+static void setupTextDrawingInner();
 static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
 static void populateCubeVertexData2(list<GLfloat> *data);
@@ -62,6 +63,7 @@ static GLuint sprite_prog;
 // static GLuint flat_prog; // Will need this later, but don't feel like reworking shader rn
 
 static GLuint buffer_id, spr_buffer_id;
+static GLuint fb_id;
 static GLuint vaos[2];
 
 static GLint u_main_modelview;
@@ -163,6 +165,7 @@ static void loadTexture(int i) {
 		printf("Not loading texture %d\n", i);
 	} else {
 		glBindTexture(GL_TEXTURE_2D, textures[i]);
+		// (TODO wtf did I ever mean here)
 		// We're going to assume the correct texture is bound!
 		// That's the nice thing about only using one texture.
 		glTexImage2D(
@@ -203,6 +206,45 @@ static void loadMottleTex() {
 static void loadAllTextures() {
 	loadMottleTex();
 	for (int i = 1; i < NUM_TEXS; i++) loadTexture(i);
+}
+
+static int renderTexture() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fb_id);
+	/* For now we just render to textures[3], sorry textures[3]!
+	GLuint tex;
+	glGenTextures(1, &tex);
+	*/
+	// TODO That one tutorial set both min/mag filters to GL_NEAREST on our target tex,
+	//      do I need that?
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[5], 0);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	// Should be the real size of the texture I guess
+	glViewport(0, 0, 128, 128);
+
+	// could check `glCheckFramebufferStatus(GL_FRAMEBUFFER)` if I cared
+
+	glDepthMask(0); // Not really sure if I need this one
+	setup2dDrawing();
+
+	// This affects the font size, since this is the only way
+	// it knows the "resolution" of the target texture.
+	displayAreaBounds[0] = 16;
+	displayAreaBounds[1] = 16;
+	setupTextDrawingInner();
+	spriteColorMult(1.00, 0.50, 0.50, 1);
+
+	//drawText("S", 61, 61);
+	drawText("S", 16, 16);
+
+	// Pretty sure this "bind" is necessary?
+	glBindTexture(GL_TEXTURE_2D, textures[5]);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to screen's framebuffer
+	// Probably need to restore this
+	glViewport(0, 0, displayWidth, displayHeight);
+
+	return 0;
 }
 
 void initGraphics() {
@@ -350,6 +392,11 @@ void initGraphics() {
 	// This would matter if we used the DEST_ALPHA at all, but we don't, so we don't care what happens to it.
 	glBlendEquation(GL_FUNC_ADD);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// Framebuffer setup so we can draw to a texture!
+	// Work in progress.
+	glGenFramebuffers(1, &fb_id);
+	renderTexture();
 
 	cerr("End of graphics setup");
 }
@@ -628,8 +675,7 @@ void spriteColorAdd(float r, float g, float b, float a) {
 void centeredGrid2d(float boundsY) {
 	displayAreaBounds[1] = boundsY;
 	displayAreaBounds[0] = boundsY*displayWidth/displayHeight;
-	// We have Y increase downwards
-	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], -1.0/displayAreaBounds[1]);
+	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], 1.0/displayAreaBounds[1]);
 }
 
 // `texW` and `texH` are the full width/height of the texture, in pixels.
@@ -647,9 +693,22 @@ void selectTex2d(int tex, int texW, int texH) {
 void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float y) {
 	glUniform2f(u_spr_tex_offset, spr_off_x, spr_off_y);
 	glUniform2f(u_spr_size, spr_w, spr_h);
-	glUniform2f(u_spr_screen_offset, x, y);
+	// I had some coordinate systems flipped, and had to get that straightened out.
+	// Really I should go through and flip all the callers of this method
+	// so everything finally agrees, but for now I'm just changing this to `-y`.
+	glUniform2f(u_spr_screen_offset, x, -y);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+}
+
+static void setupTextDrawingInner() {
+	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], 1.0/displayAreaBounds[1]);
+
+	// Our texture is 64x64, and tex coords go 0-1
+	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
+	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
+
+	spriteColorMult(0.75, 0.75, 0.75, 1);
 }
 
 void setup2dTextDrawing() {
@@ -658,15 +717,8 @@ void setup2dTextDrawing() {
 	float textSize = 4;
 	displayAreaBounds[0] = displayWidth/2.0/textSize;
 	displayAreaBounds[1] = displayHeight/2.0/textSize;
-	// We put (0,0) in the upper-left of the letter, at least for now.
-	// That means we need Y to increase downwards on the screen, so we flip that axis here.
-	glUniform2f(u_spr_scale, 1.0/displayAreaBounds[0], -1.0/displayAreaBounds[1]);
 
-	// Our texture is 64x64, and I belive tex coords go 0-1
-	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
-	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
-
-	spriteColorMult(0.75, 0.75, 0.75, 1);
+	setupTextDrawingInner();
 }
 
 void drawTextCentered(char const *str, int y) {
@@ -677,7 +729,8 @@ void drawText(char const* str, int x, int y) {
 	// Text is 4x6, stride is 5x7, and the copied piece is 5x8 (including blank pixels above, below, and to the right).
 
 	float cursorX = -displayAreaBounds[0]+x;
-	float cursorY = -displayAreaBounds[1]+y;
+	// Need to go through and flip callers of this method at some point
+	float cursorY =  displayAreaBounds[1]-y;
 	// Each letter has a blank column copied to the right, but the first blank column (to the left) is done manually.
 	glUniform2f(u_spr_size, 1, 8);
 	glUniform2f(u_spr_screen_offset, cursorX, cursorY);
@@ -699,7 +752,7 @@ void drawText(char const* str, int x, int y) {
 
 		int texRow = letter/12;
 		int texCol = letter%12;
-		glUniform2f(u_spr_tex_offset, 1+texCol*5, texRow*7);
+		glUniform2f(u_spr_tex_offset, 1+texCol*5, 64-texRow*7);
 		glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
 	}
 }
@@ -749,47 +802,47 @@ static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float 
 	GLfloat F = -y, B = y;
 	GLfloat D = -z, U = z;
 	// up
-	vtx(L, B, U, 0, 0, 1, 0, 0);
-	vtx(L, F, U, 0, 0, 1, 0, y);
-	vtx(R, B, U, 0, 0, 1, x, 0);
-	vtx(R, F, U, 0, 0, 1, x, y);
-	vtx(R, B, U, 0, 0, 1, x, 0);
-	vtx(L, F, U, 0, 0, 1, 0, y);
+	vtx(L, B, U, 0, 0, 1, 0, y);
+	vtx(L, F, U, 0, 0, 1, 0, 0);
+	vtx(R, B, U, 0, 0, 1, x, y);
+	vtx(R, F, U, 0, 0, 1, x, 0);
+	vtx(R, B, U, 0, 0, 1, x, y);
+	vtx(L, F, U, 0, 0, 1, 0, 0);
 	// front
-	vtx(L, F, U, 0, -1, 0, 0, 0);
-	vtx(L, F, D, 0, -1, 0, 0, z);
-	vtx(R, F, U, 0, -1, 0, x, 0);
-	vtx(R, F, D, 0, -1, 0, x, z);
-	vtx(R, F, U, 0, -1, 0, x, 0);
-	vtx(L, F, D, 0, -1, 0, 0, z);
+	vtx(L, F, U, 0, -1, 0, 0, z);
+	vtx(L, F, D, 0, -1, 0, 0, 0);
+	vtx(R, F, U, 0, -1, 0, x, z);
+	vtx(R, F, D, 0, -1, 0, x, 0);
+	vtx(R, F, U, 0, -1, 0, x, z);
+	vtx(L, F, D, 0, -1, 0, 0, 0);
 	// right
-	vtx(R, F, U, 1, 0, 0, 0, 0);
-	vtx(R, F, D, 1, 0, 0, 0, z);
-	vtx(R, B, U, 1, 0, 0, y, 0);
-	vtx(R, B, D, 1, 0, 0, y, z);
-	vtx(R, B, U, 1, 0, 0, y, 0);
-	vtx(R, F, D, 1, 0, 0, 0, z);
+	vtx(R, F, U, 1, 0, 0, 0, z);
+	vtx(R, F, D, 1, 0, 0, 0, 0);
+	vtx(R, B, U, 1, 0, 0, y, z);
+	vtx(R, B, D, 1, 0, 0, y, 0);
+	vtx(R, B, U, 1, 0, 0, y, z);
+	vtx(R, F, D, 1, 0, 0, 0, 0);
 	// left
-	vtx(L, B, U, -1, 0, 0, 0, 0);
-	vtx(L, B, D, -1, 0, 0, 0, z);
-	vtx(L, F, U, -1, 0, 0, y, 0);
-	vtx(L, F, D, -1, 0, 0, y, z);
-	vtx(L, F, U, -1, 0, 0, y, 0);
-	vtx(L, B, D, -1, 0, 0, 0, z);
+	vtx(L, B, U, -1, 0, 0, 0, z);
+	vtx(L, B, D, -1, 0, 0, 0, 0);
+	vtx(L, F, U, -1, 0, 0, y, z);
+	vtx(L, F, D, -1, 0, 0, y, 0);
+	vtx(L, F, U, -1, 0, 0, y, z);
+	vtx(L, B, D, -1, 0, 0, 0, 0);
 	// back
-	vtx(R, B, U, 0, 1, 0, 0, 0);
-	vtx(R, B, D, 0, 1, 0, 0, z);
-	vtx(L, B, U, 0, 1, 0, x, 0);
-	vtx(L, B, D, 0, 1, 0, x, z);
-	vtx(L, B, U, 0, 1, 0, x, 0);
-	vtx(R, B, D, 0, 1, 0, 0, z);
+	vtx(R, B, U, 0, 1, 0, 0, z);
+	vtx(R, B, D, 0, 1, 0, 0, 0);
+	vtx(L, B, U, 0, 1, 0, x, z);
+	vtx(L, B, D, 0, 1, 0, x, 0);
+	vtx(L, B, U, 0, 1, 0, x, z);
+	vtx(R, B, D, 0, 1, 0, 0, 0);
 	// down
-	vtx(L, F, D, 0, 0, -1, 0, 0);
-	vtx(L, B, D, 0, 0, -1, 0, y);
-	vtx(R, F, D, 0, 0, -1, x, 0);
-	vtx(R, B, D, 0, 0, -1, x, y);
-	vtx(R, F, D, 0, 0, -1, x, 0);
-	vtx(L, B, D, 0, 0, -1, 0, y);
+	vtx(L, F, D, 0, 0, -1, 0, y);
+	vtx(L, B, D, 0, 0, -1, 0, 0);
+	vtx(R, F, D, 0, 0, -1, x, y);
+	vtx(R, B, D, 0, 0, -1, x, 0);
+	vtx(R, F, D, 0, 0, -1, x, y);
+	vtx(L, B, D, 0, 0, -1, 0, 0);
 }
 
 static void populateCubeVertexData2(list<GLfloat> *data) {
@@ -802,51 +855,53 @@ static void populateCubeVertexData2(list<GLfloat> *data) {
 	GLfloat p3 =  85.0/128;
 	GLfloat p4 = 127.0/128;
 
-	GLfloat p5 =  86.0/128;
-	GLfloat p6 = 128.0/128;
+	GLfloat x1 =  86.0/128;
+	GLfloat x2 = 128.0/128;
+	GLfloat y1 =   0.0/128;
+	GLfloat y2 =  42.0/128;
 
 	// up
-	vtx(L, B, U, 0, 0, U, p2, p1);
-	vtx(L, F, U, 0, 0, U, p2, p2);
-	vtx(R, B, U, 0, 0, U, p3, p1);
-	vtx(R, F, U, 0, 0, U, p3, p2);
-	vtx(R, B, U, 0, 0, U, p3, p1);
-	vtx(L, F, U, 0, 0, U, p2, p2);
+	vtx(L, B, U, 0, 0, U, p2, p4);
+	vtx(L, F, U, 0, 0, U, p2, p3);
+	vtx(R, B, U, 0, 0, U, p3, p4);
+	vtx(R, F, U, 0, 0, U, p3, p3);
+	vtx(R, B, U, 0, 0, U, p3, p4);
+	vtx(L, F, U, 0, 0, U, p2, p3);
 	// front
-	vtx(L, F, U, 0, F, 0, p2, p2);
-	vtx(L, F, D, 0, F, 0, p2, p3);
-	vtx(R, F, U, 0, F, 0, p3, p2);
-	vtx(R, F, D, 0, F, 0, p3, p3);
-	vtx(R, F, U, 0, F, 0, p3, p2);
-	vtx(L, F, D, 0, F, 0, p2, p3);
+	vtx(L, F, U, 0, F, 0, p2, p3);
+	vtx(L, F, D, 0, F, 0, p2, p2);
+	vtx(R, F, U, 0, F, 0, p3, p3);
+	vtx(R, F, D, 0, F, 0, p3, p2);
+	vtx(R, F, U, 0, F, 0, p3, p3);
+	vtx(L, F, D, 0, F, 0, p2, p2);
 	// right
-	vtx(R, F, U, R, 0, 0, p3, p2);
-	vtx(R, F, D, R, 0, 0, p3, p3);
-	vtx(R, B, U, R, 0, 0, p4, p2);
-	vtx(R, B, D, R, 0, 0, p4, p3);
-	vtx(R, B, U, R, 0, 0, p4, p2);
-	vtx(R, F, D, R, 0, 0, p3, p3);
+	vtx(R, F, U, R, 0, 0, p3, p3);
+	vtx(R, F, D, R, 0, 0, p3, p2);
+	vtx(R, B, U, R, 0, 0, p4, p3);
+	vtx(R, B, D, R, 0, 0, p4, p2);
+	vtx(R, B, U, R, 0, 0, p4, p3);
+	vtx(R, F, D, R, 0, 0, p3, p2);
 	// left
-	vtx(L, B, U, L, 0, 0, p1, p2);
-	vtx(L, B, D, L, 0, 0, p1, p3);
-	vtx(L, F, U, L, 0, 0, p2, p2);
-	vtx(L, F, D, L, 0, 0, p2, p3);
-	vtx(L, F, U, L, 0, 0, p2, p2);
-	vtx(L, B, D, L, 0, 0, p1, p3);
+	vtx(L, B, U, L, 0, 0, p1, p3);
+	vtx(L, B, D, L, 0, 0, p1, p2);
+	vtx(L, F, U, L, 0, 0, p2, p3);
+	vtx(L, F, D, L, 0, 0, p2, p2);
+	vtx(L, F, U, L, 0, 0, p2, p3);
+	vtx(L, B, D, L, 0, 0, p1, p2);
 	// back
-	vtx(R, B, U, 0, B, 0, p5, p5);
-	vtx(R, B, D, 0, B, 0, p5, p6);
-	vtx(L, B, U, 0, B, 0, p6, p5);
-	vtx(L, B, D, 0, B, 0, p6, p6);
-	vtx(L, B, U, 0, B, 0, p6, p5);
-	vtx(R, B, D, 0, B, 0, p5, p6);
+	vtx(R, B, U, 0, B, 0, x1, y2);
+	vtx(R, B, D, 0, B, 0, x1, y1);
+	vtx(L, B, U, 0, B, 0, x2, y2);
+	vtx(L, B, D, 0, B, 0, x2, y1);
+	vtx(L, B, U, 0, B, 0, x2, y2);
+	vtx(R, B, D, 0, B, 0, x1, y1);
 	// down
-	vtx(L, F, D, 0, 0, D, p2, p3);
-	vtx(L, B, D, 0, 0, D, p2, p4);
-	vtx(R, F, D, 0, 0, D, p3, p3);
-	vtx(R, B, D, 0, 0, D, p3, p4);
-	vtx(R, F, D, 0, 0, D, p3, p3);
-	vtx(L, B, D, 0, 0, D, p2, p4);
+	vtx(L, F, D, 0, 0, D, p2, p2);
+	vtx(L, B, D, 0, 0, D, p2, p1);
+	vtx(R, F, D, 0, 0, D, p3, p2);
+	vtx(R, B, D, 0, 0, D, p3, p1);
+	vtx(R, F, D, 0, 0, D, p3, p2);
+	vtx(L, B, D, 0, 0, D, p2, p1);
 }
 
 #undef vtx
@@ -859,7 +914,7 @@ static void populateSpriteVertexData() {
         GLfloat L =  0;
         GLfloat R =  1;
         GLfloat U =  0;
-        GLfloat D =  1;
+        GLfloat D = -1;
         int counter = 0;
 #define vtx(x, y) \
         data[counter++] = x; \

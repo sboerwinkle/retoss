@@ -4,6 +4,8 @@
 
 // Based heavily on libpng's `example.c`
 void png_read(char **data, int *width, int *height, char const *filename) {
+	int stride;
+
 	// Other unspecified fields will be empty-initialized as per the C++ standard.
 	// This is good, as libpng explicitly wants the struct zeroed before you start.
 	png_image image = {.version = PNG_IMAGE_VERSION};
@@ -35,10 +37,14 @@ void png_read(char **data, int *width, int *height, char const *filename) {
 	}
 
 	// `background` not needed since our requested format includes alpha.
-	// `row_stride` can be 0, since we're using the default minimum stride.
-	//   (offset in memory between rows, measured in "components"(?))
+	//
+	// We want our image "upside down" (GL has a weird convention here);
+	// otherwise, we could have left `stride` as 0.
+	// `stride` is measured in "components", but we asked for 1-byte components,
+	// so basically it's measured in bytes.
+	stride = -4 * image.width;
 	// `colormap` not needed since we didn't request an indexed format.
-	if (!png_image_finish_read(&image, NULL/*background*/, *data, 0/*row_stride*/, NULL/*colormap*/)) {
+	if (!png_image_finish_read(&image, NULL/*background*/, *data, stride, NULL/*colormap*/)) {
 		printf("ERROR: png.cpp reading %s: libpng says: %s\n", filename, image.message);
 		goto cleanup;
 	}
