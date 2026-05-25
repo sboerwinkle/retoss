@@ -29,6 +29,7 @@ static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConten
 #include "http.d/default.include"
 
 static cfg_item *httpConfigs[] = {
+	&cfg_name, // Need "name" here b/c we read it, don't expect to write it though
 	&cfg_fov_1,
 	&cfg_fov_2,
 	&cfg_sensitivity_1,
@@ -190,6 +191,13 @@ static void read_inner(int fd) {
 		write200(fd, default_bytes, default_len, "text/html");
 	} else if (!strcmp(buf, "/config")) {
 		writeConfigs(fd);
+	} else if (!strncmp(buf, "/name/", 6)) {
+		// "/name/foo" -> "/name foo"
+		// "/name/" -> "/name"
+		// Will probably have to rework this when I add URL encoding haha
+		buf[5] = buf[6] ? ' ' : '\0';
+		sendCommand(buf);
+		writeAll(fd, noContent_bytes, noContent_len);
 	} else if (!strncmp(buf, "/camera?", 8)) {
 		readConfigs(buf+8);
 		sendCommand("/_cfgcam");

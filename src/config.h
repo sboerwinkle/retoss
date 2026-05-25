@@ -12,6 +12,7 @@ struct cfg_item {
 	double getDouble();
 };
 
+extern cfg_item cfg_name;
 extern cfg_item cfg_host;
 extern cfg_item cfg_port;
 extern cfg_item cfg_fov_1;

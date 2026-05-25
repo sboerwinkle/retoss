@@ -11,6 +11,12 @@ pre {
 }
 </style></head>
 <body style="background: #aaa;">
+Name<br/>
+<form id="nameForm">
+	<input type="text" id="name"/>
+	<button>Submit</button>
+</form>
+<br/>
 Team select
 <br/>
 <div id="teams">
@@ -74,6 +80,12 @@ Team select
 		else return 'ohno='+e.id;
 		return e.id+'='+value;
 	}
+
+	let nameInput = id('name');
+	id('nameForm').addEventListener('submit', e => {
+		e.preventDefault();
+		fetch('/name/'+nameInput.value);
+	});
 
 	let formLogic = (form, urlBase) => {
 		let inputs = [...form.querySelectorAll('input')];

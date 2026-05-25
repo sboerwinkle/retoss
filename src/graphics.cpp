@@ -9,13 +9,22 @@
 #include "util.h"
 #include "matrix.h"
 #include "png.h"
-#include "game_graphics.h"
 #include "gamestate.h"
+#include "game_graphics.h"
 #include "collision.h" // For raycasting, for camera position
 #include "mypoll.h"
 
 #include "graphics.h"
 #include "graphics_callbacks.h"
+
+struct dyntex_texture {
+	GLuint tex;
+	dyntex_description descr;
+	int holders;
+};
+
+static list<dyntex_texture> dyntexs;
+static ggc_msg *msgHead;
 
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
@@ -130,6 +139,122 @@ static void cerr(const char* msg){
 	}
 }
 
+static void setTexFilterParams() {
+	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
+	//  1. You are on a large, flat plane moving around.
+	//    How crisp is it? How visible is the mipmap and sampling seam? How much does the sampling seam move as you move the camera only?
+	//  2. There is a large object moving in the distance.
+	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+}
+
+static void drawDyntex(GLuint tex, dyntex_description *_descr) {
+	dyntex_description &descr = *_descr;
+	int width = 128, height = 128;
+
+	glBindTexture(GL_TEXTURE_2D, tex);
+	// One tutorial used GL_NEAREST for both filtering modes while drawing to the tex,
+	// but IDK how much it matters. Going to just assign the final params now and
+	// assume it's good enough for this phase as well.
+	setTexFilterParams();
+	glTexImage2D(
+		GL_TEXTURE_2D, 0, GL_RGBA8,
+		width, height,
+		0,
+		GL_RGBA, GL_UNSIGNED_BYTE, NULL
+	);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fb_id);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	glViewport(0, 0, width, height);
+
+	//printf("Got %d, want %d\n", glCheckFramebufferStatus(GL_FRAMEBUFFER), GL_FRAMEBUFFER_COMPLETE);
+
+	glDepthMask(0); // Not really sure if I need this one
+	setup2dDrawing();
+
+	// Sadly we don't have access to nice stuff like `glCopyImageSubData`,
+	// so I'm just going to draw the texture onto the texture.
+	glUniform2f(u_spr_scale, 1, 1);
+	selectTex2d(descr.baseTex, 2, 2);
+	sprite2d(0, 2, 2, 2, -1, -1); // Ugh y is still flipped here I hate everything
+
+	// This affects the font size, since this is the only way
+	// it knows the "resolution" of the target texture.
+	displayAreaBounds[0] = 64;
+	displayAreaBounds[1] = 64;
+	setupTextDrawingInner();
+	//spriteColorMult(1.00, 0.50, 0.50, 1); // Could set a color here
+
+	/*
+	From populateCubeVertexData2, back face (which is front on player model?) has:
+	X from 64-128
+	Y from 0-42
+	*/
+
+	char monogram[2] = {descr.str[0], '\0'};
+	// Ugh y is still inverted here
+	drawText(monogram, 118, 128-18);
+	// Conveniently, the back of the player is centered on the sprite,
+	// so centering on the back is easy.
+	drawTextCentered(descr.str, 64);
+
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to screen's framebuffer
+	// Probably need to restore this
+	glViewport(0, 0, displayWidth, displayHeight);
+}
+
+static void cleanup(ggc_msg *msg) {
+	if (msg->type == GGC_DYNTEX_OLD) {
+		delete msg->data;
+	}
+}
+
+static void newDyntexHolder(dyntex_holder *h) {
+	// Simple linear search through our existing textures
+	// to see if any match the requested description
+	rangeconst(i, dyntexs.num) {
+		dyntex_texture &t = dyntexs[i];
+		if (t.descr.baseTex != h->descr.baseTex) continue;
+		if (strcmp(t.descr.str, h->descr.str)) continue;
+		// We have a match
+		h->tex = t.tex;
+		t.holders++;
+		return;
+	}
+	// No match, have to allocate (and draw) a new texture
+	dyntex_texture &t = dyntexs.add();
+	// I feel like I should check that this succeeded,
+	// but I'm not clear on when it would even fail!
+	// Neither `glGenTextures` nor `glBindTexture`
+	// describe any such errors.
+	glGenTextures(1, &t.tex);
+	t.holders = 1;
+	// Copy description wholesale
+	t.descr = h->descr;
+
+	h->tex = t.tex;
+	drawDyntex(t.tex, &t.descr);
+}
+
+static void oldDyntexHolder(dyntex_holder *h) {
+	rangeconst(i, dyntexs.num) {
+		dyntex_texture &t = dyntexs[i];
+		if (h->tex != t.tex) continue;
+		t.holders--;
+		if (!t.holders) {
+			glDeleteTextures(1, &t.tex);
+			dyntexs.quickRmAt(i);
+		}
+		return;
+	}
+}
+
 void setDisplaySize(int width, int height){
 	displayWidth = width;
 	displayHeight = height;
@@ -208,52 +333,9 @@ static void loadAllTextures() {
 	for (int i = 1; i < NUM_TEXS; i++) loadTexture(i);
 }
 
-static int renderTexture() {
-	glBindFramebuffer(GL_FRAMEBUFFER, fb_id);
-	/* For now we just render to textures[3], sorry textures[3]!
-	GLuint tex;
-	glGenTextures(1, &tex);
-	*/
-	// TODO That one tutorial set both min/mag filters to GL_NEAREST on our target tex,
-	//      do I need that?
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[3], 0);
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	// Should be the real size of the texture I guess
-	glViewport(0, 0, 128, 128);
-
-	// could check `glCheckFramebufferStatus(GL_FRAMEBUFFER)` if I cared
-
-	glDepthMask(0); // Not really sure if I need this one
-	setup2dDrawing();
-
-	// This affects the font size, since this is the only way
-	// it knows the "resolution" of the target texture.
-	displayAreaBounds[0] = 64;
-	displayAreaBounds[1] = 64;
-	setupTextDrawingInner();
-	//spriteColorMult(1.00, 0.50, 0.50, 1);
-
-	/*
-	From populateCubeVertexData2, back face (which is front on player model?) has:
-	X from 64-128
-	Y from 0-42
-	*/
-
-	// Ugh y is still inverted here
-	drawText("S", 118, 128-18);
-
-	// Pretty sure this "bind" is necessary?
-	glBindTexture(GL_TEXTURE_2D, textures[3]);
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to screen's framebuffer
-	// Probably need to restore this
-	glViewport(0, 0, displayWidth, displayHeight);
-
-	return 0;
-}
-
 void initGraphics() {
+	msgHead = game_msg_tail;
+	dyntexs.init();
 	camCastCands.init();
 
 	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
@@ -378,15 +460,9 @@ void initGraphics() {
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-	// When evaluating changes to the below filtering settings, you should at least evaluate the two scenarios:
-	//  1. You are on a large, flat plane moving around.
-	//    How crisp is it? How visible is the mipmap and sampling seam? How much does the sampling seam move as you move the camera only?
-	//  2. There is a large object moving in the distance.
-	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
 	range(i, NUM_TEXS) {
 		glBindTexture(GL_TEXTURE_2D, textures[i]);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		setTexFilterParams();
 	}
 
 	loadAllTextures();
@@ -400,15 +476,29 @@ void initGraphics() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	// Framebuffer setup so we can draw to a texture!
-	// Work in progress.
 	glGenFramebuffers(1, &fb_id);
-	renderTexture();
 
 	cerr("End of graphics setup");
 }
 
 void gfx_destroy() {
 	camCastCands.destroy();
+
+	// At this poing the gfx thread is already killed, so
+	// probably no point in trying to tell GL we're done
+	// with these textures. We don't return our "static"
+	// textures anyway!
+	dyntexs.destroy();
+
+	// Conveniently, everything we need to happen already has.
+	// All threads are stopped, and all gamestates have been destroyed.
+	while (1) {
+		ggc_msg *next = msgHead->next;
+		delete msgHead;
+		if (!next) break;
+		msgHead = next;
+		cleanup(msgHead);
+	}
 }
 
 static void checkReload() {
@@ -429,6 +519,26 @@ static void checkReload() {
 	success:;
 
 	texReloadFlag.store(0, std::memory_order::release);
+}
+
+static void checkGgc() {
+	// Todo: If I don't like this (too many memory fences),
+	//       I could always have a counter of
+	//       "messages ready to transfer ownership"
+	//       which is only updated in mutex-locked sections.
+	//       I'd just probably have to mess with `main.cpp`
+	//       to get that working.
+	ggc_msg *next;
+	while ((next = msgHead->next.load(std::memory_order::acquire))) {
+		delete msgHead;
+		msgHead = next;
+		if (msgHead->type == GGC_DYNTEX_NEW) {
+			newDyntexHolder(msgHead->data);
+		} else if (msgHead->type == GGC_DYNTEX_OLD) {
+			oldDyntexHolder(msgHead->data);
+		}
+		cleanup(msgHead);
+	}
 }
 
 static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse, int64_t hovDist) {
@@ -476,6 +586,7 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 
 void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg) {
 	checkReload();
+	checkGgc();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
 	glDepthMask(1);
@@ -551,13 +662,19 @@ void sprite_color_add(float r, float g, float b, float a) {
 	glUniform4f(u_spr_color_add, r, g, b, a);
 }
 
-void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha) {
+void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
+	if (mode & 32) {
+		mode &= ~32;
+	} else {
 #ifdef DEBUG
-	if (tex < 0 || tex >= NUM_TEXS) {
-		printf("ERROR: Invalid tex %d\n", tex);
-		exit(1);
-	}
+		if (tex < 0 || tex >= NUM_TEXS) {
+			printf("ERROR: Invalid tex %d\n", tex);
+			exit(1);
+		}
 #endif
+		tex = textures[tex];
+	}
+
 	// The rotation of the thing itself (used for lighting).
 	GLfloat rot_data[9], rot_data2[9];
 	mat3FromIquat(rot_data, m->oldRot);
@@ -583,17 +700,17 @@ void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha) {
 	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
 
 	// Set texture and tex-related uniforms
-	glBindTexture(GL_TEXTURE_2D, textures[tex]); // Is this okay to be doing so often? Hope so!
+	glBindTexture(GL_TEXTURE_2D, tex); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_texscale, scale/1000.0);
 	glUniform2f(u_main_texoffset, 0, 0);
 	glUniform1f(u_main_transparency, alpha);
 
 	int32_t vertexIndex;
-	if (mesh == 0) {
+	if (mode == 0) {
 		vertexIndex = vtxIdx_cubeOneFace;
-	} else if (mesh == 1) {
+	} else if (mode == 1) {
 		vertexIndex = vtxIdx_slabOneFace;
-	} else if (mesh == 2) {
+	} else if (mode == 2) {
 		vertexIndex = vtxIdx_poleOneFace;
 	} else {
 		vertexIndex = vtxIdx_cubeSixFace;

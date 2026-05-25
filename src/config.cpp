@@ -39,6 +39,7 @@ double cfg_item::getDouble() {
 	return strtod(_data, NULL);
 }
 
+cfg_item cfg_name = {.name="name"};
 cfg_item cfg_host = {.name="host"};
 cfg_item cfg_port = {.name="port"};
 cfg_item cfg_fov_1 = {.name="fov_1"};
@@ -56,6 +57,7 @@ cfg_item cfg_pred_shot_others = {.name="pred_shot_others"};
 cfg_item cfg_no_ui = {.name="no_ui"};
 
 static cfg_item *allItems[] = {
+	&cfg_name,
 	&cfg_host,
 	&cfg_port,
 	&cfg_fov_1,

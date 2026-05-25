@@ -39,6 +39,7 @@ struct timing {
 };
 static timing logicTiming = {0}, renderTiming = {0};
 static void updateTiming(timing *t, long nanos);
+static int getTeamShirt(char team);
 
 static char mouseGrabbed = 0;
 static char mouseDragMode = 0;
@@ -49,6 +50,7 @@ enum { AIM_NONE, AIM_LOW, AIM_HIGH };
 static lookConfig look1, look2;
 static lookConfig* look = &look1;
 quat quatCamRotation = {1,0,0,0};
+ggc_msg *game_msg_tail;
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
 static double domeYaw = 0, domePitch = 0;
 // I'm pretty sure writes to a `float` are already atomic on most architectures,
@@ -175,6 +177,9 @@ static void initConfigs() {
 //// Boring init stuff ////
 
 void game_init() {
+	game_msg_tail = new ggc_msg();
+	game_msg_tail->next = NULL;
+
 	initGraphics();
 	task_init();
 	velbox_init();
@@ -213,6 +218,17 @@ void game_destroy() {
 	velbox_destroy();
 	task_destroy();
 	gfx_destroy();
+}
+
+//// Game-Graphics-Communication stuff ////
+
+void addGgcMsg(int type, dyntex_holder *data) {
+	ggc_msg *x = new ggc_msg();
+	x->type = type;
+	x->data = data;
+	x->next = NULL;
+	game_msg_tail->next.store(x, std::memory_order::release);
+	game_msg_tail = x;
 }
 
 //// Input callbacks + related stuff ////
@@ -558,6 +574,29 @@ void playerInputs(player *p, char const *data, int size) {
 
 //// Text command stuff ////
 
+static void clearSkin(player *p) {
+	if (p->skin) {
+		p->skin->decr();
+		p->skin = NULL;
+	}
+}
+
+static void setSkin(player *p, char const *name) {
+	dyntex_holder *dh = new dyntex_holder();
+	p->skin = dh;
+	dh->refs = 1;
+	dh->descr.baseTex = getTeamShirt(p->team);
+	snprintf(dh->descr.str, DYNTEX_BUF_LEN, "%s", name);
+	addGgcMsg(GGC_DYNTEX_NEW, dh);
+}
+
+static void redoSkin(player *p) {
+	dyntex_holder *skin = p->skin;
+	if (!skin) return;
+	setSkin(p, skin->descr.str);
+	skin->decr();
+}
+
 static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 	quat composedRotation;
 	quat_mult(composedRotation, quatCamRotation, v->value.position.rot);
@@ -715,6 +754,15 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		readPredictionConfigs();
 		return 1;
 	}
+	if (isCmd(buf, "/name")) {
+		if (buf[5]) {
+			cfg_name.set(buf+6);
+		} else {
+			cfg_name.unset();
+		}
+		// Command should still be sent out
+		return 0;
+	}
 	return 0;
 }
 
@@ -756,8 +804,19 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		int team;
 		if (getNum(&pos, &team)) {
 			p->team = team;
+			if (isReal) redoSkin(p);
 		} else if (isMe && isReal) {
 			printf("team = %hhd\n", p->team);
+		}
+	} else if (isCmd(str, "/name")) {
+		// We could do this without waiting for
+		// `isReal`, we'd just have to send and
+		// process more `ggc_msg`s.
+		if (isReal) {
+			clearSkin(p);
+			if (str[5]) {
+				setSkin(p, str+6);
+			}
 		}
 	} else if (isCmd(str, "/_J")) {
 		p->jump = 3; // Set 'jump this frame' and 'jump continuing' bits
@@ -801,11 +860,21 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	return 1;
 }
 
-void prefsToCmds(queue<strbuf> *cmds) {
-	// No prefs that need to be sent for now
+void prefsToCmds() {
+	if (cfg_name.present) {
+		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/name %s", cfg_name.get());
+	}
 }
 
 //// graphics stuff! ////
+
+static int getTeamShirt(char team) {
+	if (team >= 0 && team < 2) {
+		return TEX_TEAM_SHIRT + team;
+	} else {
+		return 3;
+	}
+}
 
 static void drawPlayer(player *p, float alpha) {
 	if (!p->alive) return;
@@ -815,15 +884,17 @@ static void drawPlayer(player *p, float alpha) {
 	tint(1, 0, 0, tint_alpha);
 
 	int sprite;
-	int mesh = 32;
+	int mode = 3;
 
-	if (p->team >= 0 && p->team < 2) {
-		sprite = TEX_TEAM_SHIRT + p->team;
+	if (p->skin) {
+		sprite = p->skin->tex;
+		// In this case `sprite` is a GL texture ID, not one of ours
+		mode |= 32;
 	} else {
-		sprite = 3;
+		sprite = getTeamShirt(p->team);
 	}
 
-	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mesh, alpha);
+	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mode, alpha);
 }
 
 static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction *best) {
@@ -921,9 +992,9 @@ static void drawCrosshair(gamestate *gs, player *self) {
 }
 
 static void drawSolid(solid *s) {
-	int mesh = s->m.type + (s->tex & 32); // jank, just hits the cases we need atm
 	// `s->tex & 31` is validated in gamestate.cpp
-	drawCube(&s->m, s->r, s->tex & 31, mesh, 1.0f);
+	// Todo: This is weird and old, can just use (and validate) the whole int
+	drawCube(&s->m, s->r, s->tex & 31, s->m.type, 1.0f);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),

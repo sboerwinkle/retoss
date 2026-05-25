@@ -94,6 +94,48 @@ void transIquat(iquat r) {
 	range(i, 4) trans32(&r[i]);
 }
 
+static void writeBlock(void *mem, int len) {
+	// Could probably rewrite this to use `data->addAll`,
+	// but right now that uses `setMax` instead of `setMaxUp` internally.
+	int n = seriz_data->num;
+	seriz_data->setMaxUp(n + len);
+	memcpy(seriz_data->items + n, mem, len);
+	seriz_data->num = n + len;
+}
+
+static void readBlock(void *mem, int len) {
+	int i = seriz_index;
+	if (i + len > seriz_data->num) {
+		memset(mem, 0, len);
+		return;
+	}
+	memcpy(mem, seriz_data->items+i, len);
+	seriz_index += len;
+}
+
+void transBlock(void *mem, int len) {
+	if (seriz_reading) readBlock(mem, len);
+	else writeBlock(mem, len);
+}
+
+void transStr(char *buf, u8 bufSize) {
+	if (seriz_reading) {
+		u8 len = read8();
+		if (len >= bufSize) {
+			if (seriz_error()) {
+				printf("strlen is %d, but buffer is %d bytes (incl null byte)\n", len, bufSize);
+			}
+			len = bufSize-1;
+		}
+		readBlock(buf, len);
+		buf[len] = '\0';
+	} else {
+		int len = strlen(buf);
+		write8((u8)len);
+		writeBlock(buf, len);
+	}
+}
+
 void seriz_writeHeader() {
 	seriz_data->setMaxUp(seriz_data->num + 4);
 	memcpy(&(*seriz_data)[seriz_data->num], seriz_versionString, 4);

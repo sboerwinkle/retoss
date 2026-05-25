@@ -28,6 +28,20 @@ struct mover { // This is kind of just a grouping of fields; we use it for e.g. 
 	int type;
 };
 
+#define DYNTEX_BUF_LEN 8
+struct dyntex_description {
+	int32_t baseTex;
+	char str[DYNTEX_BUF_LEN];
+};
+
+struct dyntex_holder {
+	uint32_t tex; // graphics thread reads/writes this
+	dyntex_description descr;
+	int refs;
+
+	void decr();
+};
+
 #define playerFromMover(x) ((player*)((char*)(x) - offsetof(player, m)))
 struct player {
 	mover m;
@@ -38,6 +52,7 @@ struct player {
 	int32_t cooldown;
 	u8 hits, hitsCooldown;
 	box *prox;
+	dyntex_holder *skin;
 };
 
 #define solidFromMover(x) ((solid*)((char*)(x) - offsetof(solid, m)))

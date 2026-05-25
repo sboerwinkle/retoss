@@ -242,7 +242,7 @@ static void ensurePrefsSent() {
 	prefsSent = 1;
 
 	mtx_lock(sharedInputsMutex);
-	prefsToCmds(&outboundTextQueue);
+	prefsToCmds();
 	mtx_unlock(sharedInputsMutex);
 }
 
@@ -964,7 +964,7 @@ int main(int argc, char **argv) {
 		free(renderData.dropoff);
 	}
 	puts(QUIET("Done."));
-	puts(QUIET("Cleaning up simple interal components..."));
+	puts(QUIET("Misc cleanup..."));
 	mypoll_destroy();
 	watch_destroy();
 	net2_destroy();

@@ -4,6 +4,7 @@
 #include "serialize.h"
 
 #include "gamestate.h"
+#include "game_graphics.h"
 
 #include "collision.h"
 #include "constel.h"
@@ -29,6 +30,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	}
 	p.team=-1;
 	p.prox=gs->vb_root;
+	p.skin=NULL;
 
 	softResetPlayer(&p);
 }
@@ -413,17 +415,26 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	// We don't need all of it, but it's okay to be slow here.
 	list<player> tmp;
 	tmp.init(gs->players);
+	rangeconst(i, tmp.num) {
+		if (tmp[i].skin) tmp[i].skin->refs++;
+	}
 
 	cleanup(gs);
 	// Re-initialize with valid (but empty) data
 	init(gs);
 
-	// Setup any data that might carry over (right now, just player count and teams)
+	// Setup any data that might carry over (player count, teams, and skins)
 	setupPlayers(gs, tmp.num);
 	if (!isSync) {
 		rangeconst(i, tmp.num) {
 			gs->players[i].team = tmp[i].team;
+
+			gs->players[i].skin = tmp[i].skin;
+			if (tmp[i].skin) tmp[i].skin->refs++;
 		}
+	}
+	rangeconst(i, tmp.num) {
+		if (tmp[i].skin) tmp[i].skin->decr();
 	}
 	tmp.destroy();
 }
@@ -431,6 +442,11 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 static void playerDupCleanup(player *p) {
 	p->prox = (box*)p->prox->clone.ptr;
 	range(i, 3) p->m.oldPos[i] = -1;
+	if (p->skin) p->skin->refs++;
+}
+
+static void playerDestroy(player *p) {
+	if (p->skin) p->skin->decr();
 }
 
 gamestate* dup(gamestate *orig) {
@@ -509,34 +525,11 @@ void cleanup(gamestate *gs) {
 	}
 	gs->solids.destroy();
 	gs->selection.destroy();
+	rangeconst(i, gs->players.num) playerDestroy(&gs->players[i]);
 	gs->players.destroy();
 }
 
 // Seriz / Deser stuff
-
-static void writeBlock(void *mem, int len) {
-	// Could probably rewrite this to use `data->addAll`,
-	// but right now that uses `setMax` instead of `setMaxUp` internally.
-	int n = seriz_data->num;
-	seriz_data->setMaxUp(n + len);
-	memcpy(seriz_data->items + n, mem, len);
-	seriz_data->num = n + len;
-}
-
-static void readBlock(void *mem, int len) {
-	int i = seriz_index;
-	if (i + len > seriz_data->num) {
-		memset(mem, 0, len);
-		return;
-	}
-	memcpy(mem, seriz_data->items+i, len);
-	seriz_index += len;
-}
-
-static void transBlock(void *mem, int len) {
-	if (seriz_reading) readBlock(mem, len);
-	else writeBlock(mem, len);
-}
 
 static void transSolid(solid *s) {
 	transBlock(s->m.pos, sizeof(s->m.pos));
@@ -671,6 +664,15 @@ static void transTasks(gamestate *gs) {
 	}
 }
 
+static void transDyntexHolder(dyntex_holder *dh) {
+	trans32(&dh->descr.baseTex);
+	transStr(dh->descr.str, DYNTEX_BUF_LEN);
+	if (seriz_reading) {
+		dh->refs = 1;
+		addGgcMsg(GGC_DYNTEX_NEW, dh);
+	}
+}
+
 static void transPlayer(player *p) {
 	range(i, 3) trans64(&p->m.pos[i]);
 	range(i, 3) trans64(&p->vel[i]);
@@ -683,6 +685,18 @@ static void transPlayer(player *p) {
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
 	range(i, 4) trans32(&p->m.rot[i]);
+
+	if (seriz_reading) {
+		if (read8()) {
+			p->skin = new dyntex_holder();
+		} else {
+			p->skin = NULL;
+		}
+	} else {
+		write8(!!p->skin);
+	}
+	if (p->skin) transDyntexHolder(p->skin);
+
 	if (seriz_reading) {
 		range(i, 3) p->m.oldPos[i] = -1;
 		range(i, 4) p->m.oldRot[i] = 0;
@@ -760,6 +774,12 @@ void deserialize(gamestate *gs, list<char> *data, char fullState) {
 	
 	range(i, players) transPlayer(&gs->players[i]);
 	// Maybe extra data here corresponding to extra players we don't have seated currently
+}
+
+void dyntex_holder::decr() {
+	refs--;
+	if (refs) return;
+	addGgcMsg(GGC_DYNTEX_OLD, this);
 }
 
 void gamestate_init() {
