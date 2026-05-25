@@ -216,7 +216,7 @@ static int renderTexture() {
 	*/
 	// TODO That one tutorial set both min/mag filters to GL_NEAREST on our target tex,
 	//      do I need that?
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[5], 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[3], 0);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 	// Should be the real size of the texture I guess
 	glViewport(0, 0, 128, 128);
@@ -228,16 +228,22 @@ static int renderTexture() {
 
 	// This affects the font size, since this is the only way
 	// it knows the "resolution" of the target texture.
-	displayAreaBounds[0] = 16;
-	displayAreaBounds[1] = 16;
+	displayAreaBounds[0] = 64;
+	displayAreaBounds[1] = 64;
 	setupTextDrawingInner();
-	spriteColorMult(1.00, 0.50, 0.50, 1);
+	//spriteColorMult(1.00, 0.50, 0.50, 1);
 
-	//drawText("S", 61, 61);
-	drawText("S", 16, 16);
+	/*
+	From populateCubeVertexData2, back face (which is front on player model?) has:
+	X from 64-128
+	Y from 0-42
+	*/
+
+	// Ugh y is still inverted here
+	drawText("S", 118, 128-18);
 
 	// Pretty sure this "bind" is necessary?
-	glBindTexture(GL_TEXTURE_2D, textures[5]);
+	glBindTexture(GL_TEXTURE_2D, textures[3]);
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to screen's framebuffer
