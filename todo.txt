@@ -1,3 +1,13 @@
+- Weird smearing from mipmaps
+- climbing route issue in peaks
+- sounds
+- new weapons/abilities ofc
+- fix "LOW" / "HIGH" names + input
+- Clarify L/R column settings input
+- `xxd` build req't
+- "HIGH" mode with shooting teammates behind you
+	start raycast co-planar w/ player's front face
+
 . Shooting is weird at speed
 	Nope, shooting was already fine it seems like.
 . increase gumminess?
@@ -14,20 +24,24 @@
 - Edit mode: show if gp is dirty
 	Show if var dirty?
 	Show if any gp dirty?
-- ADS doesn't change between 1st/3rd person, just changes view params
-- Settings toggle for 1st vs 3rd person?
+. ADS doesn't change between 1st/3rd person, just changes view params
+	Resolved this with very customizable ADS
+. Settings toggle for 1st vs 3rd person?
 - "crouch" for slow walking near edge
 	Can also use this as my "slow ghost" key!
-- Tall Guy?
+! Tall Guy?
+	Probably not going to add a Tall Guy
 
 . hearts always
-- no health regain?
-	- UrT cited as nice
+- no health regen?
+	UrT cited as nice
+	Opinions may vary
 - No self hue, screen hue?
 . better third person aiming
 - lumberjack
-- faster (scaled?) network recovery
+. faster (scaled?) network recovery
 	Server is way behind
+	Pretty sure I addressed this one, idk
 - Why are players flickering during lag spike?
 
 Possible things to do next:
