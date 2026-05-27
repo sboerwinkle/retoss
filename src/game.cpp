@@ -20,6 +20,7 @@
 #include "lv.h"
 #include "mypoll.h"
 #include "player.h"
+#include "sound.h"
 #include "bcast.h"
 #include "task.h"
 #include "config.h"
@@ -190,6 +191,7 @@ void game_init() {
 	constel_init();
 
 	http_init();
+	sound_init();
 }
 
 gamestate* game_init2() {
@@ -208,6 +210,7 @@ gamestate* game_init2() {
 
 void game_destroy2() {}
 void game_destroy() {
+	sound_destroy();
 	http_destroy();
 
 	constel_destroy();

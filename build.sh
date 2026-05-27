@@ -12,7 +12,8 @@ echo 'Compiling...'
 shopt -s nullglob
 
 # On my local setup, GLFW3 seems to require -ldl, but doesn't list it in the pkg-config libs?
-L_GLFW3="`pkg-config --libs glfw3 libpng` -ldl"
+L_GLFW3="`pkg-config --libs glfw3 libpng openal` -ldl"
+if [ 0 -ne $? ]; then exit; fi;
 
 # `rdynamic` exports many symbols, which we need so that
 # stuff in shared object files can use our symbols.
