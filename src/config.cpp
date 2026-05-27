@@ -31,8 +31,10 @@ void cfg_item::set(char const *str) {
 }
 
 void cfg_item::unset() {
-	present = 0;
-	modified = 1;
+	if (present) {
+		present = 0;
+		modified = 1;
+	}
 }
 
 double cfg_item::getDouble() {
