@@ -7,7 +7,6 @@ import socket
 import time
 import traceback
 import asyncio
-import os
 
 MAGIC_FIRST_BYTE = 0x94
 FRAME_ID_MAX = 1<<29
@@ -277,7 +276,7 @@ async def do_server(port):
         server_socket.bind(('', port))
 
         server = await asyncio.get_running_loop().create_server(
-            lambda: ClientNetHandler(),
+            ClientNetHandler,
             sock=server_socket
         )
         print("Server started on port " + str(port))
