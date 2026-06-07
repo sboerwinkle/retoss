@@ -7,10 +7,11 @@
 #include "util.h"
 #include "list.h"
 #include "mtx.h"
+#include "matrix.h"
 
+#include "game.h"
 #include "gamestate.h"
 #include "bctx.h"
-#include "game_graphics.h"
 #include "collision.h"
 
 #include "dl.h"

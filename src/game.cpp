@@ -32,6 +32,7 @@
 #include "game.h"
 #include "game_callbacks.h"
 #include "game_graphics.h"
+#include "main_graphics.h"
 
 struct timing {
 	long minNanos, maxNanos;
@@ -51,7 +52,6 @@ enum { AIM_NONE, AIM_LOW, AIM_HIGH };
 static lookConfig look1, look2;
 static lookConfig* look = &look1;
 quat quatCamRotation = {1,0,0,0};
-ggc_msg *game_msg_tail;
 // "dome" as distinct from 6DoF free-look. Felt descriptive to me.
 static double domeYaw = 0, domePitch = 0;
 // I'm pretty sure writes to a `float` are already atomic on most architectures,
@@ -178,9 +178,6 @@ static void initConfigs() {
 //// Boring init stuff ////
 
 void game_init() {
-	game_msg_tail = new ggc_msg();
-	game_msg_tail->next = NULL;
-
 	initGraphics();
 	task_init();
 	velbox_init();
@@ -226,12 +223,9 @@ void game_destroy() {
 //// Game-Graphics-Communication stuff ////
 
 void addGgcMsg(int type, dyntex_holder *data) {
-	ggc_msg *x = new ggc_msg();
-	x->type = type;
-	x->data = data;
-	x->next = NULL;
-	game_msg_tail->next.store(x, std::memory_order::release);
-	game_msg_tail = x;
+	ggc_msg &x = msgs_game->add();
+	x.type = type;
+	x.data.texHolder = data;
 }
 
 //// Input callbacks + related stuff ////
@@ -870,6 +864,14 @@ void prefsToCmds() {
 }
 
 //// graphics stuff! ////
+
+void renderThreadSwitchOn() {
+	sound_grab();
+}
+
+void renderThreadSwitchOff() {
+	sound_ungrab();
+}
 
 static int getTeamShirt(char team) {
 	if (team >= 0 && team < 2) {

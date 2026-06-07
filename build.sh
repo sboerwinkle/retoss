@@ -12,7 +12,7 @@ echo 'Compiling...'
 shopt -s nullglob
 
 # On my local setup, GLFW3 seems to require -ldl, but doesn't list it in the pkg-config libs?
-L_GLFW3="`pkg-config --libs glfw3 libpng openal` -ldl"
+LFLAGS="`pkg-config --libs glfw3 libpng openal sndfile` -ldl"
 if [ 0 -ne $? ]; then exit; fi;
 
 # `rdynamic` exports many symbols, which we need so that
@@ -22,7 +22,7 @@ DL_STUFF="-rdynamic -ldl"
 
 g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-truncation -Wno-invalid-offsetof -O2 -g $DL_STUFF "$@" \
 	src/{,lv/,comp/,tasks/}*.{c,cpp} \
-	$L_GLFW3 -pthread -lm -lGL -o game
+	$LFLAGS -pthread -lm -lGL -o game
 #src/*.cpp src/*.c src/lv/*.cpp src/lv/*.c \
 
 echo 'Done'

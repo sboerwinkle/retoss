@@ -8,9 +8,12 @@
 #include "file.h"
 #include "util.h"
 #include "matrix.h"
+#include "main.h"
 #include "png.h"
 #include "gamestate.h"
+#include "game.h"
 #include "game_graphics.h"
+#include "main_graphics.h"
 #include "collision.h" // For raycasting, for camera position
 #include "mypoll.h"
 
@@ -24,7 +27,6 @@ struct dyntex_texture {
 };
 
 static list<dyntex_texture> dyntexs;
-static ggc_msg *msgHead;
 
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
@@ -211,8 +213,15 @@ static void drawDyntex(GLuint tex, dyntex_description *_descr) {
 
 static void cleanup(ggc_msg *msg) {
 	if (msg->type == GGC_DYNTEX_OLD) {
-		delete msg->data;
+		delete msg->data.texHolder;
 	}
+}
+
+static void cleanupAll(list<ggc_msg> *l) {
+	rangeconst(i, l->num) {
+		cleanup(&(*l)[i]);
+	}
+	l->num = 0;
 }
 
 static void newDyntexHolder(dyntex_holder *h) {
@@ -253,6 +262,10 @@ static void oldDyntexHolder(dyntex_holder *h) {
 		}
 		return;
 	}
+}
+
+static void addSound(void *snd) {
+	// TODO
 }
 
 void setDisplaySize(int width, int height){
@@ -334,7 +347,6 @@ static void loadAllTextures() {
 }
 
 void initGraphics() {
-	msgHead = game_msg_tail;
 	dyntexs.init();
 	camCastCands.init();
 
@@ -490,15 +502,12 @@ void gfx_destroy() {
 	// textures anyway!
 	dyntexs.destroy();
 
-	// Conveniently, everything we need to happen already has.
 	// All threads are stopped, and all gamestates have been destroyed.
-	while (1) {
-		ggc_msg *next = msgHead->next;
-		delete msgHead;
-		if (!next) break;
-		msgHead = next;
-		cleanup(msgHead);
-	}
+	// Clean up any messages, whichever list they're in.
+	cleanupAll(msgs_game);
+	cleanupAll(msgs_gfx);
+	cleanupAll(msgs_exchange);
+	// `main.cpp` cleans up the lists themselves.
 }
 
 static void checkReload() {
@@ -522,23 +531,19 @@ static void checkReload() {
 }
 
 static void checkGgc() {
-	// Todo: If I don't like this (too many memory fences),
-	//       I could always have a counter of
-	//       "messages ready to transfer ownership"
-	//       which is only updated in mutex-locked sections.
-	//       I'd just probably have to mess with `main.cpp`
-	//       to get that working.
-	ggc_msg *next;
-	while ((next = msgHead->next.load(std::memory_order::acquire))) {
-		delete msgHead;
-		msgHead = next;
-		if (msgHead->type == GGC_DYNTEX_NEW) {
-			newDyntexHolder(msgHead->data);
-		} else if (msgHead->type == GGC_DYNTEX_OLD) {
-			oldDyntexHolder(msgHead->data);
+	list<ggc_msg> &l = *msgs_gfx;
+	rangeconst(i, l.num) {
+		ggc_msg &m = l[i];
+		if (m.type == GGC_DYNTEX_NEW) {
+			newDyntexHolder(m.data.texHolder);
+		} else if (m.type == GGC_DYNTEX_OLD) {
+			oldDyntexHolder(m.data.texHolder);
+		} else if (m.type == GGC_SND) {
+			addSound(&m.data.snd);
 		}
-		cleanup(msgHead);
+		cleanup(&m);
 	}
+	l.num = 0;
 }
 
 static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse, int64_t hovDist) {

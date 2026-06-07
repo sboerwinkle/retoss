@@ -16,7 +16,6 @@
 #include "mtx.h"
 
 #include "config.h"
-#include "game.h"
 #include "mypoll.h"
 #include "net.h"
 #include "net2.h"
@@ -55,6 +54,7 @@ static mtx_t renderMutex = MTX_INIT_EXPR;
 static gamestate *renderedState = NULL;
 long renderStartNanos = 0;
 char manualGlFinish = 1;
+list<ggc_msg> *msgs_game, *msgs_gfx, *msgs_exchange;
 
 static char chatBuffer[TEXT_BUF_LEN];
 
@@ -468,6 +468,17 @@ static void* gameThreadFunc(void *startFramePtr) {
 			}
 			renderData.pickup = phantomState;
 			renderData.nanos = now;
+			// Not sure if I should just check this or assume always true?
+			if (msgs_game->num) {
+				// Shouldn't happen unless we outpace gfx thread somehow?
+				if (msgs_exchange->num) {
+					msgs_exchange->addAll(msgs_game);
+				} else {
+					list<ggc_msg> *swap = msgs_exchange;
+					msgs_exchange = msgs_game;
+					msgs_game = swap;
+				}
+			}
 			mtx_unlock(renderMutex);
 
 			if (disposeMe) {
@@ -676,6 +687,14 @@ static void checkRenderData() {
 		renderData.pickup = NULL;
 		renderStartNanos = renderData.nanos;
 	}
+	if (msgs_exchange->num) {
+		// It's assumed that `draw` empties the list of
+		// messages every time, which means "our" list
+		// will always be empty here.
+		list<ggc_msg> *swap = msgs_exchange;
+		msgs_exchange = msgs_gfx;
+		msgs_gfx = swap;
+	}
 	updateResolution();
 	mtx_unlock(renderMutex);
 }
@@ -685,6 +704,7 @@ static void* renderThreadFunc(void *_arg) {
 	// Explicitly request v-sync;
 	// otherwise GLFW leaves it up to the driver default
 	glfwSwapInterval(1);
+	renderThreadSwitchOn();
 	long drawingNanos = 0;
 	long totalNanos = 0;
 	long time0 = nowNanos();
@@ -710,6 +730,7 @@ static void* renderThreadFunc(void *_arg) {
 		totalNanos = time2-time0;
 		time0 = time2;
 	}
+	renderThreadSwitchOff();
 	glfwMakeContextCurrent(NULL);
 	return NULL;
 }
@@ -804,6 +825,12 @@ int main(int argc, char **argv) {
 	}
 
 	puts(QUIET("init GL + custom stuff..."));
+	msgs_game = new list<ggc_msg>();
+	msgs_game->init();
+	msgs_gfx = new list<ggc_msg>();
+	msgs_gfx->init();
+	msgs_exchange = new list<ggc_msg>();
+	msgs_exchange->init();
 	glfwMakeContextCurrent(display);
 	// Expected to do bunches of init,
 	// including GL stuff (since the context is bound to the thread here).
@@ -975,6 +1002,13 @@ int main(int argc, char **argv) {
 	outboundData.destroy();
 	outboundTextQueue.destroy();
 	game_destroy(); // Mirror to game_init
+	// TODO: Double-check no leaks
+	msgs_exchange->destroy();
+	delete msgs_exchange;
+	msgs_gfx->destroy();
+	delete msgs_gfx;
+	msgs_game->destroy();
+	delete msgs_game;
 	puts(QUIET("Done."));
 	puts(QUIET("Cleaning up GLFW..."));
 	// Necessary so glfwTerminate gets all the loose ends

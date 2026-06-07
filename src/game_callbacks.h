@@ -1,5 +1,11 @@
 #pragma once
 
+// TODO Not sure this belongs here, but main.cpp needs it for def'n of `ggc_msg` for now.
+#include "game_graphics.h"
+
+#define WINDOW_TITLE "Retoss"
+#define MAGIC_FIRST_BYTE 0x94
+
 extern void game_init();
 extern gamestate* game_init2();
 extern void game_destroy2();
@@ -29,4 +35,6 @@ extern void prefsToCmds();
 
 //// graphics stuff! ////
 
+extern void renderThreadSwitchOn();
+extern void renderThreadSwitchOff();
 extern void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos);
