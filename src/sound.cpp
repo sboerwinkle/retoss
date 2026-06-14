@@ -84,7 +84,7 @@ void sound_init() {
 		return;
 	}
 
-	loadFile("assets/sounds/laugh.mp3", alBuffers[0]);
+	loadFile("assets/sounds/sproing.mp3", alBuffers[0]);
 
 	source singleSource;
 	alGenSources(1, &singleSource.al_src);
