@@ -11,6 +11,7 @@
 // TODO sort some of this
 #include "main.h"
 #include "gamestate.h"
+#include "game_graphics.h" // needs gamestate
 #include "graphics.h"
 #include "dl.h"
 #include "dl_game.h"
@@ -20,7 +21,7 @@
 #include "lv.h"
 #include "mypoll.h"
 #include "player.h"
-#include "sound.h"
+#include "sound.h" // needs game_graphics
 #include "bcast.h"
 #include "task.h"
 #include "config.h"
@@ -31,7 +32,6 @@
 
 #include "game.h"
 #include "game_callbacks.h"
-#include "game_graphics.h"
 #include "main_graphics.h"
 
 struct timing {
@@ -222,10 +222,27 @@ void game_destroy() {
 
 //// Game-Graphics-Communication stuff ////
 
+void ggcDestroy(ggc_msg *msg) {
+	if (msg->type == GGC_DYNTEX_OLD) {
+		delete msg->data.texHolder;
+	}
+}
+
 void addGgcMsg(int type, dyntex_holder *data) {
 	ggc_msg &x = msgs_game->add();
 	x.type = type;
 	x.data.texHolder = data;
+}
+
+void addSound(gamestate *gs, offset pos, offset vel, int32_t id, int sound) {
+	ggc_msg &x = msgs_game->add();
+	x.type = GGC_SND;
+	x.data.snd.time = gs->clock;
+	x.data.snd.id = id;
+	memcpy(x.data.snd.pos, pos, sizeof(offset));
+	memcpy(x.data.snd.vel, vel, sizeof(offset));
+	// TODO bounds check here? I guess it can be in the gfx thread just as well.
+	x.data.snd.sound = sound;
 }
 
 //// Input callbacks + related stuff ////
@@ -873,6 +890,22 @@ void renderThreadSwitchOff() {
 	sound_ungrab();
 }
 
+static void checkGgc() {
+	list<ggc_msg> &l = *msgs_gfx;
+	rangeconst(i, l.num) {
+		ggc_msg &m = l[i];
+		if (m.type == GGC_DYNTEX_NEW) {
+			newDyntexHolder(m.data.texHolder);
+		} else if (m.type == GGC_DYNTEX_OLD) {
+			oldDyntexHolder(m.data.texHolder);
+		} else if (m.type == GGC_SND) {
+			sound_add(&m.data.snd);
+		}
+		ggcDestroy(&m);
+	}
+	l.num = 0;
+}
+
 static int getTeamShirt(char team) {
 	if (team >= 0 && team < 2) {
 		return TEX_TEAM_SHIRT + team;
@@ -1009,6 +1042,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	updateTiming(&renderTiming, drawingNanos);
 	gfx_interpRatio = interpRatio;
 
+	checkGgc();
 	player *p = &gs->players[myPlayer];
 	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
 	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, look);
@@ -1160,6 +1194,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		);
 		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
+
+	sound_frame(p->m.oldPos, p->m.pos, now, interpRatio);
 }
 
 static void updateTiming(timing *t, long nanos) {

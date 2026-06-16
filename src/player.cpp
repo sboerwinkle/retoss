@@ -74,7 +74,7 @@ static void getLatChange(offset output, int32_t *input, offset landSpeed, int64_
 	bound64(output, latForce);
 }
 
-void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t dist, offset dest, player *p) {
+void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contactVel, int64_t dist, offset dest, player *p) {
 	// Push us out of the wall
 	range(i, 3) dest[i] += dist*forceDir[i]/FIXP;
 	int64_t normalForce = -dot(contactVel, forceDir);
@@ -128,6 +128,11 @@ void pl_phys_standard(unitvec const forceDir, offset const contactVel, int64_t d
 			// Debated back and forth about this line, I think I want it.
 			p->jump = 0;
 
+			if (gs == rootState) {
+				offset v;
+				range(i, 3) v[i] = p->vel[i] - contactVel[i];
+				addSound(gs, dest, v, 0/*id*/, 0/*sound*/);
+			}
 			range(i, 3) p->vel[i] += jumpDir[i]*pl_jump/FIXP - contactVel[i];
 			// `dest` has already been updated to push us out of the collision plane,
 			// and unlike the walking case we don't want to update `dest` with the velocity change.

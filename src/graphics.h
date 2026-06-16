@@ -21,6 +21,9 @@ extern float displayAreaBounds[2];
 extern offset gfx_camPos1;
 extern offset gfx_camPos2;
 
+extern void newDyntexHolder(dyntex_holder *h);
+extern void oldDyntexHolder(dyntex_holder *h);
+
 extern void initGraphics(); // should be `gfx_init` but this func is old
 extern void gfx_destroy();
 

@@ -9,8 +9,8 @@
 #include "mtx.h"
 #include "matrix.h"
 
-#include "game.h"
 #include "gamestate.h"
+#include "game.h"
 #include "bctx.h"
 #include "collision.h"
 

@@ -326,7 +326,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 		//       velbox space briefly (and not right now), but it's brittle.
 		solid *s = solidFromMover(queryResults[j]);
 		int64_t dist = collide_check(p, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel);
-		if (dist) pl_phys_standard(forceDir, contactVel, dist, dest, p);
+		if (dist) pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
 	}
 
 	memcpy(p->m.pos, dest, sizeof(dest));

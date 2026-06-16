@@ -6,6 +6,7 @@
 
 #include "util.h"
 #include "matrix.h"
+#include "list.h"
 
 #include "sound.h"
 
@@ -15,8 +16,10 @@ struct source {
 	offset pos;
 	offset vel;
 	int32_t start;
-	ALuint al_src;
+	ALuint alSrc;
 };
+
+static list<source> activeSources;
 
 static ALuint alBuffers[NUM_SOUNDS];
 
@@ -63,7 +66,51 @@ static void loadFile(char const *filename, ALuint alBuf) {
 	// care enough. Would need to use `sf_error_number`.
 }
 
+void sound_add(snd_request *r) {
+	source &s = activeSources.add();
+	memcpy(s.pos, r->pos, sizeof(offset));
+	memcpy(s.vel, r->vel, sizeof(offset));
+	s.start = r->time;
+	alGenSources(1, &s.alSrc);
+
+	// TODO: Use `r->sound` instead of always taking `alBuffers[0]`.
+	alSourcei(s.alSrc, AL_BUFFER, alBuffers[0]);
+	//alSourcei(singleSource.alSrc, AL_LOOPING, 1);
+	alSourcePlay(s.alSrc);
+}
+
+void sound_frame(offset p1, offset p2, int32_t time, float interp) {
+	offset v;
+	range(i, 3) v[i] = p2[i] - p1[i];
+	range(i, activeSources.num) {
+		source &s = activeSources[i];
+		ALint val;
+		alGetSourcei(s.alSrc, AL_SOURCE_STATE, &val);
+		if (val == AL_STOPPED) {
+			alDeleteSources(1, &s.alSrc);
+			activeSources.quickRmAt(i);
+			i--;
+			continue;
+		}
+
+		/* TODO: enable
+		ALint pos[3];
+		range(i, 3) {
+			pos[i] = (s.pos[i] + s.vel[i]*(time-s.start) - p1[i]) + (s.vel[i] - v[i])*interp;
+		}
+		// Could be 3f, fv, 3i, iv.
+		alSourceiv(s.alSrc, AL_POSITION, pos);
+		*/
+		// TODO: If I want some sounds to anchor to moving things (like players),
+		//       I'll have to get clever with that somehow!
+		// Could also set AL_VELOCITY for doppler effect if I cared enough.
+	}
+}
+
+// TODO should probably check for memory leaks
 void sound_init() {
+	activeSources.init();
+
 	auto device = alcOpenDevice(NULL);
 	if (!device) {
 		puts("OpenAL device creation failed");
@@ -85,32 +132,6 @@ void sound_init() {
 	}
 
 	loadFile("assets/sounds/sproing.mp3", alBuffers[0]);
-
-	source singleSource;
-	alGenSources(1, &singleSource.al_src);
-	alSourcei(singleSource.al_src, AL_LOOPING, 1);
-	alSourcei(singleSource.al_src, AL_BUFFER, alBuffers[0]);
-	alSourcePlay(singleSource.al_src);
-
-	// alGenSources
-	// Have to figure out a few things about moving sources.
-	// A person going "oof" should probably move, or it'll sound weird.
-	// A bullet impact noise, on the other hand, doesn't have anything to attach to,
-	// 	(attaching it to the wall is asinine)
-	// but presumably we still need to update its position (moving frame of reference)
-	// and also reclaim the source when it's done.
-
-	// Note that according to OpenAL docs, position and velocity units are completely independent,
-	// and they also say you can turn off doppler effects by leaving all velocities at 0.
-	// So this tells me positions aren't interpolated using velocities,
-	// I'd have to do that myself.
-	// This means manual bookkeeping of basically all sources (since presumably they can all move),
-	// so the good news is tracking "finished" sources on top of that shouldn't be bad.
-	//
-	// Do I have to worry about race conditions if everything's moving fast and I don't update positions
-	// at the same time?
-	// If so, then (like GL but for different reasons) I'll have to do everything with relative distances
-	// anyway. And maybe for the same reason as GL too, I bet everything is floating-point bullshit :|
 }
 
 void sound_destroy() {
@@ -120,4 +141,6 @@ void sound_destroy() {
 
 	alcDestroyContext(context);
 	alcCloseDevice(device);
+
+	activeSources.destroy();
 }

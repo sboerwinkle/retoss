@@ -211,20 +211,14 @@ static void drawDyntex(GLuint tex, dyntex_description *_descr) {
 	glViewport(0, 0, displayWidth, displayHeight);
 }
 
-static void cleanup(ggc_msg *msg) {
-	if (msg->type == GGC_DYNTEX_OLD) {
-		delete msg->data.texHolder;
-	}
-}
-
 static void cleanupAll(list<ggc_msg> *l) {
 	rangeconst(i, l->num) {
-		cleanup(&(*l)[i]);
+		ggcDestroy(&(*l)[i]);
 	}
 	l->num = 0;
 }
 
-static void newDyntexHolder(dyntex_holder *h) {
+void newDyntexHolder(dyntex_holder *h) {
 	// Simple linear search through our existing textures
 	// to see if any match the requested description
 	rangeconst(i, dyntexs.num) {
@@ -251,7 +245,7 @@ static void newDyntexHolder(dyntex_holder *h) {
 	drawDyntex(t.tex, &t.descr);
 }
 
-static void oldDyntexHolder(dyntex_holder *h) {
+void oldDyntexHolder(dyntex_holder *h) {
 	rangeconst(i, dyntexs.num) {
 		dyntex_texture &t = dyntexs[i];
 		if (h->tex != t.tex) continue;
@@ -262,10 +256,6 @@ static void oldDyntexHolder(dyntex_holder *h) {
 		}
 		return;
 	}
-}
-
-static void addSound(void *snd) {
-	// TODO
 }
 
 void setDisplaySize(int width, int height){
@@ -530,22 +520,6 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-static void checkGgc() {
-	list<ggc_msg> &l = *msgs_gfx;
-	rangeconst(i, l.num) {
-		ggc_msg &m = l[i];
-		if (m.type == GGC_DYNTEX_NEW) {
-			newDyntexHolder(m.data.texHolder);
-		} else if (m.type == GGC_DYNTEX_OLD) {
-			oldDyntexHolder(m.data.texHolder);
-		} else if (m.type == GGC_SND) {
-			addSound(&m.data.snd);
-		}
-		cleanup(&m);
-	}
-	l.num = 0;
-}
-
 static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse, int64_t hovDist) {
 	camCastCands.num = 0;
 	velbox_query_ts(prox, &camCastCands);
@@ -591,7 +565,6 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 
 void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg) {
 	checkReload();
-	checkGgc();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
 	glDepthMask(1);
