@@ -8,6 +8,8 @@
 #include "matrix.h"
 #include "list.h"
 
+#include "game.h"
+
 #include "sound.h"
 
 // https://www.openal.org/documentation/OpenAL_Programmers_Guide.pdf
@@ -75,35 +77,61 @@ void sound_add(snd_request *r) {
 
 	// TODO: Use `r->sound` instead of always taking `alBuffers[0]`.
 	alSourcei(s.alSrc, AL_BUFFER, alBuffers[0]);
+	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, 1000);
+
+	// With the exponential rolloff model,
+	// this 2 means `1/distance^2`
+	alSourcef(s.alSrc, AL_ROLLOFF_FACTOR, 2);
+	alSourcef(s.alSrc, AL_MIN_GAIN, 1);
+
 	//alSourcei(singleSource.alSrc, AL_LOOPING, 1);
-	alSourcePlay(s.alSrc);
+	//alSourcePlay(s.alSrc);
+}
+
+static void doOrientation() {
+	float output[6], input[3] = {0, 0, 0};
+	float *at = output;
+	float *up = output+3;
+	input[1] = 0.25;
+	quat_apply(at, quatCamRotation, input);
+	input[1] = 0;
+	input[2] = 0.25;
+	quat_apply(up, quatCamRotation, input);
+	alListenerfv(AL_ORIENTATION, output);
+
 }
 
 void sound_frame(offset p1, offset p2, int32_t time, float interp) {
+	doOrientation();
 	offset v;
 	range(i, 3) v[i] = p2[i] - p1[i];
 	range(i, activeSources.num) {
 		source &s = activeSources[i];
-		ALint val;
-		alGetSourcei(s.alSrc, AL_SOURCE_STATE, &val);
-		if (val == AL_STOPPED) {
+
+		ALint state;
+		alGetSourcei(s.alSrc, AL_SOURCE_STATE, &state);
+		if (state == AL_STOPPED) {
+			// I previously had all the `state` checks in one place (at the end),
+			// but it's probably worth skipping the position math the final time.
 			alDeleteSources(1, &s.alSrc);
 			activeSources.quickRmAt(i);
 			i--;
 			continue;
 		}
 
-		/* TODO: enable
 		ALint pos[3];
-		range(i, 3) {
-			pos[i] = (s.pos[i] + s.vel[i]*(time-s.start) - p1[i]) + (s.vel[i] - v[i])*interp;
+		range(j, 3) {
+			pos[j] = (s.pos[j] + s.vel[j]*(time-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
 		}
 		// Could be 3f, fv, 3i, iv.
 		alSourceiv(s.alSrc, AL_POSITION, pos);
-		*/
 		// TODO: If I want some sounds to anchor to moving things (like players),
 		//       I'll have to get clever with that somehow!
 		// Could also set AL_VELOCITY for doppler effect if I cared enough.
+
+		if (state == AL_INITIAL) {
+			alSourcePlay(s.alSrc);
+		}
 	}
 }
 
@@ -123,6 +151,7 @@ void sound_init() {
 		return;
 	}
 	alcMakeContextCurrent(context);
+	alDistanceModel(AL_EXPONENT_DISTANCE_CLAMPED);
 
 	alGenBuffers(NUM_SOUNDS, alBuffers);
 	ALenum error;

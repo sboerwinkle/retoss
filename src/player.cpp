@@ -4,6 +4,7 @@
 
 #include "bcast.h"
 #include "game.h"
+#include "game_gamestate.h"
 #include "main.h"
 
 #include "player.h"
