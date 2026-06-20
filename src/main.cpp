@@ -475,6 +475,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 				// Shouldn't happen unless we outpace gfx thread somehow?
 				if (msgs_exchange->num) {
 					msgs_exchange->addAll(msgs_game);
+					msgs_game->num = 0;
 				} else {
 					list<ggc_msg> *swap = msgs_exchange;
 					msgs_exchange = msgs_game;
