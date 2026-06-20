@@ -1,6 +1,10 @@
 - Weird smearing from mipmaps
 - climbing route issue in peaks
 - sounds
+	. Kinda there!
+	- volume control (at least mute)
+	- shooting, hurting sounds
+	- bullet impact sounds?
 - new weapons/abilities ofc
 - fix "LOW" / "HIGH" names + input
 - Clarify L/R column settings input

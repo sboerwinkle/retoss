@@ -234,7 +234,7 @@ void addGgcMsg(int type, dyntex_holder *data) {
 	x.data.texHolder = data;
 }
 
-void addSound(gamestate *gs, offset pos, offset vel, int32_t id, int sound) {
+void addSound(gamestate *gs, offset pos, offset vel, uint32_t id, int sound) {
 	ggc_msg &x = msgs_game->add();
 	x.type = GGC_SND;
 	x.data.snd.time = gs->clock;
@@ -833,9 +833,9 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 			}
 		}
 	} else if (isCmd(str, "/_J")) {
-		p->jump = 3; // Set 'jump this frame' and 'jump continuing' bits
+		p->jump |= 3; // Set 'jump this frame' and 'jump continuing' bits
 	} else if (isCmd(str, "/_j")) {
-		p->jump &= 2; // Only keep 'jump this frame' bit
+		p->jump &= ~1; // Clear 'jump continuing' bit
 	} else if (isCmd(str, "/_S")) {
 		p->shoot = 3;
 	} else if (isCmd(str, "/_s")) {
@@ -1195,7 +1195,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
 
-	sound_frame(p->m.oldPos, p->m.pos, now, interpRatio);
+	sound_frame(p->m.oldPos, p->m.pos, now, interpRatio, now - renderPhantomFrames);
 }
 
 static void updateTiming(timing *t, long nanos) {

@@ -15,13 +15,20 @@
 // https://www.openal.org/documentation/OpenAL_Programmers_Guide.pdf
 
 struct source {
+	int32_t start;
 	offset pos;
 	offset vel;
-	int32_t start;
 	ALuint alSrc;
 };
 
+struct soundId {
+	int32_t time;
+	uint32_t id;
+};
+
 static list<source> activeSources;
+static list<soundId> soundIds;
+static int soundIdWindowFrames = 3;
 
 static ALuint alBuffers[NUM_SOUNDS];
 
@@ -69,23 +76,57 @@ static void loadFile(char const *filename, ALuint alBuf) {
 }
 
 void sound_add(snd_request *r) {
+	rangeconst(i, soundIds.num) {
+		soundId &s = soundIds[i];
+		if (
+			s.id == r->id
+			&& abs(s.time - r->time) <= soundIdWindowFrames
+		) {
+			return;
+		}
+	}
+
+	{
+		soundId &s = soundIds.add();
+		s.id = r->id;
+		s.time = r->time;
+	}
+
 	source &s = activeSources.add();
+	s.start = r->time;
 	memcpy(s.pos, r->pos, sizeof(offset));
 	memcpy(s.vel, r->vel, sizeof(offset));
-	s.start = r->time;
 	alGenSources(1, &s.alSrc);
 
 	// TODO: Use `r->sound` instead of always taking `alBuffers[0]`.
 	alSourcei(s.alSrc, AL_BUFFER, alBuffers[0]);
-	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, 1000);
+	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, 700);
 
 	// With the exponential rolloff model,
 	// this 2 means `1/distance^2`
 	alSourcef(s.alSrc, AL_ROLLOFF_FACTOR, 2);
-	alSourcef(s.alSrc, AL_MIN_GAIN, 1);
+	//alSourcef(s.alSrc, AL_MIN_GAIN, 0.8);
 
 	//alSourcei(singleSource.alSrc, AL_LOOPING, 1);
 	//alSourcePlay(s.alSrc);
+}
+
+static void housekeepSoundIds(int32_t finishedTime, int32_t recentTime) {
+	// The next frame that should be submitting any requests is finishedTime+1,
+	// but keep some older frames for comparison as well.
+	int32_t firstTime = finishedTime + 1 - soundIdWindowFrames;
+	// Want to handle time wrapping correctly, so we use relative offsets
+	int32_t duration = recentTime - firstTime;
+	range(i, soundIds.num) {
+		int32_t delta = soundIds[i].time - firstTime;
+		// `delta > duration` shouldn't usually happen,
+		// but we should expect some occasional time
+		// jumps (like from loading a level).
+		if (delta < 0 || delta > duration) {
+			soundIds.quickRmAt(i);
+			i--;
+		}
+	}
 }
 
 static void doOrientation() {
@@ -101,7 +142,8 @@ static void doOrientation() {
 
 }
 
-void sound_frame(offset p1, offset p2, int32_t time, float interp) {
+void sound_frame(offset p1, offset p2, int32_t time, float interp, int32_t finishedTime) {
+	housekeepSoundIds(finishedTime, time);
 	doOrientation();
 	offset v;
 	range(i, 3) v[i] = p2[i] - p1[i];
@@ -121,7 +163,7 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp) {
 
 		ALint pos[3];
 		range(j, 3) {
-			pos[j] = (s.pos[j] + s.vel[j]*(time-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
+			pos[j] = (s.pos[j] + s.vel[j]*(time-1-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
 		}
 		// Could be 3f, fv, 3i, iv.
 		alSourceiv(s.alSrc, AL_POSITION, pos);
@@ -129,7 +171,9 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp) {
 		//       I'll have to get clever with that somehow!
 		// Could also set AL_VELOCITY for doppler effect if I cared enough.
 
-		if (state == AL_INITIAL) {
+		// Since we're interpolating between (time-1) and (time),
+		// we have to wait (worst case 1 frame?) until `time > s.start`.
+		if (state == AL_INITIAL && time > s.start) {
 			alSourcePlay(s.alSrc);
 		}
 	}
@@ -137,6 +181,7 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp) {
 
 // TODO should probably check for memory leaks
 void sound_init() {
+	soundIds.init();
 	activeSources.init();
 
 	auto device = alcOpenDevice(NULL);
@@ -172,4 +217,5 @@ void sound_destroy() {
 	alcCloseDevice(device);
 
 	activeSources.destroy();
+	soundIds.destroy();
 }

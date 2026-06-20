@@ -45,15 +45,16 @@ struct {
 } screenSize;
 
 // For rendering that isn't frame-locked.
-// Depends on what a `gamestate` is.
 static struct {
 	gamestate *pickup, *dropoff;
 	long nanos;
+	int phantomFrames;
 } renderData = {};
 static mtx_t renderMutex = MTX_INIT_EXPR;
 static gamestate *renderedState = NULL;
-long renderStartNanos = 0;
-char manualGlFinish = 1;
+static long renderStartNanos = 0;
+static char manualGlFinish = 1;
+int renderPhantomFrames = 0;
 list<ggc_msg> *msgs_game, *msgs_gfx, *msgs_exchange;
 
 static char chatBuffer[TEXT_BUF_LEN];
@@ -468,6 +469,7 @@ static void* gameThreadFunc(void *startFramePtr) {
 			}
 			renderData.pickup = phantomState;
 			renderData.nanos = now;
+			renderData.phantomFrames = outboundSize;
 			// Not sure if I should just check this or assume always true?
 			if (msgs_game->num) {
 				// Shouldn't happen unless we outpace gfx thread somehow?
@@ -686,6 +688,7 @@ static void checkRenderData() {
 		renderedState = renderData.pickup;
 		renderData.pickup = NULL;
 		renderStartNanos = renderData.nanos;
+		renderPhantomFrames = renderData.phantomFrames;
 	}
 	if (msgs_exchange->num) {
 		// It's assumed that `draw` empties the list of

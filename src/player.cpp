@@ -90,7 +90,7 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 	// so I'm just doing it here.
 	bound26(desire, FIXP);
 
-	if (p->jump) {
+	if (p->jump & 3) {
 		unitvec jumpDir;
 		if (desire[0] || desire[1]) {
 			// The constant mult+div is basically `/sqrt(2)`.
@@ -126,13 +126,21 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 			jumpDir[2] = 32604;
 		}
 		if (dot(forceDir, jumpDir) > 0) {
-			// Debated back and forth about this line, I think I want it.
-			p->jump = 0;
+			// `p->jump` also counts jumps (modulus 8) so that we can generate
+			// unique soundIds for back-to-back jumps.
+			// If I didn't clear the `1` and `2` bits, you could jump off surfaces
+			// so long as you held space. I think I like it as-is though.
+			// (You could also trigger multiple jumps in one frame, a bit weird.)
+			p->jump = (p->jump+4) & 0x1C;
 
-			if (gs == rootState) {
+			{
 				offset v;
 				range(i, 3) v[i] = p->vel[i] - contactVel[i];
-				addSound(gs, dest, v, 0/*id*/, 0/*sound*/);
+				uint32_t soundId =
+					0xFF00'0000
+					+ (p - gs->players.items) * 0x1'0000
+					+ p->jump;
+				addSound(gs, dest, v, soundId, 0/*sound*/);
 			}
 			range(i, 3) p->vel[i] += jumpDir[i]*pl_jump/FIXP - contactVel[i];
 			// `dest` has already been updated to push us out of the collision plane,
@@ -227,7 +235,7 @@ static void shoot(gamestate *gs, player *p) {
 }
 
 void pl_postStep(gamestate *gs, player *p) {
-	p->jump &= 1; // Keep only the 'jump continuing' bit
+	p->jump &= ~2; // Clear 'jump this frame' bit, as this frame has passed.
 	char shootInput = p->shoot;
 	p->shoot &= 1;
 	if (p->cooldown) p->cooldown--;
