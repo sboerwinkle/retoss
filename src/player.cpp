@@ -216,12 +216,16 @@ static void shoot(gamestate *gs, player *p) {
 	}
 	if (result && (result->type & T_PLAYER) && shotRule != 1) {
 		player *shootee = playerFromMover(result);
-		if (shootee->hits < 2) {
-			shootee->hits++;
+		uint32_t soundId =
+			0xFF00'0100
+			+ (p - gs->players.items) * 0x1'0000
+			+ shootee->hits;
+		addPlayerSound(gs, shootee, soundId, 1);
+		shootee->hits++;
+		if (shootee->hits < 3) {
 			// 7 seconds to heal feels about right??
 			shootee->hitsCooldown = 15*7;
-		} else {
-			shootee->hits = 3;
+		} else if (shootee->hits == 3) {
 			// Enough time for them to get off one more shot
 			shootee->hitsCooldown = 10;
 		}

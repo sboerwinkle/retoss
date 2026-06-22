@@ -18,6 +18,7 @@ struct source {
 	int32_t start;
 	offset pos;
 	offset vel;
+	int posType;
 	ALuint alSrc;
 };
 
@@ -30,7 +31,10 @@ static list<source> activeSources;
 static list<soundId> soundIds;
 static int soundIdWindowFrames = 3;
 
+list<offset_t> sound_playerPositions;
+
 static ALuint alBuffers[NUM_SOUNDS];
+static int64_t refDists[NUM_SOUNDS];
 
 static ALCcontext *context;
 
@@ -96,10 +100,15 @@ void sound_add(snd_request *r) {
 	s.start = r->time;
 	memcpy(s.pos, r->pos, sizeof(offset));
 	memcpy(s.vel, r->vel, sizeof(offset));
+	s.posType = r->posType;
 	alGenSources(1, &s.alSrc);
 
-	// TODO: Use `r->sound` instead of always taking `alBuffers[0]`.
-	alSourcei(s.alSrc, AL_BUFFER, alBuffers[0]);
+	int sound = r->sound;
+	if (sound < 0 || sound >= NUM_SOUNDS) {
+		printf("WARN: Invalid sound # %d\n", sound);
+		sound = 0;
+	}
+	alSourcei(s.alSrc, AL_BUFFER, alBuffers[sound]);
 	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, 700);
 
 	// With the exponential rolloff model,
@@ -162,8 +171,17 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp, int32_t finis
 		}
 
 		ALint pos[3];
-		range(j, 3) {
-			pos[j] = (s.pos[j] + s.vel[j]*(time-1-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
+		if (s.posType == SND_POS_COORDS) {
+			range(j, 3) {
+				pos[j] = (s.pos[j] + s.vel[j]*(time-1-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
+			}
+		} else if (s.posType == SND_POS_PLAYER) {
+			int playerIx = s.pos[0];
+			if (playerIx < 0 || playerIx >= sound_playerPositions.num) {
+				range(j, 3) pos[j] = 0;
+			} else {
+				range(j, 3) pos[j] = sound_playerPositions[playerIx].o[j];
+			}
 		}
 		// Could be 3f, fv, 3i, iv.
 		alSourceiv(s.alSrc, AL_POSITION, pos);
@@ -181,6 +199,7 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp, int32_t finis
 
 // TODO should probably check for memory leaks
 void sound_init() {
+	sound_playerPositions.init();
 	soundIds.init();
 	activeSources.init();
 
@@ -206,6 +225,12 @@ void sound_init() {
 	}
 
 	loadFile("assets/sounds/sproing.mp3", alBuffers[0]);
+	refDists[0] = 700;
+	loadFile("assets/sounds/meat.mp3", alBuffers[1]);
+	refDists[1] = 700;
+	// Placeholder
+	loadFile("assets/sounds/meat.mp3", alBuffers[2]);
+	refDists[2] = 700;
 }
 
 void sound_destroy() {
@@ -218,4 +243,5 @@ void sound_destroy() {
 
 	activeSources.destroy();
 	soundIds.destroy();
+	sound_playerPositions.destroy();
 }

@@ -8,8 +8,16 @@ struct snd_request {
 
 	offset pos;
 	offset vel;
+	int posType; // SND_POS_...
 	int sound;
 };
+
+enum {
+	SND_POS_COORDS,
+	SND_POS_PLAYER,
+};
+
+extern list<offset_t> sound_playerPositions;
 
 extern void sound_grab();
 extern void sound_ungrab();

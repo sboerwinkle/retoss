@@ -234,15 +234,26 @@ void addGgcMsg(int type, dyntex_holder *data) {
 	x.data.texHolder = data;
 }
 
-void addSound(gamestate *gs, offset pos, offset vel, uint32_t id, int sound) {
+static ggc_msg *addSoundMsg(gamestate *gs, uint32_t id, int sound) {
 	ggc_msg &x = msgs_game->add();
 	x.type = GGC_SND;
 	x.data.snd.time = gs->clock;
 	x.data.snd.id = id;
+	x.data.snd.sound = sound;
+	return &x;
+}
+
+void addSound(gamestate *gs, offset pos, offset vel, uint32_t id, int sound) {
+	ggc_msg &x = *addSoundMsg(gs, id, sound);
 	memcpy(x.data.snd.pos, pos, sizeof(offset));
 	memcpy(x.data.snd.vel, vel, sizeof(offset));
-	// TODO bounds check here? I guess it can be in the gfx thread just as well.
-	x.data.snd.sound = sound;
+	x.data.snd.posType = SND_POS_COORDS;
+}
+
+void addPlayerSound(gamestate *gs, player *p, uint32_t id, int sound) {
+	ggc_msg &x = *addSoundMsg(gs, id, sound);
+	x.data.snd.pos[0] = p - gs->players.items;
+	x.data.snd.posType = SND_POS_PLAYER;
 }
 
 //// Input callbacks + related stuff ////
@@ -906,6 +917,22 @@ static void checkGgc() {
 	l.num = 0;
 }
 
+static void setSoundPosition(gamestate const *gs, player const *_p, int playerIx) {
+	// Similar to the gfx math, but not quite.
+	// - This is based on player pos, not cam pos
+	// - Runs even if player in question is dead
+	// Also the gfx code doesn't know if it's drawing a player
+	// or something else, so doing it there would be a pain
+	// anyway!
+	player const &p = *_p;
+	player const &p2 = gs->players[playerIx];
+	offset &dest = sound_playerPositions[playerIx].o;
+	range(i, 3) {
+		int64_t d1 = p2.m.oldPos[i] - p.m.oldPos[i];
+		dest[i] = d1 + gfx_interpRatio * (p2.m.pos[i] - p.m.pos[i] - d1);
+	}
+}
+
 static int getTeamShirt(char team) {
 	if (team >= 0 && team < 2) {
 		return TEX_TEAM_SHIRT + team;
@@ -1060,7 +1087,10 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		}
 	}
 
+	sound_playerPositions.setMaxUp(gs->players.num);
+	sound_playerPositions.num = gs->players.num;
 	rangeconst(i, gs->players.num) {
+		setSoundPosition(gs, p, i);
 		if (i == myPlayer) continue;
 		player *p2 = &gs->players[i];
 		drawPlayer(p2, 1.0f);

@@ -18,6 +18,8 @@ typedef int32_t iquat[4];
 typedef int32_t unitvec[3];
 typedef int32_t imat[9];
 typedef int64_t offset[3];
+// Sometimes you need a non-array type
+struct offset_t { offset o; };
 
 struct fraction {
 	int64_t numer;
