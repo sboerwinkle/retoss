@@ -1,7 +1,5 @@
 *.o
 *.so
-# These are also compiled artifacts
-/src/http.d/*.include
 
 vgcore*
 game
@@ -12,9 +10,11 @@ data/
 # VIM files
 *.swp
 
-# Some assets I maybe want to commit so the game runs on a fresh checkout,
-# but WIP asset stuff I probably don't want.
+# WIP asset stuff
 *.xcf
+*.aup3
+*_orig.mp3
 
 # Old stuff I don't want to throw away lol
 /assets/old
+/notes
