@@ -9,9 +9,11 @@
 extern char **environ;
 
 #include "util.h"
+
 #include "config.h"
 #include "json.h"
 #include "mypoll.h"
+#include "file.h"
 
 #include "http.h"
 
@@ -24,9 +26,8 @@ static int serverPort = -1;
 static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI will be unavailable. Issue is:\n\t";
 static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
-#include "http.d/onlyGets.include"
-#include "http.d/noContent.include"
-#include "http.d/default.include"
+// "Rs" = "Response"
+list<char> onlyGetsRs, noContentRs, defaultHtml;
 
 static cfg_item *httpConfigs[] = {
 	&cfg_name, // Need "name" here b/c we read it, don't expect to write it though
@@ -57,6 +58,10 @@ static void writeAll(int fd, char const *src, int len) {
 		src += ret;
 		len -= ret;
 	}
+}
+
+static void writeList(int fd, list<char> const *l) {
+	writeAll(fd, l->items, l->num);
 }
 
 static void write200(int fd, char const *html, int len, char const *contentType) {
@@ -169,7 +174,7 @@ static void read_inner(int fd) {
 	char *buf = staticBuffer;
 
 	if (strncmp("GET ", buf, 4)) {
-		writeAll(fd, onlyGets_bytes, onlyGets_len);
+		writeList(fd, &onlyGetsRs);
 		return;
 	}
 	buf += 4;
@@ -180,15 +185,15 @@ static void read_inner(int fd) {
 
 	if (!strcmp(buf, "/team0")) {
 		sendCommand("/team 0");
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strcmp(buf, "/team1")) {
 		sendCommand("/team 1");
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strcmp(buf, "/team2")) {
 		sendCommand("/team 2");
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strcmp(buf, "/")) {
-		write200(fd, default_bytes, default_len, "text/html");
+		write200(fd, defaultHtml.items, defaultHtml.num, "text/html");
 	} else if (!strcmp(buf, "/config")) {
 		writeConfigs(fd);
 	} else if (!strncmp(buf, "/name/", 6)) {
@@ -197,23 +202,23 @@ static void read_inner(int fd) {
 		// Will probably have to rework this when I add URL encoding haha
 		buf[5] = buf[6] ? ' ' : '\0';
 		sendCommand(buf);
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strncmp(buf, "/camera?", 8)) {
 		readConfigs(buf+8);
 		sendCommand("/_cfgcam");
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strncmp(buf, "/prediction?", 12)) {
 		readConfigs(buf+12);
 		sendCommand("/_cfgpred");
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else if (!strncmp(buf, "/misc?", 6)) {
 		readConfigs(buf+6);
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	} else {
 		fputs("WARN: Unhandled HTTP request to: ", stdout);
 		puts(buf);
 		// todo: Send 404 instead of 204?
-		writeAll(fd, noContent_bytes, noContent_len);
+		writeList(fd, &noContentRs);
 	}
 }
 
@@ -239,9 +244,6 @@ extern void http_spawnClient() {
 	}
 	char url[25];
 	snprintf(url, 25, "http://localhost:%d", serverPort);
-	// TODO: Maybe close stdout / stdin?
-	//       Could either mark them as CLOEXEC before we get here,
-	//       or manually request them to be closed with one of the fancy args.
 	// TODO: Selectable browser, but `xdg-open` is a good default
 	char name[10];
 	// TODO bounds check
@@ -253,7 +255,29 @@ extern void http_spawnClient() {
 	//       but it's kind of hard to get useful info
 }
 
+// This function runs right at the start of the polling thread - after
+// the main application startup, but before we handle any http or game
+// server communications.
+// This might save a little time during startup (disk reads are slow),
+// but it also means we're not getting data from the game server until
+// these reads finish!
+// I will need to revisit this if we start loading too much data here.
+void http_preload() {
+	char fail = 0;
+	fail |= readSystemFile("assets/http/onlyGets.txt", &onlyGetsRs);
+	fail |= readSystemFile("assets/http/noContent.txt", &noContentRs);
+	fail |= readSystemFile("assets/http/default.html", &defaultHtml);
+	if (fail) {
+		puts("file(s) needed for UI didn't load correctly (above)");
+		// We're not going to do anything else about it lol
+	}
+}
+
 void http_init() {
+	onlyGetsRs.init();
+	noContentRs.init();
+	defaultHtml.init();
+
 	http_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (http_fd == -1) {
 		printf("%s`socket` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
@@ -293,7 +317,7 @@ void http_init() {
 	serverPort = ntohs(address.sin_port);
 
 	// Set `FD_CLOEXEC` on stdin/stdout/stderr.
-	// Might move this later, but for now `http` is the only file that spawns processes,
+	// Might move this eventually, but for now `http` is the only file that spawns processes,
 	// so setting these flags is this file's concern.
 	range(i, 3) {
 		fcntl(i, F_SETFD, FD_CLOEXEC | fcntl(i, F_GETFD));
@@ -301,6 +325,10 @@ void http_init() {
 }
 
 void http_destroy() {
+	onlyGetsRs.destroy();
+	noContentRs.destroy();
+	defaultHtml.destroy();
+
 	if (http_fd == -1) return;
 	if (-1 == close(http_fd)) {
 		printf("WARN: HTTP `close` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));

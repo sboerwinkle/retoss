@@ -4,9 +4,6 @@
 # If you want a really robust way to ensure the working dir matches the script location, look it up!
 cd "$(dirname "$0")"
 
-# Converts some data files to hexdump snippets suitable for including in C source
-src/http.d/compile.sh
-
 echo 'Compiling...'
 
 shopt -s nullglob

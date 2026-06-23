@@ -23,6 +23,7 @@ std::atomic<char> poll_game_flag = 0;
 char poll_game_data[POLL_BUF_LEN];
 
 void* mypoll_threadFunc(void *arg) {
+	http_preload();
 	while (1) {
 		// 200ms timeout.
 		// I could probably also set an "ignore" signal handler
