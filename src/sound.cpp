@@ -109,7 +109,7 @@ void sound_add(snd_request *r) {
 		sound = 0;
 	}
 	alSourcei(s.alSrc, AL_BUFFER, alBuffers[sound]);
-	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, 700);
+	alSourcef(s.alSrc, AL_REFERENCE_DISTANCE, refDists[sound]);
 
 	// With the exponential rolloff model,
 	// this 2 means `1/distance^2`
@@ -121,9 +121,10 @@ void sound_add(snd_request *r) {
 }
 
 static void housekeepSoundIds(int32_t finishedTime, int32_t recentTime) {
-	// The next frame that should be submitting any requests is finishedTime+1,
-	// but keep some older frames for comparison as well.
-	int32_t firstTime = finishedTime + 1 - soundIdWindowFrames;
+	// Sounds might play at the start of the frame (e.g. guns),
+	// so the earliest request we're expecting is `finishedFrame`.
+	// We keep some older frames for comparison as well.
+	int32_t firstTime = finishedTime - soundIdWindowFrames;
 	// Want to handle time wrapping correctly, so we use relative offsets
 	int32_t duration = recentTime - firstTime;
 	range(i, soundIds.num) {
@@ -228,9 +229,10 @@ void sound_init() {
 	refDists[0] = 700;
 	loadFile("assets/sounds/meat.mp3", alBuffers[1]);
 	refDists[1] = 700;
-	// Placeholder
-	loadFile("assets/sounds/meat.mp3", alBuffers[2]);
-	refDists[2] = 700;
+	loadFile("assets/sounds/pop.mp3", alBuffers[2]);
+	refDists[2] = 6000;
+	loadFile("assets/sounds/tap.mp3", alBuffers[3]);
+	refDists[3] = 500;
 }
 
 void sound_destroy() {

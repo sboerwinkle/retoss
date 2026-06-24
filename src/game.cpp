@@ -234,25 +234,25 @@ void addGgcMsg(int type, dyntex_holder *data) {
 	x.data.texHolder = data;
 }
 
-static ggc_msg *addSoundMsg(gamestate *gs, uint32_t id, int sound) {
+static ggc_msg *addSoundMsg(int32_t time, uint32_t id, int sound) {
 	ggc_msg &x = msgs_game->add();
 	x.type = GGC_SND;
-	x.data.snd.time = gs->clock;
+	x.data.snd.time = time;
 	x.data.snd.id = id;
 	x.data.snd.sound = sound;
 	return &x;
 }
 
-void addSound(gamestate *gs, offset pos, offset vel, uint32_t id, int sound) {
-	ggc_msg &x = *addSoundMsg(gs, id, sound);
+void addSound(int32_t time, offset pos, offset vel, uint32_t id, int sound) {
+	ggc_msg &x = *addSoundMsg(time, id, sound);
 	memcpy(x.data.snd.pos, pos, sizeof(offset));
 	memcpy(x.data.snd.vel, vel, sizeof(offset));
 	x.data.snd.posType = SND_POS_COORDS;
 }
 
-void addPlayerSound(gamestate *gs, player *p, uint32_t id, int sound) {
-	ggc_msg &x = *addSoundMsg(gs, id, sound);
-	x.data.snd.pos[0] = p - gs->players.items;
+void addPlayerSound(int32_t time, int who, uint32_t id, int sound) {
+	ggc_msg &x = *addSoundMsg(time, id, sound);
+	x.data.snd.pos[0] = who;
 	x.data.snd.posType = SND_POS_PLAYER;
 }
 

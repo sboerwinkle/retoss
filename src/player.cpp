@@ -140,7 +140,7 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 					0xFF00'0000
 					+ (p - gs->players.items) * 0x1'0000
 					+ p->jump;
-				addSound(gs, dest, v, soundId, 0/*sound*/);
+				addSound(gs->clock, dest, v, soundId, 0/*sound*/);
 			}
 			range(i, 3) p->vel[i] += jumpDir[i]*pl_jump/FIXP - contactVel[i];
 			// `dest` has already been updated to push us out of the collision plane,
@@ -214,22 +214,47 @@ static void shoot(gamestate *gs, player *p) {
 		time = limit;
 		result = NULL;
 	}
-	if (result && (result->type & T_PLAYER) && shotRule != 1) {
-		player *shootee = playerFromMover(result);
-		uint32_t soundId =
-			0xFF00'0100
-			+ (p - gs->players.items) * 0x1'0000
-			+ shootee->hits;
-		addPlayerSound(gs, shootee, soundId, 1);
-		shootee->hits++;
-		if (shootee->hits < 3) {
-			// 7 seconds to heal feels about right??
-			shootee->hitsCooldown = 15*7;
-		} else if (shootee->hits == 3) {
-			// Enough time for them to get off one more shot
-			shootee->hitsCooldown = 10;
+	// Guns happen at the start of the step,
+	// so we have to subtract 1 from the clock
+	int32_t soundTime = gs->clock - 1;
+	if (result && shotRule != 1) {
+		if ((result->type & T_PLAYER)) {
+			player *shootee = playerFromMover(result);
+			int who = shootee - gs->players.items;
+			// Player can only shoot so fast,
+			// if I based soundId off the shooter (not shootee)
+			// I probably wouldn't need to include the hits counter.
+			uint32_t soundId =
+				0xFF00'0100
+				+ who * 0x1'0000
+				+ shootee->hits;
+			addPlayerSound(soundTime, who, soundId, 1);
+			shootee->hits++;
+			if (shootee->hits < 3) {
+				// 7 seconds to heal feels about right??
+				shootee->hitsCooldown = 15*7;
+			} else if (shootee->hits == 3) {
+				// Enough time for them to get off one more shot
+				shootee->hitsCooldown = 10;
+			}
+		} else {
+			uint32_t soundId =
+				0xFF00'FF01
+				+ (p - gs->players.items) * 0x1'0000;
+			offset impact;
+			range(i, 3) impact[i] = p->m.oldPos[i] + look[i] * time.numer / time.denom;
+			offset v;
+			// Todo: Doesn't account for if impact surface is rotating
+			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
+			addSound(soundTime, impact, v, soundId, 3);
 		}
 	}
+
+	int who = p - gs->players.items;
+	uint32_t soundId =
+		0xFF00'FF00
+		+ who * 0x1'0000;
+	addPlayerSound(soundTime, who, soundId, 2);
 
 	trail &tr = gs->trails.add();
 	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
