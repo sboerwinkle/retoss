@@ -8,8 +8,8 @@
 - new weapons/abilities ofc
 - fix "LOW" / "HIGH" names + input
 - Clarify L/R column settings input
-- `xxd` build req't
-- "HIGH" mode with shooting teammates behind you
+. `xxd` build req't
+. "HIGH" mode with shooting teammates behind you
 	start raycast co-planar w/ player's front face
 
 . Shooting is weird at speed

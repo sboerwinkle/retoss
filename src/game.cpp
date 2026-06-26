@@ -1004,15 +1004,9 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		offset p1, p2;
 		memcpy(p1, gfx_camPos1, sizeof(offset));
 		memcpy(p2, gfx_camPos2, sizeof(offset));
-		// To keep the camera out of geometry, we ensure the corners of the near clipping plane
-		// aren't inside anything. However, the camera *itself* can still be inside geometry,
-		// which would mess up our raycast here. So, we "start" our raycast a bit in front of the
-		// camera (and the +2 is arbitrary padding).
-		// This can still fail for "pointy" geometry that sticks through the middle of the
-		// zNear plane, I'd have to add a 5th raycast point (center) when calculating
-		// `gfx_camDist` if I wanted to fix that. Not a big deal, but don't want to bother
-		// with such an edge case.
-		float start = GFX_Z_NEAR + 2;
+		// Start our raycast from above the player. This helps prevent weirdness
+		// if another player passes right in front of the camera.
+		float start = look->hovCos * gfx_camDist;
 		range(i, 3) {
 			p1[i] += start * gfx_lookDir[i];
 			p2[i] += start * gfx_lookDir[i];
