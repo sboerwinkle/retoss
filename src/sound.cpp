@@ -36,6 +36,7 @@ list<offset_t> sound_playerPositions;
 static ALuint alBuffers[NUM_SOUNDS];
 static int64_t refDists[NUM_SOUNDS];
 
+static ALCdevice *device;
 static ALCcontext *context;
 
 void sound_grab() {
@@ -204,7 +205,7 @@ void sound_init() {
 	soundIds.init();
 	activeSources.init();
 
-	auto device = alcOpenDevice(NULL);
+	device = alcOpenDevice(NULL);
 	if (!device) {
 		puts("OpenAL device creation failed");
 		// TODO is this fatal? (+ context failure case)
@@ -236,10 +237,6 @@ void sound_init() {
 }
 
 void sound_destroy() {
-	// TODO: Do we need to have the context be current here?
-	//       Previously we'd only release it after this call.
-	auto device = alcGetContextsDevice(context);
-
 	alcDestroyContext(context);
 	alcCloseDevice(device);
 
