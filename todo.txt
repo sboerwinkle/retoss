@@ -3,11 +3,15 @@
 - sounds
 	. Kinda there!
 	- volume control (at least mute)
-	- shooting, hurting sounds
-	- bullet impact sounds?
+	. shooting, hurting sounds
+	. bullet impact sounds?
 - new weapons/abilities ofc
 - fix "LOW" / "HIGH" names + input
 - Clarify L/R column settings input
+- Rockets / grenades
+- Custom sound libraries
+- Chiqita bomb from LieroLibre
+- physics I guess, fml
 . `xxd` build req't
 . "HIGH" mode with shooting teammates behind you
 	start raycast co-planar w/ player's front face
