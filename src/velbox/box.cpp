@@ -153,7 +153,9 @@ static void setIntersects_leaf(box *n) {
 }
 
 #define ALLOC_SIZE 100
+#ifndef BORING_BOX_ALLOC
 static list<box*> boxAllocs, freeBoxes;
+#endif
 
 // Todo This is fine for now, but it really needs a re-work.
 //      Now that we're keeping boxes as part of official state, we probably want them in contiguous memory.
@@ -165,6 +167,11 @@ static list<box*> boxAllocs, freeBoxes;
 //          so we know what "suitably-sized" means in step 2.
 //        - on-demand chunks are probably wholesale freed, while the main chunk can be put in some pool for re-use
 box* velbox_alloc() {
+#ifdef BORING_BOX_ALLOC
+	box *ret = (box*)malloc(sizeof(box));
+	ret->kids.init();
+	ret->intersects.init();
+#else
 	if (freeBoxes.num == 0) {
 		box *newAlloc = new box[ALLOC_SIZE];
 		boxAllocs.add(newAlloc);
@@ -175,6 +182,7 @@ box* velbox_alloc() {
 		}
 	}
 	box *ret = freeBoxes[--freeBoxes.num];
+#endif
 	ret->start = vb_now; // Technically this is an assumption, but it's probably right!
 	ret->intersects.num = 0;
 	ret->kids.num = 0;
@@ -325,7 +333,13 @@ static void kill(box *b) {
 }
 
 static void reclaim(box *b) {
+#ifdef BORING_BOX_ALLOC
+	b->kids.destroy();
+	b->intersects.destroy();
+	free(b);
+#else
 	freeBoxes.add(b);
+#endif
 }
 
 void velbox_remove(box *b) {
@@ -684,7 +698,6 @@ static void cleanupOld(box *root) {
 		range(i, globalOptionsSrc->num) {
 			box *b = (*globalOptionsSrc)[i];
 			list<box*> &kids = b->kids;
-			globalOptionsDest->addAll(&kids);
 			range(j, kids.num) {
 				box *k = kids[j];
 				if (isLeaf(k)) {
@@ -701,11 +714,12 @@ static void cleanupOld(box *root) {
 						j--;
 						kill(k);
 						reclaim(k);
+					} else {
+						k->inUse = 0;
 					}
-					// `k` is maybe reclaimed, but not free'd, so this is fine.
-					k->inUse = 0;
 				}
 			}
+			globalOptionsDest->addAll(&kids);
 		}
 		swap(globalOptionsSrc, globalOptionsDest);
 	}
@@ -737,7 +751,7 @@ static void blindFree(box *b) {
 	rangeconst(i, b->kids.num) {
 		blindFree(b->kids[i]);
 	}
-	freeBoxes.add(b);
+	reclaim(b);
 }
 
 void velbox_freeRoot(box *r) {
@@ -838,8 +852,10 @@ void velbox_trans(box *root) {
 }
 
 void velbox_init() {
+#ifndef BORING_BOX_ALLOC
 	boxAllocs.init();
 	freeBoxes.init();
+#endif
 
 	globalOptionsSrc = new list<box*>();
 	globalOptionsSrc->init();
@@ -854,6 +870,7 @@ void velbox_init() {
 }
 
 void velbox_destroy() {
+#ifndef BORING_BOX_ALLOC
 	range(i, boxAllocs.num) {
 		box *chunk = boxAllocs[i];
 		range(j, ALLOC_SIZE) {
@@ -864,6 +881,7 @@ void velbox_destroy() {
 	}
 	boxAllocs.destroy();
 	freeBoxes.destroy();
+#endif
 	globalOptionsSrc->destroy();
 	delete globalOptionsSrc;
 	globalOptionsDest->destroy();
