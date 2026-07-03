@@ -107,7 +107,7 @@ static void solidValidate(solid *s) {
 	validateTex(&s->tex);
 }
 
-static void solidPutVb(solid *s, box *guess, int duration) {
+void solidPutVb(solid *s, box *guess, int duration) {
 	box *tmp = velbox_alloc();
 	s->b = tmp;
 	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
@@ -132,7 +132,7 @@ static void solidUpdate(gamestate *gs, solid *s) {
 	solidPutVb(s, p, 15);
 }
 
-static void cpSolid(solid *t, solid *s) {
+void cpSolid(solid *t, solid *s) {
 	*t = *s;
 	// Not stictly necessary - dup'd states are never the canon state,
 	// but the idea is that we don't want to rely on oldPos until the
@@ -377,17 +377,28 @@ void runTick(gamestate *gs) {
 	vb_now = gs->clock;
 	velbox_refresh(gs->vb_root);
 
-	range(i, gs->tasks.num) {
-		taskInstance &task = gs->tasks[i];
-		(*task.defn->step)(gs, task.data);
-	}
-
-	rangeconst(i, gs->constels.num) {
-		constelUpdate(gs, gs->constels[i]);
-	}
 	rangeconst(i, gs->solids.num) {
 		solidUpdate(gs, gs->solids[i]);
 	}
+
+	// TODO: Currently I'm leaning towards making all `constelUpdate`s a task (that we just always have).
+	//       Just because the structure is a general concept (we'll need that once constels can become implicit),
+	//       doesn't mean the logic to update them can't be a task.
+	range(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		if (task.defn->id == TSK_RAILS) {
+			(*task.defn->step)(gs, task.data);
+		}
+	}
+	rangeconst(i, gs->constels.num) {
+		constelUpdate(gs, gs->constels[i]);
+	}
+	range(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		if (task.defn->id == TSK_RAILS) continue;
+		(*task.defn->step)(gs, task.data);
+	}
+
 	range(i, gs->players.num) {
 		playerUpdate(gs, &gs->players[i]);
 	}
@@ -534,7 +545,7 @@ void cleanup(gamestate *gs) {
 
 // Seriz / Deser stuff
 
-static void transSolid(solid *s) {
+void transSolid(solid *s) {
 	transBlock(s->m.pos, sizeof(s->m.pos));
 	//transBlock(s->vel, sizeof(s->vel));
 	trans64(&s->r);

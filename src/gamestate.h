@@ -132,6 +132,8 @@ extern void validateSize(int64_t *_size);
 extern void validateShape(int32_t *_shape);
 extern void validateTex(int32_t *_tex);
 
+extern void solidPutVb(solid *s, box *guess, int duration);
+extern void cpSolid(solid *t, solid *s);
 extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex);
 extern void rmSolid(gamestate *gs, solid *s);
 
@@ -149,6 +151,7 @@ extern void init(gamestate *gs);
 extern void cleanup(gamestate *gs);
 
 extern void write32(list<char> *data, int32_t v);
+extern void transSolid(solid *s);
 extern void serialize(gamestate *gs, list<char> *data);
 extern void deserialize(gamestate *gs, list<char> *data, char fullState);
 

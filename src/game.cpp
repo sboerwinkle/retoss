@@ -1080,6 +1080,17 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 			drawSolid(&ci->solids[j]);
 		}
 	}
+	// Todo Should maybe make a render fn part of the task
+	//      so I can just call them here instead of having
+	//      a dispatch table or whatever. But there's also
+	//      3D vs 2D rendering to consider, idk yet.
+	rangeconst(i, gs->tasks.num) {
+		taskInstance &task = gs->tasks[i];
+		if (task.defn->id == TSK_DYNAMICS) {
+			// TODO I'm being lazy and goofy here
+			drawSolid((solid*)task.data);
+		}
+	}
 
 	sound_playerPositions.setMaxUp(gs->players.num);
 	sound_playerPositions.num = gs->players.num;

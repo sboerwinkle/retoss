@@ -19,6 +19,7 @@ enum {
 	TSK_TDM,
 	TSK_KILL_PLANE,
 	TSK_RAILS,
+	TSK_DYNAMICS,
 };
 
 extern taskDefn* taskLookup(int id);

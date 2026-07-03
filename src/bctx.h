@@ -50,5 +50,9 @@ struct buildCtx {
 
 extern buildCtx bctx;
 
+// Maybe this fits better in matrix.h?
+// We don't really use this outside of buildCtx though.
+extern void toQuat(iquat out, int32_t const rotParams[3]);
+
 extern void bctx_init();
 extern void bctx_destroy();

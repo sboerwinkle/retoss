@@ -86,7 +86,8 @@ void buildCtx::rotQuat(iquat const r) {
 	iquat_norm(transf.rot);
 }
 
-void buildCtx::rot(int32_t const rotParams[3]) {
+// Note that this doesn't normalize the quat, it's probably fine.
+void toQuat(iquat out, int32_t const rotParams[3]) {
 	int32_t yawSin   = rotParams[0];
 	int32_t pitchSin = rotParams[1];
 	int32_t rollSin  = rotParams[2];
@@ -118,33 +119,34 @@ void buildCtx::rot(int32_t const rotParams[3]) {
 	int32_t pitchCos = sqrt(FIXP*FIXP-pitchSin*pitchSin);
 	int32_t rollCos  = sqrt(FIXP*FIXP-rollSin*rollSin);
 
-	iquat a,b,c;
+	iquat b,c;
 
-	a[0] = yawCos;
-	a[1] = 0;
-	a[2] = 0;
-	a[3] = yawSin;
+	out[0] = yawCos;
+	out[1] = 0;
+	out[2] = 0;
+	out[3] = yawSin;
 
 	b[0] = pitchCos;
 	b[1] = pitchSin;
 	b[2] = 0;
 	b[3] = 0;
 
-	iquat_mult(c, b, a);
+	iquat_mult(c, b, out);
 	// `c` is now the result of composing the first 2 rotations,
-	// but we still have one more to compose. We can re-use `a` and `b` now,
-	// however.
+	// but we still have one more to compose.
+	// We can re-use `out` and `b` now, however.
 
 	b[0] = rollCos;
 	b[1] = 0;
 	b[2] = rollSin;
 	//b[3] still 0
 
-	iquat_mult(a, b, c);
+	iquat_mult(out, b, c);
+}
 
-	// We actually haven't normalized at all here.
-	// We rely on `rotQuat`'s normalization to
-	// be enough - which it probably is?
+void buildCtx::rot(int32_t const rotParams[3]) {
+	iquat a;
+	toQuat(a, rotParams);
 	rotQuat(a);
 }
 

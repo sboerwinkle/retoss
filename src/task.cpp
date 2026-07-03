@@ -5,9 +5,10 @@
 
 #include "task.h"
 
-#include "tasks/tdmScore.h"
+#include "tasks/dynamics.h"
 #include "tasks/killPlane.h"
 #include "tasks/rails.h"
+#include "tasks/tdmScore.h"
 
 static list<taskDefn> taskDefns;
 
@@ -37,6 +38,7 @@ void task_init() {
 	add(TSK_TDM, &defineTask_tdmScore);
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
 	add(TSK_RAILS, &defineTask_rails);
+	add(TSK_DYNAMICS, &defineTask_dynamics);
 }
 
 void task_destroy() {
