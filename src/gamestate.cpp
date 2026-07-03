@@ -293,8 +293,11 @@ void deleteConstelInst(constelInst *ci) {
 }
 
 static char playerPhysLe(mover* const &a, mover* const &b) {
-	// Simple for now. Lower Z => floor-like => check first
-	return a->pos[2] <= b->pos[2];
+	// Simple for now.
+	// We check higher objects first,
+	// mostly because this reduces the ability to jump off
+	// horizontal seams in walls.
+	return a->pos[2] >= b->pos[2];
 }
 
 static void playerUpdate(gamestate *gs, player *p) {
@@ -687,6 +690,7 @@ static void transPlayer(player *p) {
 	range(i, 4) trans32(&p->m.rot[i]);
 
 	if (seriz_reading) {
+		if (p->skin) p->skin->decr();
 		if (read8()) {
 			p->skin = new dyntex_holder();
 		} else {
