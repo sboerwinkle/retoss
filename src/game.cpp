@@ -58,6 +58,7 @@ static double domeYaw = 0, domePitch = 0;
 // so I think this compiles about the same as a normal float?
 // Todo: Look into std::atomic<float>::is_always_lock_free, maybe warn at compile time if false.
 static std::atomic<float> aimAtCamTan = 0;
+static list<mover*> crosshairCandidates;
 static char renderStats = 0;
 
 static char editMenuState = -1;
@@ -178,6 +179,8 @@ static void initConfigs() {
 //// Boring init stuff ////
 
 void game_init() {
+	crosshairCandidates.init();
+
 	initGraphics();
 	task_init();
 	velbox_init();
@@ -218,6 +221,8 @@ void game_destroy() {
 	velbox_destroy();
 	task_destroy();
 	gfx_destroy();
+
+	crosshairCandidates.destroy();
 }
 
 //// Game-Graphics-Communication stuff ////
@@ -977,17 +982,17 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 		if (p == self) continue;
 		raycast_interp(best, &p->m, p1, p2, dir, gfx_interpRatio);
 	}
-	rangeconst(i, gs->solids.num) {
-		mover *m = &gs->solids[i]->m;
+
+	// This is horribly inefficient, but we're only doing it once per frame,
+	// and I just don't care enough. Can fix it later.
+	// I think `bcast.cpp` has better code for this, but I'd need to account
+	// for interpolation and also make sure the lists used are threadsafe.
+	crosshairCandidates.num = 0;
+	velbox_query_ts(gs->vb_root, &crosshairCandidates);
+
+	rangeconst(i, crosshairCandidates.num) {
+		mover *m = crosshairCandidates[i];
 		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
-	}
-	rangeconst(i, gs->constels.num) {
-		constelInst *ci = gs->constels[i];
-		// Currently all constels are always expanded, so this is pretty easy
-		rangeconst(j, ci->solids.num) {
-			mover *m = &ci->solids[j].m;
-			raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
-		}
 	}
 }
 
