@@ -379,6 +379,12 @@ void cross(float output[3], float const a[3], float const b[3]) {
 	output[2] = a[0]*b[1]-b[0]*a[1];
 }
 
+void cross64(offset output, offset const a, unitvec const b) {
+	output[0] = (a[1]*b[2]-b[1]*a[2])/FIXP;
+	output[1] = (a[2]*b[0]-b[2]*a[0])/FIXP;
+	output[2] = (a[0]*b[1]-b[0]*a[1])/FIXP;
+}
+
 // Todo UTs lol
 int64_t mag(offset const v) {
 	int64_t magEst = labs(v[0]) + labs(v[1]) + labs(v[2]);

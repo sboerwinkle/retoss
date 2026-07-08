@@ -73,9 +73,9 @@ shapeSpec shapeSpecs[3] = {
 	},
 };
 
-int64_t collide_check(player *p, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
+int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
 	offset v1raw;
-	range(i, 3) v1raw[i] = p->m.pos[i] - s->m.oldPos[i];
+	range(i, 3) v1raw[i] = oldPos[i] - s->m.oldPos[i];
 	offset v2raw;
 	range(i, 3) v2raw[i] = dest[i] - s->m.pos[i];
 
@@ -302,7 +302,7 @@ foundSampleNorm:;
 	imat_applySm(v2, rot2, magicPt);
 	// For now the other thing is a player (a sphere that doesn't spin),
 	// so its contact point doesn't matter.
-	range(i, 3) contactVel_out[i] = p->vel[i] - s->m.pos[i] + s->m.oldPos[i] + v1[i] - v2[i];
+	range(i, 3) contactVel_out[i] = s->m.oldPos[i] - s->m.pos[i] + v1[i] - v2[i];
 
 	return dist;
 }

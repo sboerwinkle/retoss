@@ -983,6 +983,7 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 		raycast_interp(best, &p->m, p1, p2, dir, gfx_interpRatio);
 	}
 
+	// Todo:
 	// This is horribly inefficient, but we're only doing it once per frame,
 	// and I just don't care enough. Can fix it later.
 	// I think `bcast.cpp` has better code for this, but I'd need to account

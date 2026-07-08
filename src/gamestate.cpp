@@ -328,8 +328,12 @@ static void playerUpdate(gamestate *gs, player *p) {
 		//       It's a safe bet for now, since we only keep players in the
 		//       velbox space briefly (and not right now), but it's brittle.
 		solid *s = solidFromMover(queryResults[j]);
-		int64_t dist = collide_check(p, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel);
-		if (dist) pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
+		// todo: I think at this point `p->m.pos` and `p->m.oldPos` are the same vector?
+		//       If so, should change to `oldPos`, since that makes more sense in context.
+		int64_t dist = collide_check(p->m.pos, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel);
+		if (!dist) continue;
+		range(i, 3) contactVel[i] += p->vel[i];
+		pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
 	}
 
 	memcpy(p->m.pos, dest, sizeof(dest));
