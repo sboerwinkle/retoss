@@ -252,7 +252,10 @@ foundSampleNorm:;
 	int32_t lower = 0, upper = FIXP;
 	range(i, sh.numFaces) {
 		int32_t const *norm = sh.facings[i];
-		int32_t limit = s->r*sh.distances[i]/FIXP;
+		// We pad this out a couple units.
+		// This makes it easier to catch on edges when you shouldn't,
+		// but hopefully fixes weird jitter going over edges.
+		int32_t limit = s->r*sh.distances[i]/FIXP + 2;
 
 		int64_t d1 = dot(v1, norm) - limit;
 		int64_t d2 = dot(v2, norm) - limit;
