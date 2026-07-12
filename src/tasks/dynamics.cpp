@@ -34,6 +34,13 @@ static const offset cornerDefns[8] = {
 	{ KNOB_SPACING, -KNOB_SPACING,  KNOB_SPACING},
 };
 
+struct pendingCollide {
+	int64_t dist;
+	offset o1;
+	unitvec forceDir;
+	offset contactVel;
+};
+
 static void step(gamestate *gs, void *_data) {
 	tskDynamicsData *data = (tskDynamicsData*)_data;
 
@@ -51,23 +58,25 @@ static void step(gamestate *gs, void *_data) {
 	velbox_reclaimDead(data->s.b);
 
 	list<mover*> toCheck;
+	list<pendingCollide> collisions;
 	// TODO: Usually I'm pretty aggressive about leaving lists allocated
 	//       if I know I'm going to need them again. This could go in
 	//       the task's data, I guess.
 	toCheck.init();
+	collisions.init();
 	p = velbox_query(p, data->s.m.pos, data->vel, 2000, &toCheck);
 	offset total_vel = {0}, total_pos = {0};
 	offset total_rvel = {0}; // , total_turn = {0};
-	int numHits = 0;
-	unitvec forceDir;
-	offset contactVel;
 	rangeconst(iter, toCheck.num) {
+		collisions.num = 0;
+		pendingCollide *collide = &collisions.add();
 		solid *s = solidFromMover(toCheck[iter]);
 		// Todo: Could do a finer-grain check here using a sphere that contains the entire box?
 		//       Probably worth it, even if it catches only a few false positives, since we have
 		//       to do like 8 other checks otherwise...
 		range(knob, 8) {
-			offset o1, o2, corner_p1, corner_p2;
+			offset o2, corner_p1, corner_p2;
+			int64_t *o1 = collide->o1;
 			// TODO I can convert the `iquat`s to `imat`s and
 			//      take linear combinations of (rows? cols?)
 			//      to get each corner.
@@ -78,45 +87,67 @@ static void step(gamestate *gs, void *_data) {
 				corner_p1[k] = o1[k] + data->s.m.oldPos[k];
 				corner_p2[k] = o2[k] + data->s.m.pos[k];
 			}
-			int64_t dist = collide_check(corner_p1, corner_p2, KNOB_R, s, forceDir, contactVel);
-			if (!dist) continue;
+			int64_t dist = collide_check(corner_p1, corner_p2, KNOB_R, s, collide->forceDir, collide->contactVel);
+			if (dist) {
+				collide->dist = dist;
+				collide = &collisions.add();
+			}
+		}
+
+		collisions.num--;
+		if (!collisions.num) continue;
+
+		int64_t totalWeight = 0;
+		rangeconst(_c, collisions.num) totalWeight += collisions[_c].dist;
+		rangeconst(_c, collisions.num) {
+			pendingCollide &c = collisions[_c];
+			// Our distances could be at quite large scales, so we have to reduce our weight down
+			// to a more manageable size.
+			// We're doing a simple weight by distance; I also considered a more involved method
+			// (which would require sorting the collisions before processing them) where basically
+			// each unit of distance gets some amount of weight, which is split between all
+			// collisions with at least that much `dist` (and then normalized, ofc). This winds up
+			// favoring the "weightier" collisions more than simple linear weighting does.
+			int32_t weight = c.dist * FIXP / totalWeight;
+
+			int64_t *o1 = c.o1;
 
 			// TODO Terrible for now, optimize later
 			range(k, 3) {
-				o1[k] -= (int64_t) forceDir[k] * KNOB_R / FIXP;
+				o1[k] -= (int64_t) c.forceDir[k] * KNOB_R / FIXP;
 			}
 			// This only works b/c we're not changing rotations mid-frame
+			offset o2;
 			iquat_applySm(o2, data->rvel, o1);
 
 			// Terrible horrible collision logic :(
 			// Todo: Move this to a method? In a way the compiler will inline.
-			range(k, 3) contactVel[k] += data->vel[k] + o2[k] - o1[k];
-			int64_t normalForce = -dot(contactVel, forceDir);
+			range(k, 3) c.contactVel[k] += data->vel[k] + o2[k] - o1[k];
+			int64_t normalForce = -dot(c.contactVel, c.forceDir);
 			if (normalForce < 0) continue;
-			numHits++;
 
 			// This bound might be a little conservative, I'd have to go check.
 			if (normalForce > (1<<25)) normalForce = 1<<25;
 			offset force, remainder;
 			range(k, 3) {
-				force[k] = forceDir[k] * normalForce / FIXP;
-				remainder[k] = - contactVel[k] - force[k];
+				force[k] = c.forceDir[k] * normalForce / FIXP;
+				remainder[k] = - c.contactVel[k] - force[k];
 			}
 			// Friction
 			bound64(remainder, normalForce/2);
 			range(k, 3) {
 				force[k] += remainder[k];
-				total_pos[k] += dist*forceDir[k]/FIXP + remainder[k];
+				total_pos[k] += (c.dist*c.forceDir[k]/FIXP + remainder[k])*weight;
 			}
 
 			int64_t forceMag = mag(force);
 			if (!forceMag) continue;
-			range(k, 3) forceDir[k] = force[k] * FIXP / forceMag;
+			range(k, 3) c.forceDir[k] = force[k] * FIXP / forceMag;
 
 			// `rotationAxis` winds up having a magnitude equal to the lever arm (moment arm),
 			// which we will make use of.
 			offset rotationAxis;
-			cross64(rotationAxis, o1, forceDir);
+			cross64(rotationAxis, o1, c.forceDir);
 
 			// This is all a little goofy,
 			// could probably just get `mag(rotationAxis)` instead of all this
@@ -132,12 +163,13 @@ static void step(gamestate *gs, void *_data) {
 
 			int32_t linearRatio = (int64_t) FIXP * ROT_INERT / (ROT_INERT + armSqScaled);
 			range(k, 3) {
-				total_vel[k] += force[k] * linearRatio / FIXP;
+				total_vel[k] += force[k] * linearRatio / FIXP * weight;
 				// TODO I think I still have an overflow problem...?
 				total_rvel[k] += rotationAxis[k]/ROT_INERT_SCALE
 					* (forceMag/ROT_INERT_SCALE)
 					* (FIXP-linearRatio)
-					/ armSqScaled;
+					/ armSqScaled
+					* weight;
 			}
 
 			// What follows is a lot of thinking that I used to arrive at the above.
@@ -182,43 +214,41 @@ static void step(gamestate *gs, void *_data) {
 			// a previous step.
 		}
 
-		if (numHits) {
-			// For now we're just taking a simple average, hopefully that's enough?
-			offset rvel; // , turn;
-			range(i, 3) {
-				data->vel[i] += total_vel[i] / numHits;
-				data->s.m.pos[i] += total_pos[i] / numHits;
-				rvel[i] = total_rvel[i] / numHits;
-				//turn[i] = total_turn[i] / numHits;
-				total_vel[i] = total_pos[i] = 0;
-				total_rvel[i] = 0; // , total_turn[i] = 0;
-			}
-			// So right now `rvel` is in radians, but obviously we want a quaternion.
-			// Also, we're going to limit acceleration to 1 radian per frame per frame,
-			// which is frankly pretty fast. I might still relax this limit some later.
-			int64_t magRvel = mag(rvel);
-			if (!magRvel) continue;
-			int32_t halfAngle;
-			if (magRvel >= FIXP) halfAngle = 10430;
-			else halfAngle = 10430*magRvel/FIXP;
-			int32_t quatSin = shittySin(halfAngle);
-			iquat rvel_quat;
-			range(i, 3) rvel_quat[i+1] = quatSin * rvel[i] / magRvel;
-			rvel_quat[0] = sqrt(
-				FIXP*FIXP
-				- rvel_quat[1]*rvel_quat[1]
-				- rvel_quat[2]*rvel_quat[2]
-				- rvel_quat[3]*rvel_quat[3]
-			);
-			iquat tmp;
-			iquat_mult(tmp, data->rvel, rvel_quat);
-			memcpy(data->rvel, tmp, sizeof(iquat));
-			iquat_norm(data->rvel);
-
-			// Todo: if stuff is pre-computed, we'd have to re-compute it here.
+		offset rvel; // , turn;
+		range(i, 3) {
+			data->vel[i] += (total_vel[i] + (total_vel[i] >= 0 ? FIXP-1 : 1-FIXP)) / FIXP;
+			data->s.m.pos[i] += (total_pos[i] + (total_pos[i] >= 0 ? FIXP-1 : 1-FIXP)) / FIXP;
+			rvel[i] = total_rvel[i] / FIXP;
+			//turn[i] = total_turn[i] / FIXP;
+			total_vel[i] = total_pos[i] = 0;
+			total_rvel[i] = 0; // , total_turn[i] = 0;
 		}
+		// So right now `rvel` is in radians, but obviously we want a quaternion.
+		// Also, we're going to limit acceleration to 1 radian per frame per frame,
+		// which is frankly pretty fast. I might still relax this limit some later.
+		int64_t magRvel = mag(rvel);
+		if (!magRvel) continue;
+		int32_t halfAngle;
+		if (magRvel >= FIXP) halfAngle = 10430;
+		else halfAngle = 10430*magRvel/FIXP;
+		int32_t quatSin = shittySin(halfAngle);
+		iquat rvel_quat;
+		range(i, 3) rvel_quat[i+1] = quatSin * rvel[i] / magRvel;
+		rvel_quat[0] = sqrt(
+			FIXP*FIXP
+			- rvel_quat[1]*rvel_quat[1]
+			- rvel_quat[2]*rvel_quat[2]
+			- rvel_quat[3]*rvel_quat[3]
+		);
+		iquat tmp;
+		iquat_mult(tmp, data->rvel, rvel_quat);
+		memcpy(data->rvel, tmp, sizeof(iquat));
+		iquat_norm(data->rvel);
+
+		// Todo: if stuff is pre-computed, we'd have to re-compute it here.
 	}
 
+	collisions.destroy();
 	toCheck.destroy();
 
 	solidPutVb(&data->s, p, 1);
