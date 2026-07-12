@@ -89,6 +89,37 @@ static char sentJumpState = 0, sentShootState = 0;
 // the *meaning* of any config values.
 // Todo: Maybe a config2.cpp.
 
+static double cfgBounds(char const *name, double in, int min, int max) {
+	if (in < min) {
+		printf("Correcting %s %f to %d\n", name, in, min);
+		return min;
+	} else if (in > max) {
+		printf("Correcting %s %f to %d\n", name, in, max);
+		return max;
+	} else {
+		return in;
+	}
+}
+
+static double parseFov(cfg_item &cfg) {
+	double deg = cfgBounds("fov", cfg.getDouble(), 50, 150);
+
+	// Our "fovInv" corresponds to the cotangent.
+	// Rather than compute `1/tan(x)`, we compute `tan(90-x)` (b/c division sux).
+	// `/2` is because we need the angle from the center, not the whole fov.
+	// And of course the last bit is just degrees-to-radians conversion.
+	return tan((90 - deg/2)*M_PI/180);
+}
+
+static double parseCamAngle(cfg_item &cfg) {
+	double deg = cfg.getDouble();
+	return cfgBounds("hover angle", deg, -15, 15)*M_PI/180;
+}
+
+static double parseHovDist(cfg_item &cfg) {
+	return cfgBounds("hover distance", cfg.getDouble(), -1000, 4000);
+}
+
 static u8 parseAimType(char const *str) {
 	if (!strcmp(str, "NONE")) return AIM_NONE;
 	if (!strcmp(str, "LOW")) return AIM_LOW;
@@ -125,22 +156,18 @@ static void readLookConfigs() {
 	look1.sensitivity = cfg_sensitivity_1.getDouble();
 	look2.sensitivity = fallback(cfg_sensitivity_2, cfg_sensitivity_1).getDouble();
 
-	// Our "fovInv" corresponds to the cotangent.
-	// Rather than compute `1/tan(x)`, we compute `tan(90-x)` (b/c division sux).
-	// `/2` is because we need the angle from the center, not the whole fov.
-	// And of course the last bit is just degrees-to-radians conversion.
-	look1.fovInv = tan((90 - cfg_fov_1.getDouble()/2)*M_PI/180);
-	look2.fovInv = tan((90 - fallback(cfg_fov_2, cfg_fov_1).getDouble()/2)*M_PI/180);
+	look1.fovInv = parseFov(cfg_fov_1);
+	look2.fovInv = parseFov(fallback(cfg_fov_2, cfg_fov_1));
 
-	double rads = cfg_cam_angle_1.getDouble()*M_PI/180;
+	double rads = parseCamAngle(cfg_cam_angle_1);
 	look1.hovCos = cos(rads);
 	look1.hovSin = sin(rads);
-	rads = fallback(cfg_cam_angle_2, cfg_cam_angle_1).getDouble()*M_PI/180;
+	rads = parseCamAngle(fallback(cfg_cam_angle_2, cfg_cam_angle_1));
 	look2.hovCos = cos(rads);
 	look2.hovSin = sin(rads);
 
-	look1.hovDist = cfg_cam_dist_1.getDouble();
-	look2.hovDist = fallback(cfg_cam_dist_2, cfg_cam_dist_1).getDouble();
+	look1.hovDist = parseHovDist(cfg_cam_dist_1);
+	look2.hovDist = parseHovDist(fallback(cfg_cam_dist_2, cfg_cam_dist_1));
 
 	look1.aimType = parseAimType(cfg_aim_1.get());
 	look2.aimType = parseAimType(fallback(cfg_aim_2, cfg_aim_1).get());
@@ -156,7 +183,7 @@ static void initConfigs() {
 	if (!cfg_fov_1.present) {
 		cfg_fov_1.set("70");
 		if (!cfg_fov_2.present) {
-			cfg_fov_2.set("55.4");
+			cfg_fov_2.set("50");
 		}
 	}
 	if (!cfg_cam_angle_1.present) {

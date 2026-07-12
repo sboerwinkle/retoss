@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head><style>
-details, #loading { border: 1px solid black; }
+details { border: 1px solid black; }
+.alert {
+	background: #fc8;
+	border: 1px solid black;
+}
 summary { cursor: pointer; }
 ul { margin: 0; }
 pre {
@@ -9,8 +13,25 @@ pre {
 	background: lightgray;
 	font-family: monospace;
 }
+table {
+	border-collapse: collapse;
+}
+td {
+	border: 0 solid #888;
+	border-width: 1px 0;
+	padding-left: 3px;
+	padding-right: 3px;
+}
+td:has(input) {
+	text-align: right;
+}
+input {
+	text-align: inherit;
+}
 </style></head>
 <body style="background: #aaa;">
+<span id="loading" class="alert">Loading configs...</span>
+<span id="saving" class="alert" style="visibility: hidden;">Saving...</span><br/>
 Name<br/>
 <form id="nameForm">
 	<input type="text" id="name"/>
@@ -28,11 +49,46 @@ Team select
 <details>
 	<summary>Camera Settings</summary>
 	<form id="camForm">
-		<input type="text" id="fov_1"/><input type="text" id="fov_2"/>Vertical field of view (degrees)<br/>
-		<input type="text" id="sensitivity_1"/><input type="text" id="sensitivity_2"/>Mouse sensitivity<br/>
-		<input type="text" id="cam_dist_1"/><input type="text" id="cam_dist_2"/>Camera distance from player (0-4000)<br/>
-		<input type="text" id="cam_angle_1"/><input type="text" id="cam_angle_2"/>Camera hover direction (degrees, 0-15)<br/>
-		<input type="text" id="aim_1"/><input type="text" id="aim_2"/>Aim mode (LOW, HIGH, or NONE)<br/>
+		<table>
+			<tr>
+				<td></td>
+				<td>Normal</td>
+				<td>Aim (RMB)</td>
+			</tr>
+			<tr>
+				<td>Vertical field of view (degrees, 50-150)</td>
+				<td><input type="text" id="fov_1"/></td>
+				<td><input type="text" id="fov_2"/></td>
+			</tr>
+			<tr>
+				<td>Mouse sensitivity</td>
+				<td><input type="text" id="sensitivity_1"/></td>
+				<td><input type="text" id="sensitivity_2"/></td>
+			</tr>
+			<tr>
+				<td>Camera distance from player (max 4000)</td>
+				<td><input type="text" id="cam_dist_1"/></td>
+				<td><input type="text" id="cam_dist_2"/></td>
+			</tr>
+			<tr>
+				<td>Camera hover height (degrees, max 15)</td>
+				<td><input type="text" id="cam_angle_1"/></td>
+				<td><input type="text" id="cam_angle_2"/></td>
+			</tr>
+			<tr>
+				<td>Aim mode</td>
+				<td><select id="aim_1">
+					<option value=""></option>
+					<option value="LOW">crosshair at predicted shot</option>
+					<option value="HIGH">shoot at crosshair</option>
+				</select></td>
+				<td><select id="aim_2">
+					<option value=""></option>
+					<option value="LOW">crosshair at predicted shot</option>
+					<option value="HIGH">shoot at crosshair</option>
+				</select></td>
+			</tr>
+		</table>
 		<button>Submit</button>
 	</form>
 </details>
@@ -45,8 +101,16 @@ Team select
 			<li>1 - show, but no damage</li>
 			<li>2 - show + damage (default)</li>
 		</ul>
-		<input type="text" id="pred_shot_self"/>My shots<br/>
-		<input type="text" id="pred_shot_others"/>Others' shots<br/>
+		<table>
+			<tr>
+				<td>My shots</td>
+				<td><input type="text" id="pred_shot_self"/></td>
+			</tr>
+			<tr>
+				<td>Others' shots</td>
+				<td><input type="text" id="pred_shot_others"/></td>
+			</tr>
+		</table>
 		<button>Submit</button>
 	</form>
 </details>
@@ -57,7 +121,6 @@ Team select
 		<button>Submit</button>
 	</form>
 </details>
-<span id="loading" style="background: #fc8;">Loading configs...</span>
 </body>
 <script>
 	"use strict";
@@ -75,7 +138,7 @@ Team select
 
 	let toParam = (e) => {
 		let value;
-		if (e.type == 'text') value = e.value;
+		if (e.type == 'text' || e.nodeName == 'SELECT') value = e.value;
 		else if (e.type == 'checkbox') value = e.checked ? 'y' : '';
 		else return 'ohno='+e.id;
 		return e.id+'='+value;
@@ -87,13 +150,28 @@ Team select
 		fetch('/name/'+nameInput.value);
 	});
 
+	let saveAlert = id('saving');
+	let pending = 0;
+	let decrPending = () => {
+		pending--;
+		if (!pending) saveAlert.style.visibility = 'hidden';
+	}
 	let formLogic = (form, urlBase) => {
-		let inputs = [...form.querySelectorAll('input')];
+		let inputs = [...form.querySelectorAll('input, select')];
 		form.addEventListener('submit', e => {
 			e.preventDefault();
 			// At some point I should actually do URL encoding (here, and server)
 			let params = inputs.map(toParam).join('&');
-			fetch('/'+urlBase+'?'+params);
+			pending++;
+			saveAlert.style.visibility = 'initial';
+			fetch('/'+urlBase+'?'+params).then(
+				decrPending,
+				(e) => {
+					alert('save error');
+					console.log(e);
+					decrPending();
+				}
+			);
 		});
 	};
 	formLogic(id('camForm'), 'camera');
@@ -104,7 +182,7 @@ Team select
 		for (let key in x) {
 			let elem = id(key);
 			let value = x[key];
-			if (elem.type == 'text') elem.value = value;
+			if (elem.type == 'text' || elem.nodeName == 'SELECT') elem.value = value;
 			else if (elem.type == 'checkbox') elem.checked = true;
 			else console.log('No suitable element for key: ' + key, elem);
 		}

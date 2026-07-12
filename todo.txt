@@ -1,17 +1,20 @@
 - Weird smearing from mipmaps
-- climbing route issue in peaks
+. climbing route issue in peaks
 - sounds
 	. Kinda there!
 	- volume control (at least mute)
 	. shooting, hurting sounds
 	. bullet impact sounds?
 - new weapons/abilities ofc
-- fix "LOW" / "HIGH" names + input
-- Clarify L/R column settings input
+. fix "LOW" / "HIGH" names + input
+. Clarify L/R column settings input
 - Rockets / grenades
-- Custom sound libraries
+- Custom sound collections
 - Chiqita bomb from LieroLibre
 - physics I guess, fml
+	. Basic dynamic cube works!
+	- Optimizations (start w/ TODOs in tasks/dynamics.cpp)
+	- Mutual collisions? Or leave that out for "flavor"?
 . `xxd` build req't
 . "HIGH" mode with shooting teammates behind you
 	start raycast co-planar w/ player's front face
