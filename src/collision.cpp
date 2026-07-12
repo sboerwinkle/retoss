@@ -74,6 +74,12 @@ shapeSpec shapeSpecs[3] = {
 };
 
 int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
+	/*
+	char debug = s->m.type == 1 && s->tex == 5;
+	char debug =
+		s->m.pos[0] == -6300 && s->m.pos[1] == 5400 && s->m.pos[2] == 1600
+		&& dest[0] >= -6400 && oldPos[0] <= -6200;
+	*/
 	offset v1raw;
 	range(i, 3) v1raw[i] = oldPos[i] - s->m.oldPos[i];
 	offset v2raw;
@@ -178,7 +184,6 @@ int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s
 		}
 	}
 
-	//char debug = 0;
 	unitvec sampleNorm;
 	if (best == 1) {
 		// Only one face required adjusting, so we don't need to do any math to get the
@@ -213,11 +218,6 @@ int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s
 	}
 
 	if (best != 1) {
-		/*{
-			int64_t tmp = p - rootState->players.items;
-			if (tmp >= 0 && tmp < rootState->players.num) debug = 1;
-		}*/
-		//if (debug) printf("w: %d %d %d\n", winner1, winner2, winner3);
 		// Oh boy, the most fun.
 		unitvec v3;
 		cross(v3, sh.facings[winner1], sh.facings[winner2]);

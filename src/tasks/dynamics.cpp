@@ -64,7 +64,7 @@ static void step(gamestate *gs, void *_data) {
 	//       the task's data, I guess.
 	toCheck.init();
 	collisions.init();
-	p = velbox_query(p, data->s.m.pos, data->vel, 2000, &toCheck);
+	p = velbox_query(p, data->s.m.oldPos, data->vel, 2000, &toCheck);
 	offset total_vel = {0}, total_pos = {0};
 	offset total_rvel = {0}; // , total_turn = {0};
 	rangeconst(iter, toCheck.num) {
