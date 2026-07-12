@@ -19,7 +19,6 @@ DL_STUFF="-rdynamic -ldl"
 
 g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-truncation -Wno-invalid-offsetof -O2 -g $DL_STUFF "$@" \
 	src/{,lv/,comp/,tasks/}*.{c,cpp} \
-	$LFLAGS -pthread -lm -lGL -o game
-#src/*.cpp src/*.c src/lv/*.cpp src/lv/*.c \
-
-echo 'Done'
+	$LFLAGS -pthread -lm -lGL -o game \
+ \
+&& echo 'Done';
