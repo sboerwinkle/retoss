@@ -137,8 +137,8 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 	bctx.add(var("shape", 0), var("tex", 4), var("scale", 1400));
 	bctx.peek();
 	gp("8");
-	bctx.pos(pvar("pos", (offset const){35650, 16475, 19120}));
-	bctx.rot(rvar("rot", (int32_t const[]){31651, 4277, 0}));
+	bctx.pos(pvar("pos", (offset const){36180, 16735, 19750}));
+	bctx.rot(rvar("rot", (int32_t const[]){31499, 5408, 3709}));
 	bctx.add(var("shape", 1), var("tex", 4), var("scale", 2860));
 	bctx.peek();
 	gp("9");
@@ -341,12 +341,12 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 	bctx.add(var("shape", 1), var("tex", 5), var("scale", 3600));
 	bctx.peek();
 	gp("ramp");
-	bctx.pos(pvar("pos", (offset const){41374, 10410, 27729}));
+	bctx.pos(pvar("pos", (offset const){41424, 10410, 27769}));
 	bctx.rot(rvar("rot", (int32_t const[]){23170, 12540, 0}));
 	bctx.add(var("shape", 2), var("tex", 8), var("scale", 4000));
 	bctx.peek();
 	gp("ramp_l");
-	bctx.pos(pvar("pos", (offset const){41374, -8410, 27729}));
+	bctx.pos(pvar("pos", (offset const){41424, -8410, 27769}));
 	bctx.rot(rvar("rot", (int32_t const[]){23170, 12540, 0}));
 	bctx.add(var("shape", 2), var("tex", 8), var("scale", 4000));
 	bctx.peek();
@@ -435,12 +435,12 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 	bctx.pop();
 }
 
+//extern "C" void lvlUpd(gamestate *gs) {
 extern void lv_peaks(gamestate *gs) {
-	pushVarIgnore(); // I'm not sure this line (and the related pop) are necessary, but they're harmless.
 	bctx.reset(gs);
+
 	/*
 	bctx.resel();
-
 	int existingTasks = var("tsk_num", 0);
 	if (existingTasks < gs->tasks.num) {
 		for (int i = existingTasks; i < gs->tasks.num; i++) {
@@ -556,6 +556,4 @@ extern void lv_peaks(gamestate *gs) {
 	// This file has a reference, but we're done with it now!
 	trolley->decr();
 	bigPlate->decr();
-
-	popVarIgnore();
 }
