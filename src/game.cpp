@@ -39,7 +39,7 @@ struct timing {
 	long nextMin, nextMax;
 	int counter;
 };
-static timing logicTiming = {0}, renderTiming = {0};
+static timing logicTiming = {0}, renderTiming = {0}, renderTotalTiming = {0};
 static void updateTiming(timing *t, long nanos);
 static int getTeamShirt(char team);
 
@@ -1093,6 +1093,7 @@ static void drawSolid(solid *s) {
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) {
+	updateTiming(&renderTotalTiming, totalNanos);
 	updateTiming(&renderTiming, drawingNanos);
 	gfx_interpRatio = interpRatio;
 
@@ -1252,13 +1253,14 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	}
 
 	if (renderStats) {
-		if (!totalNanos) totalNanos = 1; // Whatever I guess
+		long renderDenom = renderTotalTiming.minNanos;
+		if (!renderDenom) renderDenom = 1;
 		snprintf(
 			msg, 20, "%3ld%%%3ld%%%3ld%%%3ld%%",
 			100*logicTiming.minNanos/FASTER_NANOS,
 			100*logicTiming.maxNanos/FASTER_NANOS,
-			100*renderTiming.minNanos/totalNanos,
-			100*renderTiming.maxNanos/totalNanos
+			100*renderTiming.minNanos/renderDenom,
+			100*renderTiming.maxNanos/renderDenom
 		);
 		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
