@@ -27,10 +27,10 @@ static void decr(tskRailsInstructions *instr) {
 }
 
 // `tskRails_timeHelper` currently depends on the gamestate being unused
-static void step(gamestate *_unused, void *_data) {
+static char step(gamestate *_unused, void *_data) {
 	tskRailsData *data = (tskRailsData*)_data;
 	int numPts = data->instr->pts.num;
-	if (!numPts) return;
+	if (!numPts) return 1;
 	constelInst *ci = data->ci;
 
 	int32_t time = data->time + 1;
@@ -104,6 +104,8 @@ static void step(gamestate *_unused, void *_data) {
 		time = 0;
 	}
 	data->time = time;
+
+	return 0;
 }
 
 static void transInstructions(tskRailsInstructions *instr) {
@@ -210,10 +212,8 @@ void tskRails_timeHelper(tskRailsData *data) {
 }
 
 tskRailsData* tskRails_create(gamestate *gs, constelInst *ci) {
-	taskInstance &task = gs->tasks.add();
-	task.defn = taskLookup(TSK_RAILS);
 	tskRailsData *data = (tskRailsData*)malloc(sizeof(tskRailsData));
-	task.data = data;
+	addTask(gs, TSK_RAILS, data);
 
 	data->ic = data->time = 0;
 	data->ci = ci;

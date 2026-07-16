@@ -4,13 +4,14 @@
 #include "../task.h"
 #include "../serialize.h"
 
-static void step(gamestate *gs, void *data) {
+static char step(gamestate *gs, void *data) {
 	int64_t cutoff = *(int64_t*)data;
 	rangeconst(i, gs->players.num) {
 		player *p = &gs->players[i];
 		int64_t z = p->m.pos[2] - cutoff;
 		if (z < 0) killPlayer(p);
 	}
+	return 0;
 }
 
 static char trans(gamestate *gs, void **ptr) {
@@ -29,10 +30,8 @@ static void copy(void **to, void *from) {
 }
 
 void taskKillPlane_create(gamestate *gs, int64_t altitude) {
-	taskInstance &task = gs->tasks.add();
-	task.defn = taskLookup(TSK_KILL_PLANE);
 	int64_t *data = (int64_t*)malloc(sizeof(int64_t));
-	task.data = data;
+	addTask(gs, TSK_KILL_PLANE, data);
 	*data = altitude;
 }
 

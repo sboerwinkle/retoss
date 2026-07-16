@@ -79,8 +79,9 @@ static GLuint vaos[2];
 
 static GLint u_main_modelview;
 static GLint u_main_rot;
-static GLint u_main_texscale;
-static GLint u_main_texoffset;
+static GLint u_main_noise_scale;
+static GLint u_main_tex_scale;
+static GLint u_main_tex_offset;
 static GLint u_main_tint;
 static GLint u_main_transparency;
 
@@ -375,8 +376,9 @@ void initGraphics() {
 	// Uniforms
 	u_main_modelview    = glGetUniformLocation(main_prog, "u_modelview");
 	u_main_rot          = glGetUniformLocation(main_prog, "u_rot");
-	u_main_texscale     = glGetUniformLocation(main_prog, "u_texscale");
-	u_main_texoffset    = glGetUniformLocation(main_prog, "u_texoffset");
+	u_main_noise_scale  = glGetUniformLocation(main_prog, "u_noise_scale");
+	u_main_tex_scale    = glGetUniformLocation(main_prog, "u_tex_scale");
+	u_main_tex_offset   = glGetUniformLocation(main_prog, "u_tex_offset");
 	u_main_tint         = glGetUniformLocation(main_prog, "u_tint");
 	u_main_transparency = glGetUniformLocation(main_prog, "u_transparency");
 	// sprite_prog uniforms
@@ -563,6 +565,11 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	return (float)best.numer*FIXP/best.denom;
 }
 
+void reset3dTexScale() {
+	glUniform2f(u_main_tex_offset, 0, 0);
+	glUniform2f(u_main_tex_scale, 1, 1);
+}
+
 void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg) {
 	checkReload();
 	glUseProgram(main_prog);
@@ -570,6 +577,7 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *loo
 	glDepthMask(1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	tint(0, 0, 0, 0);
+	reset3dTexScale();
 
 	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);
@@ -679,8 +687,7 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, tex); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_texscale, scale/1000.0);
-	glUniform2f(u_main_texoffset, 0, 0);
+	glUniform1f(u_main_noise_scale, scale/1000.0);
 	glUniform1f(u_main_transparency, alpha);
 
 	int32_t vertexIndex;
@@ -702,8 +709,8 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
 	glDepthMask(0);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
-	glUniform1f(u_main_texscale, 1);
-	glUniform2f(u_main_texoffset, 0, 0); // Not sure, maybe this is already set?
+	glUniform1f(u_main_noise_scale, 1);
+	glUniform2f(u_main_tex_scale, 1, 0); // Not sure, maybe this is already set?
 	glUniform1f(u_main_transparency, 1.0-age_interp);
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.

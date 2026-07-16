@@ -3,10 +3,11 @@ layout(location=0) uniform mat4 u_modelview;
 
 // skip location=1 b/c it's used by the texture in the frag shader
 // TODO do I need to have that explicitly?
-layout(location=2) uniform float u_texscale;
-layout(location=3) uniform vec2 u_texoffset;
-layout(location=4) uniform mat3 u_rot;
-// layout(location=5) uniform vec3 u_tint;
+layout(location=2) uniform float u_noise_scale;
+layout(location=3) uniform vec2 u_tex_offset;
+layout(location=4) uniform vec2 u_tex_scale;
+layout(location=5) uniform mat3 u_rot;
+// uniform vec3 u_tint;
 
 // I don't think I *need* explicit locations on these, since graphics.c asks GL what location they got anyway.
 // However, it is nice to have them explicit, as I do re-use attribute locations between programs that share
@@ -23,9 +24,9 @@ layout(location=3) out vec2 v_mottle_2;
 void main()
 {
 	gl_Position = u_modelview * vec4(a_pos, 1.0);
-	v_uv = a_tex_st;
-	v_mottle_1 = u_texoffset + u_texscale*a_tex_st;
-	v_mottle_2 = u_texoffset + 1.618034*u_texscale*a_tex_st;
+	v_uv = u_tex_offset + u_tex_scale*a_tex_st;
+	v_mottle_1 = u_noise_scale*v_uv;
+	v_mottle_2 = 1.618034*u_noise_scale*v_uv;
 
 	// I want my faces to look a bit different based on angle.
 	// Normally I'd put them in shadow, but I already have this code here,

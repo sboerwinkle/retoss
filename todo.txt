@@ -6,11 +6,23 @@
 	. shooting, hurting sounds
 	. bullet impact sounds?
 - new weapons/abilities ofc
+	Weapon thoughts
+		Making loadouts is better than finding guns
+			Team synergies
+			Less reward for map knowledge
+		Finding / building things (roguelike) is fun if you can make it work
+			Works in a co-op setting
+			Allegedly works well for the game "Rounds"
+		SWBF2-style rewards (in-game objectives yield better stuff) is fun?
+			Maybe because it helps wrap up the match?
+			Actually, probably because SWBF2 has a "lives vs territory" thing going on
+			Killing is its own reward, but better classes are the reward for territory
 . fix "LOW" / "HIGH" names + input
 . Clarify L/R column settings input
 - Rockets / grenades
 - Custom sound collections
 - Chiqita bomb from LieroLibre
+- Bouncy grenade?
 - physics I guess, fml
 	. Basic dynamic cube works!
 	- Optimizations (start w/ TODOs in tasks/dynamics.cpp)

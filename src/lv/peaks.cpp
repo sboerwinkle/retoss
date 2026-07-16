@@ -512,8 +512,8 @@ extern void lv_peaks(gamestate *gs) {
 	// To scroll time for all `rails` items as one
 	gp("rails");
 	int32_t time = var("time", 0);
-	rangeconst(i, gs->tasks.num) {
-		taskInstance &ti = gs->tasks[i];
+	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+		taskInstance &ti = *t;
 		if (ti.defn->id != TSK_RAILS) continue;
 		tskRailsData *railsData = (tskRailsData*)ti.data;
 		railsData->time += time;

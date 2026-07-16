@@ -22,6 +22,7 @@ extern void write32Raw(list<char> *data, int offset, int32_t v);
 extern void write32(int32_t v);
 extern int32_t read32();
 extern void trans32(int32_t *x);
+extern void trans32(uint32_t *x);
 
 extern void write64(int64_t v);
 extern int64_t read64();

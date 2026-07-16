@@ -41,7 +41,7 @@ struct pendingCollide {
 	offset contactVel;
 };
 
-static void step(gamestate *gs, void *_data) {
+static char step(gamestate *gs, void *_data) {
 	tskDynamicsData *data = (tskDynamicsData*)_data;
 
 	memcpy(data->s.m.oldPos, data->s.m.pos, sizeof(offset));
@@ -252,6 +252,8 @@ static void step(gamestate *gs, void *_data) {
 	toCheck.destroy();
 
 	solidPutVb(&data->s, p, 1);
+
+	return 0;
 }
 
 static char trans(gamestate *gs, void **ptr) {
@@ -288,10 +290,8 @@ static void destroy(void *_data) {
 }
 
 void tskDynamics_create(gamestate *gs, buildCtx *c, offset const vel, iquat const rvel) {
-	taskInstance &task = gs->tasks.add();
-	task.defn = taskLookup(TSK_DYNAMICS);
 	tskDynamicsData *data = (tskDynamicsData*)malloc(sizeof(tskDynamicsData));
-	task.data = data;
+	addTask(gs, TSK_DYNAMICS, data);
 
 	memcpy(data->s.m.pos, c->transf.pos, sizeof(offset));
 	memcpy(data->s.m.rot, c->transf.rot, sizeof(iquat));

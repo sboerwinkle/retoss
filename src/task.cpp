@@ -9,6 +9,7 @@
 #include "tasks/killPlane.h"
 #include "tasks/rails.h"
 #include "tasks/tdmScore.h"
+#include "tasks/blast.h"
 
 static list<taskDefn> taskDefns;
 
@@ -39,6 +40,7 @@ void task_init() {
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
 	add(TSK_RAILS, &defineTask_rails);
 	add(TSK_DYNAMICS, &defineTask_dynamics);
+	add(TSK_BLAST, &defineTask_blast);
 }
 
 void task_destroy() {

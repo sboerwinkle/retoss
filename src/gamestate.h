@@ -118,9 +118,10 @@ struct gamestate {
 	list<solid*> solids;
 	list<solid*> selection;
 	list<trail> trails;
-	list<taskInstance> tasks;
+	taskInstance tasks;
 	box *vb_root;
 	int32_t clock;
+	uint32_t seed;
 };
 
 extern void resetPlayer(gamestate *gs, int i);
@@ -140,6 +141,8 @@ extern void rmSolid(gamestate *gs, solid *s);
 extern constelInst* mkConstelInst(constel *c, int32_t duration);
 extern void addConstelInst(gamestate *gs, constelInst *ci);
 extern void deleteConstelInst(constelInst *ci);
+
+extern void addTask(gamestate *gs, int taskId, void *data);
 
 extern void runTick(gamestate *gs);
 

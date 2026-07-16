@@ -128,9 +128,9 @@ void lv_tdm1(gamestate *gs) {
 	// This loop will never find anything when loading the level,
 	// but for now it's here to help things run smoothly when
 	// pasting this into the dl_tmp folder for "editing".
-	rangeconst(i, gs->tasks.num) {
-		if (gs->tasks[i].defn->id == TSK_TDM) {
-			data = (tskTdmData*)gs->tasks[i].data;
+	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+		if (t->defn->id == TSK_TDM) {
+			data = (tskTdmData*)t->data;
 			break;
 		}
 	}

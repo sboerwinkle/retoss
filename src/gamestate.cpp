@@ -292,6 +292,16 @@ void deleteConstelInst(constelInst *ci) {
 	free(ci);
 }
 
+void addTask(gamestate *gs, int taskId, void *data) {
+	taskInstance *t = new taskInstance;
+	t->defn = taskLookup(taskId);
+	t->data = data;
+	t->prev = gs->tasks.prev;
+	t->prev->next = t;
+	t->next = &gs->tasks;
+	gs->tasks.prev = t;
+}
+
 static char playerPhysLe(mover* const &a, mover* const &b) {
 	// Simple for now.
 	// We check higher objects first,
@@ -380,6 +390,7 @@ void runTick(gamestate *gs) {
 	gs->clock++;
 	vb_now = gs->clock;
 	velbox_refresh(gs->vb_root);
+	taskInstance *toDelete = NULL;
 
 	rangeconst(i, gs->solids.num) {
 		solidUpdate(gs, gs->solids[i]);
@@ -388,19 +399,23 @@ void runTick(gamestate *gs) {
 	// TODO: Currently I'm leaning towards making all `constelUpdate`s a task (that we just always have).
 	//       Just because the structure is a general concept (we'll need that once constels can become implicit),
 	//       doesn't mean the logic to update them can't be a task.
-	range(i, gs->tasks.num) {
-		taskInstance &task = gs->tasks[i];
-		if (task.defn->id == TSK_RAILS) {
-			(*task.defn->step)(gs, task.data);
+	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+		if (t->defn->id == TSK_RAILS) {
+			(*t->defn->step)(gs, t->data);
 		}
 	}
 	rangeconst(i, gs->constels.num) {
 		constelUpdate(gs, gs->constels[i]);
 	}
-	range(i, gs->tasks.num) {
-		taskInstance &task = gs->tasks[i];
-		if (task.defn->id == TSK_RAILS) continue;
-		(*task.defn->step)(gs, task.data);
+	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+		if (t->defn->id == TSK_RAILS) continue;
+		if ((*t->defn->step)(gs, t->data)) {
+			t->prev->next = t->next;
+			t->next->prev = t->prev;
+			t->prev = toDelete;
+			// Leave t->next intact, for loop will need it
+			toDelete = t;
+		}
 	}
 
 	range(i, gs->players.num) {
@@ -421,6 +436,13 @@ void runTick(gamestate *gs) {
 		}
 	}
 	playerRmBoxes(gs);
+
+	while (toDelete) {
+		taskInstance *t = toDelete;
+		toDelete = t->prev;
+		(*t->defn->destroy)(t->data);
+		delete t;
+	}
 }
 
 void mkSolidAtPlayer(gamestate *gs, player *p) {
@@ -473,6 +495,7 @@ gamestate* dup(gamestate *orig) {
 
 	ret->vb_root = velbox_dup(orig->vb_root);
 	ret->clock = orig->clock;
+	ret->seed = orig->seed;
 
 	ret->solids.init(orig->solids.num);
 	ret->solids.num = orig->solids.num;
@@ -498,13 +521,21 @@ gamestate* dup(gamestate *orig) {
 	ret->trails.init(orig->trails);
 
 	// Copy tasks.
-	// We keep the copied defn pointers,
-	// but we'll have to re-write all the data pointers, so that part's wasted
-	ret->tasks.init(orig->tasks);
-	rangeconst(i, ret->tasks.num) {
-		taskInstance &task = ret->tasks[i];
-		(*task.defn->copy)(&task.data, orig->tasks[i].data);
+	// TODO I have having to do all these allocs,
+	//      can I put them in a block somehow?
+	//      Or is it even actually a problem?
+	ret->tasks.data = ret->tasks.defn = NULL;
+	taskInstance *s = &ret->tasks;
+	for (taskInstance *t = orig->tasks.next; t != &orig->tasks; t = t->next) {
+		taskInstance *old = s;
+		s = new taskInstance;
+		old->next = s;
+		s->prev = old;
+		s->defn = t->defn;
+		(*t->defn->copy)(&s->data, t->data);
 	}
+	s->next = &ret->tasks;
+	ret->tasks.prev = s;
 
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
@@ -519,12 +550,14 @@ void init(gamestate *gs) {
 	gs->selection.init();
 	gs->solids.init();
 	gs->trails.init();
-	gs->tasks.init();
+	gs->tasks.data = gs->tasks.defn = NULL;
+	gs->tasks.next = gs->tasks.prev = &gs->tasks;
 	gs->vb_root = velbox_getRoot();
 	gs->constels.init();
 
 	gs->clock = 0;
 	vb_now = 0;
+	gs->seed = 1;
 }
 
 void cleanup(gamestate *gs) {
@@ -532,11 +565,12 @@ void cleanup(gamestate *gs) {
 	gs->constels.destroy();
 
 	velbox_freeRoot(gs->vb_root);
-	rangeconst(i, gs->tasks.num) {
-		taskInstance &task = gs->tasks[i];
-		(*task.defn->destroy)(task.data);
+	while (gs->tasks.next != &gs->tasks) {
+		taskInstance *t = gs->tasks.next;
+		gs->tasks.next = t->next;
+		(*t->defn->destroy)(t->data);
+		delete t;
 	}
-	gs->tasks.destroy();
 	gs->trails.destroy();
 	rangeconst(i, gs->solids.num) {
 		delete gs->solids[i];
@@ -653,32 +687,33 @@ static void transTrails(gamestate *gs) {
 	}
 }
 
-static char transTask(gamestate *gs, taskInstance *task) {
+static void transTasks(gamestate *gs) {
 	if (seriz_reading) {
-		int32_t taskId = read32();
-		task->defn = taskLookup(taskId);
-		if (!task->defn) {
-			if (seriz_error()) {
-				printf("Bad task defn ID %d\n", taskId);
+		while (int32_t taskId = read32()) {
+			taskInstance *t = new taskInstance;
+			t->defn = taskLookup(taskId-1);
+			if (!t->defn) {
+				if (seriz_error()) {
+					printf("Bad task defn ID %d\n", taskId);
+				}
+				delete t;
+				return;
 			}
-			return 1;
+			if ((*t->defn->trans)(gs, &t->data)) {
+				delete t;
+				return;
+			}
+			t->prev = gs->tasks.prev;
+			t->prev->next = t;
+			t->next = &gs->tasks;
+			gs->tasks.prev = t;
 		}
 	} else {
-		write32(task->defn->id);
-	}
-	return (*task->defn->trans)(gs, &task->data);
-}
-
-static void transTasks(gamestate *gs) {
-	transItemCount(&gs->tasks);
-	range(i, gs->tasks.num) {
-		char err = transTask(gs, &gs->tasks[i]);
-		if (err && seriz_reading) {
-			// Shouldn't get an err during writing,
-			// if we do somehow we'll just ignore it.
-			i--;
-			gs->tasks.num--;
+		for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+			write32(t->defn->id + 1);
+			(*t->defn->trans)(gs, &t->data);
 		}
+		write32(0);
 	}
 }
 
@@ -759,6 +794,7 @@ static void trans(gamestate *gs) {
 	transTrails(gs);
 	transTasks(gs);
 	trans32(&gs->clock);
+	trans32(&gs->seed);
 }
 
 void serialize(gamestate *gs, list<char> *data) {

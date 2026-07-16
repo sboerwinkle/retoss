@@ -301,7 +301,7 @@ static void handleDone(gamestate *gs, tskTdmData *data) {
 	}
 }
 
-static void step(gamestate *gs, void *_data) {
+static char step(gamestate *gs, void *_data) {
 	tskTdmData *data = (tskTdmData*)_data;
 	// Todo If I really cared that much I could do a bounds check on `data->state` and do a lookup lol
 	if (data->state == TSK_TDM_ST_PLAY) {
@@ -317,6 +317,7 @@ static void step(gamestate *gs, void *_data) {
 	} else if (data->state == TSK_TDM_ST_PREP_START) {
 		handlePrepStart(gs, data);
 	}
+	return 0;
 }
 
 static char trans(gamestate *gs, void **ptr) {
@@ -372,10 +373,8 @@ tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore) {
 		printf("Currently, greatest allowable max score is 24! Replacing %d with 24.\n", maxScore);
 		maxScore = 24;
 	}
-	taskInstance &task = gs->tasks.add();
-	task.defn = taskLookup(TSK_TDM);
 	tskTdmData *data = (tskTdmData*)malloc(sizeof(tskTdmData));
-	task.data = data;
+	addTask(gs, TSK_TDM, data);
 	data->scores[0] = data->scores[1] = data->winner = data->animDest = data->timer = 0;
 	data->state = TSK_TDM_ST_PREP_START;
 	data->scoreLimit = maxScore * 10;

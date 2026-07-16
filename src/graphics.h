@@ -27,6 +27,7 @@ extern void oldDyntexHolder(dyntex_holder *h);
 extern void initGraphics(); // should be `gfx_init` but this func is old
 extern void gfx_destroy();
 
+extern void reset3dTexScale();
 extern void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg);
 extern void tint(float r, float g, float b, float a);
 extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha);

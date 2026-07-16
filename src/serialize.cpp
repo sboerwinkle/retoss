@@ -63,6 +63,7 @@ void trans32(int32_t *x) {
 	if (seriz_reading) *x = read32();
 	else write32(*x);
 }
+void trans32(uint32_t *x) { trans32((int32_t*)x); }
 
 // TODO I'm not doing byte-order-conversion here,
 //      should make that consistent with other methods.
