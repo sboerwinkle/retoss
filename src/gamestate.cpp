@@ -25,7 +25,6 @@ void resetPlayer(gamestate *gs, int ix) {
 		.type=T_PLAYER,
 	};
 	range(i, 3) {
-		p.vel[i] = 0;
 		p.inputs[i] = 0;
 	}
 	p.team=-1;
@@ -43,6 +42,9 @@ void softResetPlayer(player *_p) {
 	p.cooldown=0;
 	p.hits=0;
 	p.hitsCooldown=0;
+	range(i, 3) {
+		p.vel[i] = 0;
+	}
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
