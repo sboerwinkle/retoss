@@ -29,6 +29,7 @@
 #include "collision.h" // For raycasting
 
 #include "tasks/tdmScore.h"
+#include "tasks/blast.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -1100,6 +1101,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	updateTiming(&renderTotalTiming, totalNanos);
 	updateTiming(&renderTiming, drawingNanos);
 	gfx_interpRatio = interpRatio;
+	int32_t now = gs->clock;
 
 	checkGgc();
 	player *p = &gs->players[myPlayer];
@@ -1126,6 +1128,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		if (t->defn->id == TSK_DYNAMICS) {
 			// TODO I'm being lazy and goofy here
 			drawSolid((solid*)t->data);
+		} else if (t->defn->id == TSK_BLAST) {
+			tskBlast_draw(t->data, now);
 		}
 	}
 
@@ -1139,7 +1143,6 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	}
 	tint(0, 0, 0, 0); // Clear tint.
 
-	int32_t now = gs->clock;
 	rangeconst(i, gs->trails.num) {
 		trail &tr = gs->trails[i];
 		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);

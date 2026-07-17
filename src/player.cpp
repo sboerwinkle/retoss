@@ -7,6 +7,8 @@
 #include "game_gamestate.h"
 #include "main.h"
 
+#include "tasks/blast.h"
+
 #include "player.h"
 
 int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a denominator, idk.
@@ -247,6 +249,7 @@ static void shoot(gamestate *gs, player *p) {
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
 			addSound(soundTime, impact, v, soundId, 3);
+			tskBlast_create(gs, impact, v);
 		}
 	}
 
