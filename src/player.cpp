@@ -250,6 +250,25 @@ static void shoot(gamestate *gs, player *p) {
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
 			addSound(soundTime, impact, v, soundId, 3);
 			tskBlast_create(gs, impact, v);
+
+			solid *s = solidFromMover(result);
+			list<mover*> blastMovers;
+			blastMovers.init();
+			// Currently the blast radius is 3k units, need to write this down somewhere
+			velbox_query(s->b, impact, v, 3000, &blastMovers);
+			rangeconst(iter, blastMovers.num) {
+				mover *m = blastMovers[iter];
+				if (!(m->type & T_PLAYER)) continue;
+				player *blastee = playerFromMover(m);
+				offset d;
+				range(i, 3) d[i] = blastee->m.oldPos[i] - impact[i];
+				// This should almost always be small enough to safely square,
+				// but for relativistic players maybe not.
+				int64_t mg = mag(d);
+				if (mg > 3000 || !mg) continue;
+				range(i, 3) blastee->vel[i] += d[i]*600/mg;
+			}
+			blastMovers.destroy();
 		}
 	}
 

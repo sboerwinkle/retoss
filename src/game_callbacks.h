@@ -4,7 +4,7 @@
 #include "game_graphics.h"
 
 #define WINDOW_TITLE "Retoss"
-#define MAGIC_FIRST_BYTE 0x95
+#define MAGIC_FIRST_BYTE 0x96
 
 extern void game_init();
 extern gamestate* game_init2();
