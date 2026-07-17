@@ -32,6 +32,7 @@ extern void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConf
 extern void tint(float r, float g, float b, float a);
 extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha);
 
+extern void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int64_t r);
 extern void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp);
 
 extern void setup2dDrawing();

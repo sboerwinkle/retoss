@@ -104,6 +104,7 @@ static int vtxIdx_pane = -1;
 static float matWorldToScreen[16];
 static float camHoverDir[3];
 static list<mover*> camCastCands;
+static float ifovX, ifovY;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
 static void printGLProgErrors(GLuint prog, const char *name){
@@ -621,11 +622,13 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *loo
 	//      we do, we know some of the values are constants like 0 or 1 going in.
 
 	// This is the same no matter what (or where) we're rendering, so I can do that here...
+	ifovX = lookCfg->fovInv*displayHeight/displayWidth;
+	ifovY = lookCfg->fovInv;
 	float matPersp[16];
 	perspective(
 		matPersp,
-		lookCfg->fovInv*displayHeight/displayWidth,
-		lookCfg->fovInv,
+		ifovX,
+		ifovY,
 		GFX_Z_NEAR
 	);
 
@@ -706,11 +709,38 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 	glDrawArrays(GL_TRIANGLES, vertexIndex, 36);
 }
 
+void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int64_t r) {
+	glBindTexture(GL_TEXTURE_2D, textures[tex]);
+	glUniform1f(u_main_noise_scale, 1);
+	glUniform2f(u_main_tex_offset, x, y);
+	glUniform2f(u_main_tex_scale, w, w);
+	glUniform1f(u_main_transparency, 1.0);
+	// We skip `u_main_rot` - it's just for lighting,
+	// and the "pane" mesh's normals are all 0 anyway.
+
+	// TODO I'm sure I can do better than a matrix mult where almost everything is 0 lol
+	float matWorld[16] = {0};
+	matWorld[15] = 1;
+	range(i, 3) {
+		int64_t x1 = p1[i] - gfx_camPos1[i];
+		int64_t x2 = p2[i] - gfx_camPos2[i];
+		matWorld[12+i] = x1 + gfx_interpRatio*(x2-x1);
+	}
+	float matScreen[16];
+	mat4Multf(matScreen, matWorldToScreen, matWorld);
+
+	matScreen[0] = r*ifovX;
+	matScreen[9] = r*ifovY;
+	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
+
+	glDrawArrays(GL_TRIANGLES, vtxIdx_pane, 6);
+}
+
 void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
 	glDepthMask(0);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
 	glUniform1f(u_main_noise_scale, 1);
-	glUniform2f(u_main_tex_scale, 1, 0); // Not sure, maybe this is already set?
+	glUniform2f(u_main_tex_scale, 1, 0);
 	glUniform1f(u_main_transparency, 1.0-age_interp);
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.
@@ -895,11 +925,11 @@ static void populatePaneVertexData(list<GLfloat> *data) {
 	// using this shape for bullet trails (which shouldn't be lit)
 	GLfloat L = -1, R = 1;
 	GLfloat D = -1, U = 1;
-	vtx(L, 0, U, 0, 0, 0, 0, 0);
+	vtx(L, 0, U, 0, 0, 0, 0, 1);
 	vtx(L, 0, D, 0, 0, 0, 0, 0);
-	vtx(R, 0, U, 0, 0, 0, 1, 0);
+	vtx(R, 0, U, 0, 0, 0, 1, 1);
 	vtx(R, 0, D, 0, 0, 0, 1, 0);
-	vtx(R, 0, U, 0, 0, 0, 1, 0);
+	vtx(R, 0, U, 0, 0, 0, 1, 1);
 	vtx(L, 0, D, 0, 0, 0, 0, 0);
 }
 

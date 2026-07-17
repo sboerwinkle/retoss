@@ -12,6 +12,13 @@ layout(location=3) in vec2 v_mottle_2;
 layout(location = 0) out vec4 out_color;
 
 void main() {
+	vec4 texColor = texture(u_tex, v_uv);
+	if (texColor.a == 0) {
+		// Think I need this to prevent drawing to the Z-buffer
+		// Probably only used for billboards, seems silly
+		discard;
+	}
+
 	float brightness = 1.0 - 0.2 * texture(u_mottle_tex, v_mottle_1).r * texture(u_mottle_tex, v_mottle_2).r;
 	//float brightness = 1.0 - 0.2 * texture(u_mottle_tex, v_mottle_1).r * texture(u_mottle_tex, v_mottle_1).r;
 
@@ -19,5 +26,5 @@ void main() {
 	vec4 tint_addition = vec4(u_tint.rgb, 0.0);
 
 	vec4 mult = vec4(brightness, brightness, brightness, u_transparency);
-	out_color = texture(u_tex, v_uv)*mult + tint_addition + vec4(v_color, 0.0);
+	out_color = texColor*mult + tint_addition + vec4(v_color, 0.0);
 }
