@@ -13,6 +13,14 @@ pre {
 	background: lightgray;
 	font-family: monospace;
 }
+#teams {
+	display: inline-block;
+}
+#teams label {
+	display: block;
+	margin: 1px;
+	padding-right: 3px;
+}
 table {
 	border-collapse: collapse;
 }
@@ -46,10 +54,11 @@ Name<br/>
 Team select
 <br/>
 <div id="teams">
-	<label style="background: #f8f"><input type="radio" name="team" value="/team2"/><span>Unset</span></label><br/>
-	<label style="background: #f88"><input type="radio" name="team" value="/team0"/><span>Team 0</span></label><br/>
-	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label><br/>
+	<label style="background: #f8f"><input type="radio" name="team" value="/team2"/><span>Unset</span></label>
+	<label style="background: #f88"><input type="radio" name="team" value="/team0"/><span>Team 0</span></label>
+	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label>
 </div>
+<br/>
 <button id="teamSubmit" type="button">Submit</button>
 <details>
 	<summary>Camera Settings</summary>
