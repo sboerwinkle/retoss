@@ -215,8 +215,11 @@ static void read_inner(int fd) {
 		readConfigs(buf+6);
 		writeList(fd, &noContentRs);
 	} else {
-		fputs("WARN: Unhandled HTTP request to: ", stdout);
-		puts(buf);
+		char const *format = "Unhandled HTTP request to: %s\n";
+		if (!strncmp(buf, "/favicon", 8)) {
+			format = QUIET("Unhandled HTTP request to: %s\n");
+		}
+		printf(format, buf);
 		// todo: Send 404 instead of 204?
 		writeList(fd, &noContentRs);
 	}

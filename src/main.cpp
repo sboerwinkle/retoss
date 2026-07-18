@@ -965,6 +965,7 @@ int main(int argc, char **argv) {
 	// Main thread lives in here until the program exits
 	inputThreadFunc(NULL);
 
+	puts("Beginning shutdown.");
 	// Generally signal that there's a shutdown in progress
 	// (if the inputThread isn't the main thread we'd want to set the GLFW "should exit" flag and push an empty event through)
 	globalRunning = 0;

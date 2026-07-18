@@ -1,5 +1,5 @@
 . Non-obvious issues if there's no connection to server
-- Robert's mad about favicon
+. Robert's mad about favicon
 - Weird smearing from mipmaps
 - Windows port I guess
 . climbing route issue in peaks
