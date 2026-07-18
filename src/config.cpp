@@ -34,6 +34,7 @@ void cfg_item::unset() {
 	if (present) {
 		present = 0;
 		modified = 1;
+		_data[0] = '\0';
 	}
 }
 
