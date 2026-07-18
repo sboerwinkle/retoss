@@ -43,8 +43,6 @@ para {
 }
 </style></head>
 <body style="background: #aaa;">
-<span id="loading" class="alert">Loading configs...</span>
-<span id="saving" class="alert" style="visibility: hidden;">Saving...</span><br/>
 Name<br/>
 <form id="nameForm">
 	<input type="text" id="name"/>
@@ -141,19 +139,46 @@ Team select
 		This should be the name of an executable on your system's PATH. If you mess it up, you can reset it with <pre>/ui </pre> (with a space).
 	</para>
 </details>
+<span id="loading" class="alert">Loading configs...</span>
 </body>
 <script>
 	"use strict";
 	let id = x=>document.getElementById(x);
 
-	let name = ['Submit', 'Apply', 'Send', 'OK', 'Confirm', '\u2705'];
-	name = name[Math.floor(Math.random() * name.length)];
-	document.querySelectorAll('button').forEach(x=>x.innerText=name);
+	let submit = ['Submit', 'Apply', 'Send', 'OK', 'Confirm', '\u2705'];
+	submit = submit[Math.floor(Math.random() * name.length)];
+	document.querySelectorAll('button').forEach(x => {
+		x.innerText = submit;
+		x.dataset.pending = 0;
+	});
+
+	let get = (elem, url) => {
+		elem.dataset.pending = Number(elem.dataset.pending) + 1;
+		elem.innerText = '...';
+		let xhr = fetch(url);
+		// We wait 500ms to add the handlers to the request.
+		// This is because it'll be super quick usually, but
+		// we want the user to see that something happened.
+		setTimeout(
+			() => {
+				xhr.catch(e => {
+					alert('save error');
+					console.log(e);
+				}).then(() => {
+					let pending = Number(elem.dataset.pending);
+					pending--;
+					if (!pending) elem.innerText = submit;
+					elem.dataset.pending = pending;
+				});
+			},
+			500
+		);
+	}
 
 	let teamInputs = [...id('teams').querySelectorAll('input')];
 
-	id('teamSubmit').addEventListener('click', () => {
-		teamInputs.filter(x => x.checked).map(x => fetch(x.value));
+	id('teamSubmit').addEventListener('click', e => {
+		teamInputs.filter(x => x.checked).map(x => get(e.target, x.value));
 	});
 
 	let toParam = (e) => {
@@ -167,32 +192,17 @@ Team select
 	let nameInput = id('name');
 	id('nameForm').addEventListener('submit', e => {
 		e.preventDefault();
-		fetch('/name/'+nameInput.value);
+		get(e.submitter, '/name/'+nameInput.value);
 	});
 
-	let saveAlert = id('saving');
-	let pending = 0;
-	let decrPending = () => {
-		pending--;
-		if (!pending) saveAlert.style.visibility = 'hidden';
-	}
 	let formLogic = (form, urlBase) => {
 		let inputs = [...form.querySelectorAll('input, select')];
 		form.addEventListener('submit', e => {
 			e.preventDefault();
 			// At some point I should actually do URL encoding (here, and server)
 			let params = inputs.map(toParam).join('&');
-			pending++;
-			saveAlert.style.visibility = 'initial';
-			fetch('/'+urlBase+'?'+params).then(
-				decrPending,
-				(e) => {
-					alert('save error');
-					console.log(e);
-					decrPending();
-				}
-			);
-		});
+			get(e.submitter, '/'+urlBase+'?'+params);
+		})
 	};
 	formLogic(id('camForm'), 'camera');
 	formLogic(id('predForm'), 'prediction');
