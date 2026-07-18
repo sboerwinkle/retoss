@@ -45,6 +45,7 @@ static cfg_item *httpConfigs[] = {
 	&cfg_pred_shot_others,
 	&cfg_no_ui,
 	NULL
+	// NOT cfg_browser, that's a program that will be executed. Not safe to configure via HTTP.
 };
 
 // Todo: Nearly duplicated in net.c
@@ -135,8 +136,7 @@ static void readConfigs(char *str) {
 		if (amp) *amp = '\0';
 
 		// Can't set a config to the empty string with the HTML UI for now
-		if (*str) cfg->set(str);
-		else cfg->unset();
+		cfg->simpleSet(str);
 
 		if (!amp) return;
 		str = amp+1;
@@ -242,15 +242,27 @@ extern void http_spawnClient() {
 		puts("HTTP server didn't start successfully, so not launching browser.");
 		return;
 	}
+
+	char *cmd;
+	char fallback[9];
+	if (cfg_browser.present) {
+		// For some reason `argv` is not a `char const *`,
+		// but I can't imagine anyone would actually write
+		// to it... surely? Even if they do, it'll be from
+		// the forked process, so we won't see. The config
+		// item's string is in fact writeable, you're just
+		// not meant to do it directly.
+		cmd = (char*) cfg_browser.get();
+	} else {
+		cmd = fallback;
+		strcpy(fallback, "xdg-open");
+	}
+
 	char url[25];
 	snprintf(url, 25, "http://localhost:%d", serverPort);
-	// TODO: Selectable browser, but `xdg-open` is a good default
-	char name[10];
-	// TODO bounds check
-	strcpy(name, "xdg-open");
-	char *const argv[] = {name, url, NULL};
+	char *const argv[] = {cmd, url, NULL};
 	pid_t ignore;
-	posix_spawnp(&ignore, name, NULL, NULL, argv, environ);
+	posix_spawnp(&ignore, cmd, NULL, NULL, argv, environ);
 	// Todo: Could check for errors I guess,
 	//       but it's kind of hard to get useful info
 }

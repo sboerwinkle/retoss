@@ -697,6 +697,7 @@ static int64_t* pvarUpdatePtr(dl_var *v) {
 
 char handleLocalCommand(char * buf, list<char> * outData) {
 	if (isCmd(buf, "/ui")) {
+		if (buf[3]) cfg_browser.simpleSet(buf+4);
 		http_spawnClient();
 		return 1;
 	}

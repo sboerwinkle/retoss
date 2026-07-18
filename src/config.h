@@ -9,6 +9,9 @@ struct cfg_item {
 	char const* get();
 	void set(char const *str);
 	void unset();
+	// Calls `unset` if the argument is the
+	// empty string, otherwise calls `set`.
+	void simpleSet(char const *str);
 	double getDouble();
 };
 
@@ -28,6 +31,7 @@ extern cfg_item cfg_cam_dist_2;
 extern cfg_item cfg_pred_shot_self;
 extern cfg_item cfg_pred_shot_others;
 extern cfg_item cfg_no_ui;
+extern cfg_item cfg_browser;
 
 extern cfg_item* cfg_lookup(char const *name);
 

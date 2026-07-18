@@ -37,6 +37,11 @@ void cfg_item::unset() {
 	}
 }
 
+void cfg_item::simpleSet(char const *str) {
+	if (*str) set(str);
+	else unset();
+}
+
 double cfg_item::getDouble() {
 	return strtod(_data, NULL);
 }
@@ -57,6 +62,7 @@ cfg_item cfg_cam_dist_2 = {.name="cam_dist_2"};
 cfg_item cfg_pred_shot_self = {.name="pred_shot_self"};
 cfg_item cfg_pred_shot_others = {.name="pred_shot_others"};
 cfg_item cfg_no_ui = {.name="no_ui"};
+cfg_item cfg_browser = {.name="browser"};
 
 static cfg_item *allItems[] = {
 	&cfg_name,
@@ -75,6 +81,7 @@ static cfg_item *allItems[] = {
 	&cfg_pred_shot_self,
 	&cfg_pred_shot_others,
 	&cfg_no_ui,
+	&cfg_browser,
 	NULL
 };
 

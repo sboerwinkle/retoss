@@ -28,6 +28,11 @@ td:has(input) {
 input {
 	text-align: inherit;
 }
+/* I don't use normal <p> tags b/c you can't nest <pre> in them */
+para {
+	margin-top: 0.4em;
+	display: block;
+}
 </style></head>
 <body style="background: #aaa;">
 <span id="loading" class="alert">Loading configs...</span>
@@ -120,6 +125,12 @@ Team select
 		<label><input type="checkbox" id="no_ui"/>Skip <pre>/ui</pre> (this page) on startup</label><br/>
 		<button>Submit</button>
 	</form>
+	<para>
+		The browser used to show this page can be changed by running e.g. <pre>/ui firefox</pre>.
+	</para>
+	<para>
+		This should be the name of an executable on your system's PATH. If you mess it up, you can reset it with <pre>/ui </pre> (with a space).
+	</para>
 </details>
 </body>
 <script>
