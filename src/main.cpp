@@ -887,9 +887,8 @@ int main(int argc, char **argv) {
 
 	// Other general game setup, including networking
 	printf(QUIET("Using host '%s' (%s) and port '%s' (%s)\n"), host, hostSrc, port, portSrc);
-	puts(QUIET("Connecting to host..."));
+	// initSocket has its own progress logging
 	if (initSocket(host, port)) return 1;
-	puts(QUIET("Done."));
 	puts(QUIET("Awaiting setup info..."));
 	char initNetData[7];
 	if (readData(initNetData, 7)) {

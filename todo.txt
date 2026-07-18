@@ -1,10 +1,16 @@
+. Non-obvious issues if there's no connection to server
+- Robert's mad about favicon
 - Weird smearing from mipmaps
+- Windows port I guess
 . climbing route issue in peaks
 - sounds
+	- Change damaged noise
 	. Kinda there!
 	- volume control (at least mute)
 	. shooting, hurting sounds
 	. bullet impact sounds?
+	"I think it's fucking funny as fuck"
+		Robert, when asked about the springboard noise
 - new weapons/abilities ofc
 	Weapon thoughts
 		Making loadouts is better than finding guns

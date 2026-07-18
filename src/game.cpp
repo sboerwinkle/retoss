@@ -235,7 +235,13 @@ gamestate* game_init2() {
 	gs->seed = now.tv_sec;
 
 	lv_tdm1(gs);
-	if (!cfg_no_ui.present) http_spawnClient();
+	if (strcmp("y", cfg_no_ui.get())) {
+		// This setup code actually runs before we get our response from the server,
+		// which can result in weirdness if we wind up hanging waiting for a connection
+		// (as we won't serve the HTTP request).
+		// This way we just queue it to be processed once the game is "running".
+		strcpy(outboundTextQueue.add().items, "/ui");
+	}
 
 	return gs;
 }
