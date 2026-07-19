@@ -14,3 +14,26 @@
 typedef unsigned char u8;
 
 extern char getNum(const char **c, int32_t *out);
+
+#ifdef WINDOWS
+
+// mingw toolchain doesn't have these defined,
+// but we don't need them for Windows anyway
+// since I'm assuming we won't have to `fork`
+// to get the browser open (maybe, hopefully).
+#define O_CLOEXEC 0
+#define FD_CLOEXEC 0
+#define SOCK_CLOEXEC 0
+
+// Another function that doesn't exist.
+// For now I just want this to compile.
+#define strerrorname_np(x) "[NO DESCRIPTION, FIX ME]"
+
+// Who needs file permissions anyway
+#define mkdir(x, y) mkdir(x)
+
+// The `_RAW` variant is Linux-specific, and only kind of matters anyway.
+// IDK how Windows handles NTP updates, which is one of the differences.
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+
+#endif

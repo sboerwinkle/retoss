@@ -1,3 +1,37 @@
+#ifdef WINDOWS
+// TODO I just want to get this off the ground, but I'll need to actually get this to work properly in windows-land.
+
+#include <unistd.h>
+
+#include "main.h"
+#include "net.h"
+#include "net2.h"
+
+#include "mypoll.h"
+
+std::atomic<char> texReloadFlag = 0;
+char texReloadPath[POLL_BUF_LEN];
+
+std::atomic<char> poll_game_flag = 0;
+char poll_game_data[POLL_BUF_LEN];
+
+void* mypoll_threadFunc(void *arg) {
+	while (1) {
+		if (!globalRunning) return NULL;
+		if (net2_read()) {
+			closeSocket();
+			return NULL;
+		}
+	}
+}
+
+void mypoll_init() {}
+void mypoll_destroy() {}
+
+#else
+
+
+
 // This is pretty simple, but I got the skeleton of it from ChatGPT
 #include <poll.h>
 #include <stdio.h>
@@ -87,3 +121,6 @@ void mypoll_init() {
 void mypoll_destroy() {
 	// no-op
 }
+
+// End of `#ifdef WINDOWS`...`#else` from top of file
+#endif

@@ -1,3 +1,7 @@
+#ifdef WINDOWS
+#define _USE_MATH_DEFINES
+#endif
+
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
@@ -64,7 +68,7 @@ static double domeYaw = 0, domePitch = 0;
 // I'm pretty sure writes to a `float` are already atomic on most architectures,
 // so I think this compiles about the same as a normal float?
 // Todo: Look into std::atomic<float>::is_always_lock_free, maybe warn at compile time if false.
-static std::atomic<float> aimAtCamTan = 0;
+static std::atomic<float> aimAtCamTan(0.0f);
 static list<mover*> crosshairCandidates;
 static char renderStats = 0;
 

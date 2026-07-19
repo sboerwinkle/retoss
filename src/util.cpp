@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 
 char getNum(const char **c, int32_t *out) {
 	char *d;

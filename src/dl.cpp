@@ -1,4 +1,13 @@
+#ifdef WINDOWS
+#define dlopen(x,y) NULL
+#define dlclose(x) 0
+#define dlsym(x,y) NULL
+#define dlerror() "Dynamic load functionality not implemented for Windows, sorry"
+#define _USE_MATH_DEFINES
+#else
 #include <dlfcn.h>
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -531,6 +540,7 @@ void dl_init() {
 	currentGroup = NULL; // Have to reset this after our call to `gp` earlier
 	locked = 0;
 
+#ifndef WINDOWS
 	int fifoFd = open("edit_events.fifo", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fifoFd == -1) {
 		if (errno == ENOENT) {
@@ -546,6 +556,7 @@ void dl_init() {
 			perror("Failed to convert edit_events.fifo fd to FILE*");
 		}
 	}
+#endif
 }
 
 void dl_destroy() {

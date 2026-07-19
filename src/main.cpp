@@ -4,8 +4,13 @@
 #include <string.h>
 #include <time.h>
 #include <locale.h>
-#include <arpa/inet.h>
 #include <pthread.h>
+
+#ifdef _WIN32
+#include <winsock.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 #include <glad/gl.h>
 // Import GLFW after glad
@@ -770,6 +775,10 @@ static void* inputThreadFunc(void *_arg) {
 }
 
 static char waitForThread(pthread_t thread) {
+#ifdef WINDOWS
+	// Sorry Windows, you get less-nice thread joining
+	int ret = pthread_join(thread, NULL);
+#else
 	timespec t;
 	if (clock_gettime(CLOCK_REALTIME, &t) == -1) {
 		printf("clock_gettime has errno %d, so can't wait.\n", errno);
@@ -782,6 +791,7 @@ static char waitForThread(pthread_t thread) {
 	// case.
 	t.tv_sec += 1;
 	int ret = pthread_timedjoin_np(thread, NULL, &t);
+#endif
 	if (!ret) {
 		return 1;
 	}

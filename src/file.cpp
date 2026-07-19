@@ -5,22 +5,31 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "util.h"
 #include "list.h"
 #include "file.h"
 
+#ifdef WINDOWS
+#define AT_FDCWD (-2)
+#else
 static int data_fd = -1;
+#endif
 
 void file_init() {
+#ifndef WINDOWS
 	data_fd = open("data", O_PATH | O_DIRECTORY | O_CLOEXEC);
 
 	if (data_fd == -1) {
 		fprintf(stderr, "Failed to get file descriptor for ./data - `open` gave error %s (%s)\n", strerrorname_np(errno), strerror(errno));
 		exit(1);
 	}
+#endif
 }
 
 void file_destroy() {
+#ifndef WINDOWS
 	close(data_fd);
+#endif
 }
 
 static char verifyPath(const char* path) {
@@ -50,7 +59,16 @@ static char verifyPath(const char* path) {
 }
 
 static char writeFileInternal(int relativeTo, const char *name, const list<char> *data) {
+#ifdef WINDOWS
+	// TODO I think `openat` prevents "accidental" absolute paths,
+	//      I'll need to make sure something like that gets in here.
+	//      In general I need to figure out how paths work in mingw land,
+	//      part of the guardrails I want is not being able to read/write
+	//      arbitrary system files.
+	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC);
+#else
 	int fd = openat(relativeTo, name, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664); // perms: rw-rw-r--
+#endif
 	if (fd == -1) {
 		fprintf(
 			stderr,
@@ -79,7 +97,13 @@ static char writeFileInternal(int relativeTo, const char *name, const list<char>
 char writeFile(const char *name, const list<char> *data) {
 	if (!verifyPath(name)) return 1;
 
+#ifdef WINDOWS
+	char path[200];
+	snprintf(path, 200, "data/%s", name);
+	return writeFileInternal(1, path, data);
+#else
 	return writeFileInternal(data_fd, name, data);
+#endif
 }
 
 // Really the only thing that should be using this is probably `config.cpp`.
@@ -90,7 +114,11 @@ char writeSystemFile(const char *name, const list<char> *data) {
 }
 
 static char readFileInternal(int relativeTo, char const *name, list<char> *out) {
+#ifdef WINDOWS
+	int fd = open(name, O_RDONLY);
+#else
 	int fd = openat(relativeTo, name, O_RDONLY | O_CLOEXEC);
+#endif
 	if (fd == -1) {
 		fprintf(
 			stderr,
@@ -128,7 +156,13 @@ static char readFileInternal(int relativeTo, char const *name, list<char> *out) 
 char readFile(const char *name, list<char> *out) {
 	if (!verifyPath(name)) return 1;
 
+#ifdef WINDOWS
+	char path[200];
+	snprintf(path, 200, "data/%s", name);
+	return readFileInternal(1, path, out);
+#else
 	return readFileInternal(data_fd, name, out);
+#endif
 }
 
 // Like `readFile`, but not restricted to the "data/" directory.
