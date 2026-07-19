@@ -4,10 +4,12 @@
 #include <string.h>
 #include <time.h>
 #include <locale.h>
-#include <GL/gl.h>
-#include <GLFW/glfw3.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+
+#include <glad/gl.h>
+// Import GLFW after glad
+#include <GLFW/glfw3.h>
 
 #include "util.h"
 #include "list.h"
@@ -820,6 +822,13 @@ int main(int argc, char **argv) {
 		fputs("Couldn't create our display\n", stderr);
 		return 1;
 	}
+	glfwMakeContextCurrent(display);
+	int version = gladLoadGL(glfwGetProcAddress);
+	if (version == 0) {
+		puts("Failed to initialize OpenGL context");
+		return 1;
+	}
+	printf(QUIET("Loaded OpenGL %d.%d\n"), GLAD_VERSION_MAJOR(version), GLAD_VERSION_MINOR(version));
 
 	{
 		// Framebuffer size is not guaranteed to be equal to window size
@@ -835,9 +844,8 @@ int main(int argc, char **argv) {
 	msgs_gfx->init();
 	msgs_exchange = new list<ggc_msg>();
 	msgs_exchange->init();
-	glfwMakeContextCurrent(display);
-	// Expected to do bunches of init,
-	// including GL stuff (since the context is bound to the thread here).
+	// GLFW context is still bound to the thread here because `game_init`
+	// is expected to init GL stuff (plus other stuff).
 	game_init();
 	glfwMakeContextCurrent(NULL); // Give up control so other thread can take it
 	puts(QUIET("GL + custom setup complete."));

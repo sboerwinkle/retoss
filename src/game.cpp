@@ -1,7 +1,13 @@
-#include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+
+// Need GLFW header for callbacks and input/window stuff,
+// not GL per se. Including `glad` since I'm still not
+// 100% sure how this all works, and I know glfw3.h looks
+// for some stuff it defines.
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 
 #include "util.h"
 #include "queue.h"

@@ -1,8 +1,10 @@
 #include <math.h>
 #include <stdio.h>
-#include <GL/gl.h>
-#include <GLES3/gl3.h>
 #include <string.h>
+
+#include <glad/gl.h>
+// Import GLFW after glad
+#include <GLFW/glfw3.h>
 
 #include "list.h"
 #include "file.h"
