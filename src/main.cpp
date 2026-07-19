@@ -775,7 +775,7 @@ static void* inputThreadFunc(void *_arg) {
 }
 
 static char waitForThread(pthread_t thread) {
-#ifdef WINDOWS
+#ifdef _WIN32
 	// Sorry Windows, you get less-nice thread joining
 	int ret = pthread_join(thread, NULL);
 #else

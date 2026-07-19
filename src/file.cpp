@@ -9,14 +9,14 @@
 #include "list.h"
 #include "file.h"
 
-#ifdef WINDOWS
+#ifdef _WIN32
 #define AT_FDCWD (-2)
 #else
 static int data_fd = -1;
 #endif
 
 void file_init() {
-#ifndef WINDOWS
+#ifndef _WIN32
 	data_fd = open("data", O_PATH | O_DIRECTORY | O_CLOEXEC);
 
 	if (data_fd == -1) {
@@ -27,7 +27,7 @@ void file_init() {
 }
 
 void file_destroy() {
-#ifndef WINDOWS
+#ifndef _WIN32
 	close(data_fd);
 #endif
 }
@@ -59,7 +59,7 @@ static char verifyPath(const char* path) {
 }
 
 static char writeFileInternal(int relativeTo, const char *name, const list<char> *data) {
-#ifdef WINDOWS
+#ifdef _WIN32
 	// TODO I think `openat` prevents "accidental" absolute paths,
 	//      I'll need to make sure something like that gets in here.
 	//      In general I need to figure out how paths work in mingw land,
@@ -97,7 +97,7 @@ static char writeFileInternal(int relativeTo, const char *name, const list<char>
 char writeFile(const char *name, const list<char> *data) {
 	if (!verifyPath(name)) return 1;
 
-#ifdef WINDOWS
+#ifdef _WIN32
 	char path[200];
 	snprintf(path, 200, "data/%s", name);
 	return writeFileInternal(1, path, data);
@@ -114,7 +114,7 @@ char writeSystemFile(const char *name, const list<char> *data) {
 }
 
 static char readFileInternal(int relativeTo, char const *name, list<char> *out) {
-#ifdef WINDOWS
+#ifdef _WIN32
 	int fd = open(name, O_RDONLY);
 #else
 	int fd = openat(relativeTo, name, O_RDONLY | O_CLOEXEC);
@@ -156,7 +156,7 @@ static char readFileInternal(int relativeTo, char const *name, list<char> *out) 
 char readFile(const char *name, list<char> *out) {
 	if (!verifyPath(name)) return 1;
 
-#ifdef WINDOWS
+#ifdef _WIN32
 	char path[200];
 	snprintf(path, 200, "data/%s", name);
 	return readFileInternal(1, path, out);

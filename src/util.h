@@ -15,7 +15,7 @@ typedef unsigned char u8;
 
 extern char getNum(const char **c, int32_t *out);
 
-#ifdef WINDOWS
+#ifdef _WIN32
 
 // mingw toolchain doesn't have these defined,
 // but we don't need them for Windows anyway

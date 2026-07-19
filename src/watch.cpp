@@ -1,4 +1,4 @@
-#ifdef WINDOWS
+#ifdef _WIN32
 // Windows doesn't get access to this functionality lol
 int watch_fd = -1;
 void watch_read() {}
@@ -156,5 +156,5 @@ void watch_destroy() {
 	}
 }
 
-// End of `#ifdef WINDOWS`...`#else` from top of file
+// End of `#ifdef _WIN32`...`#else` from top of file
 #endif

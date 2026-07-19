@@ -1,4 +1,4 @@
-#ifdef WINDOWS
+#ifdef _WIN32
 #define dlopen(x,y) NULL
 #define dlclose(x) 0
 #define dlsym(x,y) NULL
@@ -540,7 +540,7 @@ void dl_init() {
 	currentGroup = NULL; // Have to reset this after our call to `gp` earlier
 	locked = 0;
 
-#ifndef WINDOWS
+#ifndef _WIN32
 	int fifoFd = open("edit_events.fifo", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fifoFd == -1) {
 		if (errno == ENOENT) {

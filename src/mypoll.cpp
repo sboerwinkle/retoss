@@ -1,4 +1,4 @@
-#ifdef WINDOWS
+#ifdef _WIN32
 // TODO I just want to get this off the ground, but I'll need to actually get this to work properly in windows-land.
 
 #include <unistd.h>
@@ -122,5 +122,5 @@ void mypoll_destroy() {
 	// no-op
 }
 
-// End of `#ifdef WINDOWS`...`#else` from top of file
+// End of `#ifdef _WIN32`...`#else` from top of file
 #endif
