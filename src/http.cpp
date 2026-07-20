@@ -1,10 +1,15 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <netinet/in.h>
 #include <stdio.h>
-#include <spawn.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <netinet/in.h>
+#include <spawn.h>
+#endif
 
 extern char **environ;
 
@@ -168,6 +173,14 @@ static char readFirstLine(int fd) {
 	}
 }
 
+#ifdef _WIN32
+// polyfill
+static char* strchrnul(char *p, char c) {
+	while (*p && *p != c) p++;
+	return p;
+}
+#endif
+
 static void read_inner(int fd) {
 	if (readFirstLine(fd)) return;
 	// This would be a problem if we were multi-threaded!
@@ -265,9 +278,12 @@ extern void http_spawnClient() {
 	snprintf(url, 25, "http://localhost:%d", serverPort);
 	char *const argv[] = {cmd, url, NULL};
 	pid_t ignore;
+#ifndef _WIN32
+	// Lol windows doesn't get nice settings smh
 	posix_spawnp(&ignore, cmd, NULL, NULL, argv, environ);
 	// Todo: Could check for errors I guess,
 	//       but it's kind of hard to get useful info
+#endif
 }
 
 // This function runs right at the start of the polling thread - after
@@ -302,8 +318,9 @@ void http_init() {
 	struct sockaddr_in address = {
 		.sin_family = AF_INET,
 		.sin_port = 0,
-		.sin_addr = {.s_addr = htonl(INADDR_LOOPBACK)},
 	};
+	// Mingw is weird about nesting this initializer for some reason, idk
+	address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
 	if (-1 == bind(http_fd, (struct sockaddr*)&address, sizeof(address))) {
 		printf("%s`bind` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
@@ -321,6 +338,9 @@ void http_init() {
 		return;
 	}
 
+#ifdef _WIN32
+#define socklen_t int
+#endif
 	socklen_t len = sizeof(address);
 	if (-1 == getsockname(http_fd, (struct sockaddr*)&address, &len)) {
 		printf("%s`getsockname` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
@@ -331,12 +351,14 @@ void http_init() {
 
 	serverPort = ntohs(address.sin_port);
 
+#ifndef _WIN32
 	// Set `FD_CLOEXEC` on stdin/stdout/stderr.
 	// Might move this eventually, but for now `http` is the only file that spawns processes,
 	// so setting these flags is this file's concern.
 	range(i, 3) {
 		fcntl(i, F_SETFD, FD_CLOEXEC | fcntl(i, F_GETFD));
 	}
+#endif
 }
 
 void http_destroy() {

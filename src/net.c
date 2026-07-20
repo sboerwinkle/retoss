@@ -1,13 +1,18 @@
 #include <errno.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
+#endif
 
 #include "util.h"
 #include "main.h"
@@ -21,6 +26,39 @@ static int buf_ix = 0;
 static int buf_len = 0;
 
 char initSocket(const char *srvAddr, const char* port){
+#ifdef _WIN32
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData)) {
+		puts("WSAStartup failed, oops");
+		exit(1);
+	}
+	net_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if(net_fd < 0){
+		printf("Failed to create socket: '%s'\n", strerror(errno));
+		return 1;
+	}
+
+	int32_t portNum;
+	getNum(&port, &portNum);
+
+	struct sockaddr_in server;
+	server.sin_family = AF_INET;
+	server.sin_addr.s_addr = inet_addr(srvAddr);
+	server.sin_port=htons(portNum);
+
+	printf("Connecting to server at %s\n", srvAddr);
+	if(connect(net_fd, (struct sockaddr*)&server, sizeof(server))){
+		printf("Failed to connect to server: '%s'\n", strerror(errno));
+		return 1;
+	}
+	// Set TCP_NODELAY for more real-time TCP, we're not terribly concerned with network congestion.
+	int flag = 1;
+	if(-1 == setsockopt(net_fd, IPPROTO_TCP, TCP_NODELAY, (char const *)&flag, sizeof(int))){
+		printf("Failed to set TCP_NODELAY: '%s'\n", strerror(errno));
+	}
+
+#else
+
 	struct addrinfo addrhints = {
 		.ai_flags =
 			// Use mapped addresses if the stars align
@@ -89,15 +127,25 @@ char initSocket(const char *srvAddr, const char* port){
 	if(-1 == setsockopt(net_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int))){
 		printf("Failed to set TCP_NODELAY: '%s'\n", strerror(errno));
 	}
+#endif
 	puts(QUIET("Done."));
 	return 0;
 }
 
 void closeSocket() {
 	if (net_fd == -1) return;
+
+#ifdef _WIN32
+	if (closesocket(net_fd)) {
+		printf("Error closing socket: %d\n", errno);
+	}
+	WSACleanup();
+#else
 	if (close(net_fd)) {
 		printf("Error closing socket: %d\n", errno);
 	}
+#endif
+
 	net_fd = -1;
 }
 
@@ -136,7 +184,11 @@ char readData(void *dst_arg, int len) {
 // Todo: Nearly duplicated in http.cpp
 char sendData(char *src, int len) {
 	while (len) {
+#ifdef _WIN32
+		int ret = send(net_fd, src, len, 0);
+#else
 		int ret = write(net_fd, src, len);
+#endif
 		if (ret < 0) {
 			if (globalRunning) {
 				printf("write() to socket failed, errno is %d\n", errno);

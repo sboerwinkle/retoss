@@ -1,7 +1,11 @@
 // This is "net2", which is an abstraction over "net".
 // I tried to think of a more descriptive name, but at the end of the day it's still networking stuff.
 
+#ifdef _WIN32
+#include <winsock.h>
+#else
 #include <arpa/inet.h>
+#endif
 
 #include "util.h"
 #include "list.h"
