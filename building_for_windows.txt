@@ -1,0 +1,49 @@
+This was an adventure. Let's see if I can remember the highlights.
+
+First, I'm doing this on a WSL instance on a Windows machine, because I don't want to learn the MSVCC. Sue me.
+
+On said WSL instance, install mingw-w64. This will be our cross-compiling toolchain.
+
+Then, there was a lot of effort put into fixing things so it would compile; fortunately that was a one-time thing, and you don't have to do that! It doesn't have all the features, but it's good enough. The biggest thing it's missing is the settings UI, but it's plenty playable without that. I'll fix it eventually, probably.
+
+But even if compilation "just works" now, you will have to work to get it to *link* correctly.
+
+The `winbuild.sh` script references a couple directories: win_includes and win_libs. Make those dirs. We need to fill them with the stuff for our libraries.
+
+GLFW3 and sndfile are the easy ones. Both have websites with official downloads for both a DLL and header files. Done and done.
+
+OpenAL is a little harder. They offer an installer, but not the DLL directly. Ultimately I ran the installer and scooped the DLL off the Windows machine. The headers I got from my other Linux install, but you could probably install it on the WSL instance just as easily.
+
+libpng and its dependency zlib were a nightmare. A lot of the effort was even figuring out what was wrong, I haven't cross-compiled *anything* since college... Anyway, start by grabbing the sources for each.
+
+So, here's what I *think* the final commands were to configure each of them (prior to running `make`):
+
+zlib:
+CC=x86_64-w64-mingw32-gcc ./configure --static
+The `--static` here is to skip trying to link it into a .so, which saves some confusion over whether it needs `-lc` (it doesn't, but thinks it does).
+
+libpng:
+CC=x86_64-w64-mingw32-gcc LDFLAGS=-L./extra_libs CPPFLAGS=-I../zlib ./configure
+This was after taking `libz.a` from the previosu step and putting it in a new `extra_libs` folder for libpng. Also note that I'm pointing -I to zlib's folder to find the headers, not sure why I didn't just copy those over too. I swear this command didn't work at first, and then after I got sufficiently distressed it worked. There were a couple `make clean`s in the middle.
+As the final icing on this horrible cake, I had to go in and edit the configure script so it would always decide it didn't need `-lc`.
+
+Once both are built, grab their `.a` files and put them in `retoss/win_libs`. You'll also need `png.h`, `pngconf.h`, and `pnglibconf.h` in `win_includes` - we don't need any headers from zlib because I don't use it directly.
+
+Now, hopefully, winbuild.sh should work. If it works first try for you, I'm impressed.
+
+Okay! Now all that's left is to copy `game.exe` and any DLLs in win_libs (you don't need the `.a`s) to some folder! Mostly. Additional final steps:
+
+Copy over the `assets/` and `shaders/` folders. If you share a directory between WSL and "real" Windows you can skip this.
+
+Copy over the magic DLLs that mingw didn't tell you it was using. If you try to launch `game.exe` it'll tell you if it can't find a DLL (but it won't tell you if you launch it from a terminal, ask me how I know).
+
+The ones I needed wound up being in `/usr/lib/gcc/x86_64-w64-mingw32/10-posix` and `/usr/x86_64-w64-mingw32/lib/` (I think. Maybe you have to do a scavenger `find`.).
+For completeness, the list is:
+glfw3.dll
+libgcc_s_seh-1.dll
+libstdc++-6.dll
+libwinpthread-1.dll
+OpenAL32.dll
+sndfile.dll
+
+Happy Hunting, I guess
