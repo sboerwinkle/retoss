@@ -126,13 +126,13 @@ void config_init() {
 
 	char const *xdg_config_home = getenv("XDG_CONFIG_HOME");
 	if (xdg_config_home && *xdg_config_home) {
-		printf(QUIET("XDG_CONFIG_HOME='%s'\n"), xdg_config_home);
+		printf(QUIET_LINE("XDG_CONFIG_HOME='%s'"), xdg_config_home);
 		snprintf(configDir, CFG_BUF_LEN, "%s/" CONFIG_NAME, xdg_config_home);
 	} else {
-		puts(QUIET("XDG_CONFIG_HOME not set, checking HOME."));
+		printf(QUIET_LINE("XDG_CONFIG_HOME not set, checking HOME."));
 		char const *home = getenv("HOME");
 		if (home && *home) {
-			printf(QUIET("HOME='%s'\n"), home);
+			printf(QUIET_LINE("HOME='%s'"), home);
 			snprintf(configDir, CFG_BUF_LEN, "%s/.config/" CONFIG_NAME, home);
 		} else {
 			puts("HOME not set either, config files will be stored in the working directory.");
@@ -140,7 +140,7 @@ void config_init() {
 		}
 	}
 	snprintf(configFile, 200, "%s/config.json", configDir);
-	printf(QUIET("Using config file path: '%s'\n"), configFile);
+	printf(QUIET_LINE("Using config file path: '%s'"), configFile);
 
 	int configFd = open(configFile, O_RDONLY | O_CLOEXEC);
 	if (configFd == -1) {
@@ -177,7 +177,7 @@ void config_init() {
 			// It will be erased if the file is written, but the file might not be written (if no config changes happen).
 			fprintf(stderr, "Config key '%s' is unused\n", configJson->d.obj[i].key);
 		}
-		puts(QUIET("Config loaded."));
+		printf(QUIET_LINE("Config loaded."));
 	}
 
 	configJson->destroy();
@@ -190,7 +190,7 @@ void config_destroy() {
 
 void config_write() {
 	if (!modified) {
-		puts(QUIET("No config options changed, not writing config file."));
+		printf(QUIET_LINE("No config options changed, not writing config file."));
 		return;
 	}
 	modified = 0;

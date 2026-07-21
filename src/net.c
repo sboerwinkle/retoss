@@ -46,7 +46,7 @@ char initSocket(const char *srvAddr, const char* port){
 	server.sin_addr.s_addr = inet_addr(srvAddr);
 	server.sin_port=htons(portNum);
 
-	printf("Connecting to server at %s\n", srvAddr);
+	printf(QUIET_LINE("Connecting to server at %s"), srvAddr);
 	if(connect(net_fd, (struct sockaddr*)&server, sizeof(server))){
 		printf("Failed to connect to server: '%s'\n", strerror(errno));
 		return 1;
@@ -113,9 +113,9 @@ char initSocket(const char *srvAddr, const char* port){
 		puts("Failed to get address name");
 	}
 	if(addrinfo->ai_addr->sa_family == AF_INET){
-		printf(QUIET("Connecting to server at %s:%s ...\n"), hostbuf, portbuf);
+		printf(QUIET_LINE("Connecting to server at %s:%s ..."), hostbuf, portbuf);
 	}else{
-		printf(QUIET("Connecting to server at [%s]:%s ...\n"), hostbuf, portbuf);
+		printf(QUIET_LINE("Connecting to server at [%s]:%s ..."), hostbuf, portbuf);
 	}
 	if(connect(net_fd, addrinfo->ai_addr, addrinfo->ai_addrlen)){
 		printf("Failed to connect to server: '%s'\n", strerror(errno));
@@ -128,7 +128,7 @@ char initSocket(const char *srvAddr, const char* port){
 		printf("Failed to set TCP_NODELAY: '%s'\n", strerror(errno));
 	}
 #endif
-	puts(QUIET("Done."));
+	printf(QUIET_LINE("Done."));
 	return 0;
 }
 

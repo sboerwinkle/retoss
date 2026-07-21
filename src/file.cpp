@@ -120,8 +120,7 @@ static char readFileInternal(int relativeTo, char const *name, list<char> *out) 
 	int fd = openat(relativeTo, name, O_RDONLY | O_CLOEXEC);
 #endif
 	if (fd == -1) {
-		fprintf(
-			stderr,
+		printf(
 			"ERROR reading %s file '%s': `openat` gave error %s (%s)\n",
 			relativeTo == AT_FDCWD ? "core" : "user",
 			name,
@@ -133,7 +132,7 @@ static char readFileInternal(int relativeTo, char const *name, list<char> *out) 
 
 	off_t sz = lseek(fd, 0, SEEK_END);
 	if (sz == -1) {
-		fprintf(stderr, "ERROR reading file '%s': `lseek` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+		printf("ERROR reading file '%s': `lseek` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
 		close(fd);
 		return 1;
 	}

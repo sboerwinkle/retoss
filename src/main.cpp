@@ -804,9 +804,9 @@ static char waitForThread(pthread_t thread) {
 }
 
 static void cleanupThread(pthread_t thread, char const * const descr) {
-	printf(QUIET("Waiting for %s thread...\n"), descr);
+	printf(QUIET_LINE("Waiting for %s thread..."), descr);
 	if (waitForThread(thread)) {
-		puts(QUIET("Done."));
+		printf(QUIET_LINE("Done."));
 		return;
 	}
 
@@ -821,12 +821,12 @@ static void cleanupThread(pthread_t thread, char const * const descr) {
 }
 
 int main(int argc, char **argv) {
-	puts(QUIET("init GLFW..."));
+	printf(QUIET_LINE("init GLFW..."));
 	if (!glfwInit()) {
 		fputs("Couldn't init GLFW\n", stderr);
 		return 1;
 	}
-	puts(QUIET("init window..."));
+	printf(QUIET_LINE("init window..."));
 	display = glfwCreateWindow(1000, 700, WINDOW_TITLE, NULL, NULL);
 	if (!display) {
 		fputs("Couldn't create our display\n", stderr);
@@ -838,7 +838,7 @@ int main(int argc, char **argv) {
 		puts("Failed to initialize OpenGL context");
 		return 1;
 	}
-	printf(QUIET("Loaded OpenGL %d.%d\n"), GLAD_VERSION_MAJOR(version), GLAD_VERSION_MINOR(version));
+	printf(QUIET_LINE("Loaded OpenGL %d.%d"), GLAD_VERSION_MAJOR(version), GLAD_VERSION_MINOR(version));
 
 	{
 		// Framebuffer size is not guaranteed to be equal to window size
@@ -847,7 +847,7 @@ int main(int argc, char **argv) {
 		setDisplaySize(fbWidth, fbHeight);
 	}
 
-	puts(QUIET("init GL + custom stuff..."));
+	printf(QUIET_LINE("init GL + custom stuff..."));
 	msgs_game = new list<ggc_msg>();
 	msgs_game->init();
 	msgs_gfx = new list<ggc_msg>();
@@ -858,7 +858,7 @@ int main(int argc, char **argv) {
 	// is expected to init GL stuff (plus other stuff).
 	game_init();
 	glfwMakeContextCurrent(NULL); // Give up control so other thread can take it
-	puts(QUIET("GL + custom setup complete."));
+	printf(QUIET_LINE("GL + custom setup complete."));
 
 	outboundTextQueue.init();
 	outboundData.init();
@@ -869,9 +869,9 @@ int main(int argc, char **argv) {
 	// More config stuff; we need a viable state by this point.
 	// Compared to `game_init()`, we don't have the GL context any more,
 	// but we do have config loaded (and working dir is `data/` now).
-	puts(QUIET("init more custom..."));
+	printf(QUIET_LINE("init more custom..."));
 	rootState = game_init2();
-	puts(QUIET("more custom complete."));
+	printf(QUIET_LINE("more custom complete."));
 
 	char const *host, *hostSrc, *port = NULL, *portSrc;
 	if (argc > 3) {
@@ -904,10 +904,10 @@ int main(int argc, char **argv) {
 	}
 
 	// Other general game setup, including networking
-	printf(QUIET("Using host '%s' (%s) and port '%s' (%s)\n"), host, hostSrc, port, portSrc);
+	printf(QUIET_LINE("Using host '%s' (%s) and port '%s' (%s)"), host, hostSrc, port, portSrc);
 	// initSocket has its own progress logging
 	if (initSocket(host, port)) return 1;
-	puts(QUIET("Awaiting setup info..."));
+	printf(QUIET_LINE("Awaiting setup info..."));
 	char initNetData[7];
 	if (readData(initNetData, 7)) {
 		puts("Error, aborting!");
@@ -924,7 +924,7 @@ int main(int argc, char **argv) {
 	myPlayer = initNetData[1];
 	int numPlayers = initNetData[2];
 	int32_t startFrame = ntohl(*(int32_t*)(initNetData+3));
-	printf(QUIET("Done, I am client #%d out of %d\n"), myPlayer, numPlayers);
+	printf(QUIET_LINE("Done, I am client #%d out of %d"), myPlayer, numPlayers);
 	setupPlayers(rootState, numPlayers);
 	isLoader = (numPlayers == 1);
 	// Connection was at least mostly successful,
@@ -992,15 +992,15 @@ int main(int argc, char **argv) {
 	mtx_signal(netCond);
 	mtx_unlock(netMutex);
 
-	puts(QUIET("Writing config file..."));
+	printf(QUIET_LINE("Writing config file..."));
 	config_write();
-	puts(QUIET("Done."));
-	puts(QUIET("Beginning cleanup."));
+	printf(QUIET_LINE("Done."));
+	printf(QUIET_LINE("Beginning cleanup."));
 	cleanupThread(pollThread, "poll");
 	cleanupThread(gameThread, "game");
 	cleanupThread(renderThread, "render");
 	closeSocket();
-	puts(QUIET("Cleaning up game objects..."));
+	printf(QUIET_LINE("Cleaning up game objects..."));
 	cleanup(rootState);
 	free(rootState);
 	cleanup(phantomState);
@@ -1012,8 +1012,8 @@ int main(int argc, char **argv) {
 		cleanup(renderData.dropoff);
 		free(renderData.dropoff);
 	}
-	puts(QUIET("Done."));
-	puts(QUIET("Misc cleanup..."));
+	printf(QUIET_LINE("Done."));
+	printf(QUIET_LINE("Misc cleanup..."));
 	mypoll_destroy();
 	watch_destroy();
 	net2_destroy();
@@ -1031,12 +1031,12 @@ int main(int argc, char **argv) {
 	delete msgs_gfx;
 	msgs_game->destroy();
 	delete msgs_game;
-	puts(QUIET("Done."));
-	puts(QUIET("Cleaning up GLFW..."));
+	printf(QUIET_LINE("Done."));
+	printf(QUIET_LINE("Cleaning up GLFW..."));
 	// Necessary so glfwTerminate gets all the loose ends
 	glfwMakeContextCurrent(display);
 	glfwTerminate();
-	puts(QUIET("Done."));
+	printf(QUIET_LINE("Done."));
 	puts("All done!");
 
 	// Someone online said this might clear up some of the dl_open memory leaks.

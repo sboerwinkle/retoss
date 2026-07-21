@@ -7,8 +7,9 @@
 // "32;2" is "green and dim". I like how this looks, but if it's too dim,
 // you can remove the ";2". Apparently it's less widely supported anyway,
 // so some people may just get the "green" part. Even so, it should still
-// be easier to pick out the non-quiet messages.
-#define QUIET(x) "\033[32;2m" x "\033[0m"
+// be easier to pick out the non-quiet messages. The newline was moved to
+// the macro since it flushes the stream, so it should be at the end.
+#define QUIET_LINE(x) "\033[32;2m" x "\033[0m\n"
 
 // Will need to keep an eye on this file, I think I see a spot of rust
 typedef unsigned char u8;
