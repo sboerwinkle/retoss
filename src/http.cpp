@@ -32,7 +32,13 @@ static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI wil
 static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
 // "Rs" = "Response"
-list<char> onlyGetsRs, noContentRs, defaultHtml;
+struct lazyRs {
+	list<char> l;
+	char const *path;
+};
+lazyRs onlyGetsRs = {.path = "assets/http/onlyGets.txt"};
+lazyRs noContentRs = {.path = "assets/http/noContent.txt"};
+lazyRs defaultHtml = {.path = "assets/http/default.html"};
 
 static cfg_item *httpConfigs[] = {
 	&cfg_name, // Need "name" here b/c we read it, don't expect to write it though
@@ -66,8 +72,18 @@ static void writeAll(int fd, char const *src, int len) {
 	}
 }
 
-static void writeList(int fd, list<char> const *l) {
-	writeAll(fd, l->items, l->num);
+static void lazyLoad(lazyRs *response) {
+	if (response->l.max) return;
+	response->l.init();
+	if (readSystemFile(response->path, &response->l)) {
+		puts("file needed for UI didn't load correctly (above)");
+		// We're not going to do anything else about it lol
+	}
+}
+
+static void writeResponse(int fd, lazyRs *response) {
+	lazyLoad(response);
+	writeAll(fd, response->l.items, response->l.num);
 }
 
 static void write200(int fd, char const *html, int len, char const *contentType) {
@@ -187,7 +203,7 @@ static void read_inner(int fd) {
 	char *buf = staticBuffer;
 
 	if (strncmp("GET ", buf, 4)) {
-		writeList(fd, &onlyGetsRs);
+		writeResponse(fd, &onlyGetsRs);
 		return;
 	}
 	buf += 4;
@@ -198,15 +214,16 @@ static void read_inner(int fd) {
 
 	if (!strcmp(buf, "/team0")) {
 		sendCommand("/team 0");
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strcmp(buf, "/team1")) {
 		sendCommand("/team 1");
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strcmp(buf, "/team2")) {
 		sendCommand("/team 2");
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strcmp(buf, "/")) {
-		write200(fd, defaultHtml.items, defaultHtml.num, "text/html");
+		lazyLoad(&defaultHtml);
+		write200(fd, defaultHtml.l.items, defaultHtml.l.num, "text/html");
 	} else if (!strcmp(buf, "/config")) {
 		writeConfigs(fd);
 	} else if (!strncmp(buf, "/name/", 6)) {
@@ -215,26 +232,22 @@ static void read_inner(int fd) {
 		// Will probably have to rework this when I add URL encoding haha
 		buf[5] = buf[6] ? ' ' : '\0';
 		sendCommand(buf);
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strncmp(buf, "/camera?", 8)) {
 		readConfigs(buf+8);
 		sendCommand("/_cfgcam");
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strncmp(buf, "/prediction?", 12)) {
 		readConfigs(buf+12);
 		sendCommand("/_cfgpred");
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else if (!strncmp(buf, "/misc?", 6)) {
 		readConfigs(buf+6);
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	} else {
-		char const *format = "Unhandled HTTP request to: %s\n";
-		if (!strncmp(buf, "/favicon", 8)) {
-			format = QUIET("Unhandled HTTP request to: %s\n");
-		}
-		printf(format, buf);
+		printf("Unhandled HTTP request to: %s\n", buf);
 		// todo: Send 404 instead of 204?
-		writeList(fd, &noContentRs);
+		writeResponse(fd, &noContentRs);
 	}
 }
 
@@ -286,29 +299,7 @@ extern void http_spawnClient() {
 #endif
 }
 
-// This function runs right at the start of the polling thread - after
-// the main application startup, but before we handle any http or game
-// server communications.
-// This might save a little time during startup (disk reads are slow),
-// but it also means we're not getting data from the game server until
-// these reads finish!
-// I will need to revisit this if we start loading too much data here.
-void http_preload() {
-	char fail = 0;
-	fail |= readSystemFile("assets/http/onlyGets.txt", &onlyGetsRs);
-	fail |= readSystemFile("assets/http/noContent.txt", &noContentRs);
-	fail |= readSystemFile("assets/http/default.html", &defaultHtml);
-	if (fail) {
-		puts("file(s) needed for UI didn't load correctly (above)");
-		// We're not going to do anything else about it lol
-	}
-}
-
 void http_init() {
-	onlyGetsRs.init();
-	noContentRs.init();
-	defaultHtml.init();
-
 	http_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (http_fd == -1) {
 		printf("%s`socket` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
@@ -362,9 +353,12 @@ void http_init() {
 }
 
 void http_destroy() {
-	onlyGetsRs.destroy();
-	noContentRs.destroy();
-	defaultHtml.destroy();
+	// It's possible these were never actually filled,
+	// but if nothing else they were zero-initialized,
+	// and it's safe to `free(NULL)`.
+	onlyGetsRs.l.destroy();
+	noContentRs.l.destroy();
+	defaultHtml.l.destroy();
 
 	if (http_fd == -1) return;
 	if (-1 == close(http_fd)) {
