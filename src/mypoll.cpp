@@ -1,53 +1,29 @@
-#ifdef _WIN32
-// TODO I just want to get this off the ground, but I'll need to actually get this to work properly in windows-land.
-
-#include <unistd.h>
-
-#include "main.h"
-#include "net.h"
-#include "net2.h"
-
-#include "mypoll.h"
-
-std::atomic<char> texReloadFlag = 0;
-char texReloadPath[POLL_BUF_LEN];
-
-std::atomic<char> poll_game_flag = 0;
-char poll_game_data[POLL_BUF_LEN];
-
-void* mypoll_threadFunc(void *arg) {
-	while (1) {
-		if (!globalRunning) return NULL;
-		if (net2_read()) {
-			closeSocket();
-			return NULL;
-		}
-	}
-}
-
-void mypoll_init() {}
-void mypoll_destroy() {}
-
-#else
-
-
-
 // This is pretty simple, but I got the skeleton of it from ChatGPT
-#include <poll.h>
 #include <stdio.h>
 #include <unistd.h>
 
-#include "list.h"
+#include "main.h"
 #include "net.h"
 #include "net2.h"
-#include "watch.h"
-#include "http.h"
-#include "main.h"
 
-#include "mypoll.h"
+#ifdef _WIN32
+
+#include <winsock2.h>
+
+#else
+
+#include <poll.h>
+
+#include "list.h"
+#include "watch.h"
 
 #define NUMFDS 3
 static struct pollfd fds[NUMFDS];
+
+#endif
+
+#include "http.h"
+#include "mypoll.h"
 
 // Todo "poll_" prefix on these vars would be nice.
 std::atomic<char> texReloadFlag = 0;
@@ -55,6 +31,52 @@ char texReloadPath[POLL_BUF_LEN];
 
 std::atomic<char> poll_game_flag = 0;
 char poll_game_data[POLL_BUF_LEN];
+
+#ifdef _WIN32
+
+void* mypoll_threadFunc(void *arg) {
+	http_preload();
+	timeval timeout = {.tv_usec = 200'000};
+	fd_set readFds;
+	char checkNet = 1, checkHttp = (http_fd != -1);
+#define ANY_CHECK (checkNet || checkHttp)
+	while (1) {
+		if (!globalRunning) return NULL;
+		FD_ZERO(&readFds);
+		if (checkNet) FD_SET(net_fd, &readFds);
+		if (checkHttp) FD_SET(http_fd, &readFds);
+
+		int readable = select(0, &readFds, NULL, NULL, &timeout);
+		if (readable == SOCKET_ERROR) {
+			printf("mypoll.cpp `select` failed, WSA error = %d\n", WSAGetLastError());
+			return NULL;
+		}
+		if (FD_ISSET(net_fd, &readFds)) {
+			if (net2_read()) {
+				closeSocket();
+				checkNet = 0;
+				if (!ANY_CHECK) return NULL;
+			}
+		}
+		if (FD_ISSET(http_fd, &readFds)) {
+			if (http_read()) {
+				checkHttp = 0;
+				if (!ANY_CHECK) return NULL;
+			}
+		}
+	}
+#undef ANY_CHECK
+}
+
+void mypoll_init() {
+	// Shouldn't happen
+	if (net_fd == -1) {
+		puts("ERROR: net_fd == -1");
+		exit(1);
+	}
+}
+
+#else
 
 void* mypoll_threadFunc(void *arg) {
 	http_preload();
@@ -118,9 +140,9 @@ void mypoll_init() {
 	fds[2].events = POLLIN;
 }
 
+// Most of this file is #ifdef'd or #else'd around _WIN32
+#endif
+
 void mypoll_destroy() {
 	// no-op
 }
-
-// End of `#ifdef _WIN32`...`#else` from top of file
-#endif

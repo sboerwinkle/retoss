@@ -27,11 +27,6 @@ static int buf_len = 0;
 
 char initSocket(const char *srvAddr, const char* port){
 #ifdef _WIN32
-	WSADATA wsaData;
-	if (WSAStartup(MAKEWORD(2, 2), &wsaData)) {
-		puts("WSAStartup failed, oops");
-		exit(1);
-	}
 	net_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if(net_fd < 0){
 		printf("Failed to create socket: '%s'\n", strerror(errno));
@@ -139,7 +134,6 @@ void closeSocket() {
 	if (closesocket(net_fd)) {
 		printf("Error closing socket: %d\n", errno);
 	}
-	WSACleanup();
 #else
 	if (close(net_fd)) {
 		printf("Error closing socket: %d\n", errno);
