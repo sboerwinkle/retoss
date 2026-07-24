@@ -7,7 +7,7 @@
 #include <pthread.h>
 
 #ifdef _WIN32
-#include <winsock.h>
+#include <winsock2.h>
 #else
 #include <arpa/inet.h>
 #endif
@@ -847,6 +847,16 @@ int main(int argc, char **argv) {
 		setDisplaySize(fbWidth, fbHeight);
 	}
 
+#ifdef _WIN32
+	{
+		WSADATA wsaData;
+		if (WSAStartup(MAKEWORD(2, 2), &wsaData)) {
+			puts("WSAStartup failed, oops");
+			exit(1);
+		}
+	}
+#endif
+
 	printf(QUIET_LINE("init GL + custom stuff..."));
 	msgs_game = new list<ggc_msg>();
 	msgs_game->init();
@@ -1031,6 +1041,9 @@ int main(int argc, char **argv) {
 	delete msgs_gfx;
 	msgs_game->destroy();
 	delete msgs_game;
+#ifdef _WIN32
+	WSACleanup();
+#endif
 	printf(QUIET_LINE("Done."));
 	printf(QUIET_LINE("Cleaning up GLFW..."));
 	// Necessary so glfwTerminate gets all the loose ends

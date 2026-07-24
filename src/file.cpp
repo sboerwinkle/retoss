@@ -65,7 +65,7 @@ static char writeFileInternal(int relativeTo, const char *name, const list<char>
 	//      In general I need to figure out how paths work in mingw land,
 	//      part of the guardrails I want is not being able to read/write
 	//      arbitrary system files.
-	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC);
+	int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY);
 #else
 	int fd = openat(relativeTo, name, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0664); // perms: rw-rw-r--
 #endif
@@ -115,7 +115,7 @@ char writeSystemFile(const char *name, const list<char> *data) {
 
 static char readFileInternal(int relativeTo, char const *name, list<char> *out) {
 #ifdef _WIN32
-	int fd = open(name, O_RDONLY);
+	int fd = open(name, O_RDONLY | O_BINARY);
 #else
 	int fd = openat(relativeTo, name, O_RDONLY | O_CLOEXEC);
 #endif
@@ -138,18 +138,22 @@ static char readFileInternal(int relativeTo, char const *name, list<char> *out) 
 	}
 	lseek(fd, 0, SEEK_SET);
 	out->setMaxUp(out->num + sz);
-	ssize_t actual = read(fd, out->items + out->num, sz);
-	if (actual != sz) {
+	while (sz) {
+		ssize_t actual = read(fd, out->items + out->num, sz);
 		if (actual == -1) {
-			fprintf(stderr, "ERROR reading file '%s': `read` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
-		} else {
-			fprintf(stderr, "ERROR reading file '%s': allegedly has size %ld, but only read %ld bytes\n", name, sz, actual);
+			printf("ERROR reading file '%s': `read` gave error %s (%s)\n", name, strerrorname_np(errno), strerror(errno));
+			close(fd);
+			return 1;
+		} else if (!actual) {
+			printf("ERROR reading file '%s': `read` returned 0.\n", name);
+			close(fd);
+			return 1;
 		}
-	} else {
 		out->num += actual;
+		sz -= actual;
 	}
 	close(fd);
-	return actual != sz;
+	return 0;
 }
 
 char readFile(const char *name, list<char> *out) {

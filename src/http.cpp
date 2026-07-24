@@ -6,6 +6,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <cstdlib>
 #else
 #include <netinet/in.h>
 #include <spawn.h>
@@ -62,7 +63,11 @@ static cfg_item *httpConfigs[] = {
 // Todo: Nearly duplicated in net.c
 static void writeAll(int fd, char const *src, int len) {
 	while (len) {
+#ifdef _WIN32
+		int ret = send(fd, src, len, 0);
+#else
 		int ret = write(fd, src, len);
+#endif
 		if (ret < 0) {
 			printf("WARN: `write` to HTTP client failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
 			return;
@@ -169,7 +174,11 @@ static char readFirstLine(int fd) {
 	int remaining = BUF_SIZE - 1;
 
 	while (1) {
+#ifdef _WIN32
+		ssize_t size = recv(fd, buf, remaining, 0);
+#else
 		ssize_t size = read(fd, buf, remaining);
+#endif
 		if (size == 0) {
 			puts("WARN: HTTP `read` found EOF, that doesn't seem right");
 			return 1;
@@ -262,7 +271,16 @@ char http_read() {
 	}
 
 	read_inner(fd);
-	close(fd);
+#ifdef _WIN32
+	// TODO: Common socket-closing function or macro
+	if (SOCKET_ERROR == closesocket(fd)) {
+		printf("HTTP client `closesocket` failed, WSA error = %d\n", WSAGetLastError());
+	}
+#else
+	if (-1 == close(fd)) {
+		printf("HTTP client `close` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+	}
+#endif
 	return 0;
 }
 
@@ -284,15 +302,22 @@ extern void http_spawnClient() {
 		cmd = (char*) cfg_browser.get();
 	} else {
 		cmd = fallback;
+#ifdef _WIN32
+		strcpy(fallback, "start");
+#else
 		strcpy(fallback, "xdg-open");
+#endif
 	}
 
 	char url[25];
 	snprintf(url, 25, "http://localhost:%d", serverPort);
+#ifdef _WIN32
+	char combined[200];
+	snprintf(combined, 200, "%s %s", cmd, url);
+	std::system(combined);
+#else
 	char *const argv[] = {cmd, url, NULL};
 	pid_t ignore;
-#ifndef _WIN32
-	// Lol windows doesn't get nice settings smh
 	posix_spawnp(&ignore, cmd, NULL, NULL, argv, environ);
 	// Todo: Could check for errors I guess,
 	//       but it's kind of hard to get useful info
@@ -302,7 +327,11 @@ extern void http_spawnClient() {
 void http_init() {
 	http_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (http_fd == -1) {
+#ifdef _WIN32
+		printf("%s`socket` failed, WSA error = %d\n", WSAGetLastError());
+#else
 		printf("%s`socket` failed with: %s (%s)\n", FAIL_MSG, strerrorname_np(errno), strerror(errno));
+#endif
 		return;
 	}
 
@@ -341,6 +370,7 @@ void http_init() {
 	}
 
 	serverPort = ntohs(address.sin_port);
+	printf(QUIET_LINE("UI port is %d"), serverPort);
 
 #ifndef _WIN32
 	// Set `FD_CLOEXEC` on stdin/stdout/stderr.
@@ -361,7 +391,13 @@ void http_destroy() {
 	defaultHtml.l.destroy();
 
 	if (http_fd == -1) return;
+#ifdef _WIN32
+	if (SOCKET_ERROR == closesocket(http_fd)) {
+		printf("HTTP `closesocket` failed, WSA error = %d\n", WSAGetLastError());
+	}
+#else
 	if (-1 == close(http_fd)) {
 		printf("WARN: HTTP `close` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
 	}
+#endif
 }
