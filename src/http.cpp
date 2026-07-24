@@ -10,9 +10,8 @@
 #else
 #include <netinet/in.h>
 #include <spawn.h>
-#endif
-
 extern char **environ;
+#endif
 
 #include "util.h"
 
@@ -20,6 +19,7 @@ extern char **environ;
 #include "json.h"
 #include "mypoll.h"
 #include "file.h"
+#include "net.h"
 
 #include "http.h"
 
@@ -27,10 +27,11 @@ extern char **environ;
 static char staticBuffer[BUF_SIZE];
 
 int http_fd = -1;
+list<int> http_client_fds;
 static int serverPort = -1;
 
 static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI will be unavailable. Issue is:\n\t";
-static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
+static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
 // "Rs" = "Response"
 struct lazyRs {
@@ -260,7 +261,7 @@ static void read_inner(int fd) {
 	}
 }
 
-char http_read() {
+char http_accept() {
 	int fd;
 	if (-1 == (fd = accept(http_fd, NULL, NULL))) {
 		printf("WARN: HTTP `accept` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
@@ -269,19 +270,14 @@ char http_read() {
 		// to close it.
 		return 0;
 	}
-
-	read_inner(fd);
-#ifdef _WIN32
-	// TODO: Common socket-closing function or macro
-	if (SOCKET_ERROR == closesocket(fd)) {
-		printf("HTTP client `closesocket` failed, WSA error = %d\n", WSAGetLastError());
-	}
-#else
-	if (-1 == close(fd)) {
-		printf("HTTP client `close` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
-	}
-#endif
+	http_client_fds.add(fd);
 	return 0;
+}
+
+void http_read(int client_fd) {
+	read_inner(client_fd);
+	net_close("Normal browser connection", client_fd);
+	http_client_fds.quickRm(client_fd);
 }
 
 extern void http_spawnClient() {
@@ -325,6 +321,8 @@ extern void http_spawnClient() {
 }
 
 void http_init() {
+	http_client_fds.init();
+
 	http_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (http_fd == -1) {
 #ifdef _WIN32
@@ -390,14 +388,12 @@ void http_destroy() {
 	noContentRs.l.destroy();
 	defaultHtml.l.destroy();
 
-	if (http_fd == -1) return;
-#ifdef _WIN32
-	if (SOCKET_ERROR == closesocket(http_fd)) {
-		printf("HTTP `closesocket` failed, WSA error = %d\n", WSAGetLastError());
+	if (http_fd != -1) {
+		net_close("HTTP listen socket", http_fd);
 	}
-#else
-	if (-1 == close(http_fd)) {
-		printf("WARN: HTTP `close` failed with: %s (%s)\n", strerrorname_np(errno), strerror(errno));
+
+	rangeconst(i, http_client_fds.num) {
+		net_close("Leftover browser connection", http_client_fds[i]);
 	}
-#endif
+	http_client_fds.destroy();
 }

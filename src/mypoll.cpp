@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "util.h"
 #include "main.h"
 #include "net.h"
 #include "net2.h"
@@ -17,8 +18,7 @@
 #include "list.h"
 #include "watch.h"
 
-#define NUMFDS 3
-static struct pollfd fds[NUMFDS];
+static list<struct pollfd> fds;
 
 #endif
 
@@ -45,6 +45,9 @@ void* mypoll_threadFunc(void *arg) {
 		FD_ZERO(&readFds);
 		if (checkNet) FD_SET(net_fd, &readFds);
 		if (checkHttp) FD_SET(http_fd, &readFds);
+		rangeconst(i, http_client_fds.num) {
+			FD_SET(http_client_fds[i], &readFds);
+		}
 
 		int readable = select(0, &readFds, NULL, NULL, &timeout);
 		if (readable == SOCKET_ERROR) {
@@ -59,9 +62,15 @@ void* mypoll_threadFunc(void *arg) {
 			}
 		}
 		if (FD_ISSET(http_fd, &readFds)) {
-			if (http_read()) {
+			if (http_accept()) {
 				checkHttp = 0;
 				if (!ANY_CHECK) return NULL;
+			}
+		}
+		rangeconst(i, http_client_fds.num) {
+			int fd = http_client_fds[i];
+			if (FD_ISSET(fd, &readFds)) {
+				http_read(fd);
 			}
 		}
 	}
@@ -76,16 +85,31 @@ void mypoll_init() {
 	}
 }
 
+void mypoll_destroy() {
+	// no-op
+}
+
 #else
 
 void* mypoll_threadFunc(void *arg) {
 	while (1) {
+		{
+			int num = 3 + http_client_fds.num;
+			fds.setMaxUp(num);
+			fds.num = num;
+			rangeconst(i, http_client_fds.num) {
+				struct pollfd &item = fds[i+3];
+				item.fd = http_client_fds[i];
+				item.events = POLLIN;
+			}
+		}
+
 		// 200ms timeout.
 		// I could probably also set an "ignore" signal handler
 		// for SIGUSR and use it to wake up sleeping calls when
 		// it's time to quit, but frames are faster than 200ms
 		// anyway so it probably doesn't matter.
-		int ret = poll(fds, NUMFDS, 200); // 200ms timeout
+		int ret = poll(fds.items, fds.num, 200);
 		if (!globalRunning) return NULL;
 
 		if (ret == -1) {
@@ -106,8 +130,14 @@ void* mypoll_threadFunc(void *arg) {
 		}
 
 		if (fds[2].revents & POLLIN) {
-			if (http_read()) {
+			if (http_accept()) {
 				fds[2].fd = -1;
+			}
+		}
+
+		for (int i = 3; i < fds.num; i++) {
+			if (fds[i].revents & POLLIN) {
+				http_read(fds[i].fd);
 			}
 		}
 	}
@@ -129,6 +159,10 @@ void mypoll_init() {
 	// We don't check http_fd, it's not crucial for operation.
 
 	// That out of the way, it's just boring setup stuff.
+	fds.init();
+	fds.setMaxUp(3);
+	fds.num = 3;
+
 	fds[0].fd = net_fd;
 	fds[0].events = POLLIN;
 
@@ -139,9 +173,9 @@ void mypoll_init() {
 	fds[2].events = POLLIN;
 }
 
+void mypoll_destroy() {
+	fds.destroy();
+}
+
 // Most of this file is #ifdef'd or #else'd around _WIN32
 #endif
-
-void mypoll_destroy() {
-	// no-op
-}

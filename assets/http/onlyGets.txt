@@ -1,4 +1,5 @@
 HTTP/1.1 501 Not Implemented
+Connection: close
 Content-Length: 87
 Content-Type: text/html
 

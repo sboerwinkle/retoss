@@ -127,19 +127,21 @@ char initSocket(const char *srvAddr, const char* port){
 	return 0;
 }
 
-void closeSocket() {
-	if (net_fd == -1) return;
-
+void net_close(char const *ctx, int fd) {
 #ifdef _WIN32
-	if (closesocket(net_fd)) {
-		printf("Error closing socket: %d\n", errno);
+	if (closesocket(fd)) {
+		printf("`closesocket` failed for [%s]: WSA Error = %d\n", ctx, WSAGetLastError());
 	}
 #else
-	if (close(net_fd)) {
-		printf("Error closing socket: %d\n", errno);
+	if (close(fd)) {
+		printf("`close` failed for [%s]: %s (%s)\n", ctx, strerrorname_np(errno), strerror(errno));
 	}
 #endif
+}
 
+void closeSocket() {
+	if (net_fd == -1) return;
+	net_close("server socket", net_fd);
 	net_fd = -1;
 }
 
