@@ -1028,7 +1028,7 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 	// For now we just try to check the same things that shooting does.
 	rangeconst(i, gs->players.num) {
 		player *p = &gs->players[i];
-		if (p == self) continue;
+		if (p == self || !p->alive) continue;
 		raycast_interp(best, &p->m, p1, p2, dir, gfx_interpRatio);
 	}
 
