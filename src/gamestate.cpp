@@ -10,6 +10,8 @@
 #include "constel.h"
 #include "player.h"
 
+#include "tools/rifle.h"
+
 static list<mover*> queryResults;
 static list<box*> tmpPlayerBoxes;
 
@@ -30,6 +32,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	p.team=-1;
 	p.prox=gs->vb_root;
 	p.skin=NULL;
+	toolRifle_create(&p.tool);
 
 	softResetPlayer(&p);
 }
@@ -485,10 +488,13 @@ static void playerDupCleanup(player *p) {
 	p->prox = (box*)p->prox->clone.ptr;
 	range(i, 3) p->m.oldPos[i] = -1;
 	if (p->skin) p->skin->refs++;
+	// Feels like it shouldn't work, but it's fine
+	tool_copy(&p->tool, p->tool);
 }
 
 static void playerDestroy(player *p) {
 	if (p->skin) p->skin->decr();
+	tool_destroy(p->tool);
 }
 
 gamestate* dup(gamestate *orig) {
@@ -740,6 +746,8 @@ static void transPlayer(player *p) {
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
 	range(i, 4) trans32(&p->m.rot[i]);
+	if (seriz_reading) tool_destroy(p->tool);
+	tool_trans(&p->tool);
 
 	if (seriz_reading) {
 		if (p->skin) p->skin->decr();

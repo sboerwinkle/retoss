@@ -34,6 +34,7 @@
 #include "sound.h" // needs game_graphics
 #include "bcast.h"
 #include "task.h"
+#include "tool.h"
 #include "config.h"
 
 #include "collision.h" // For raycasting
@@ -221,6 +222,7 @@ void game_init() {
 
 	initGraphics();
 	task_init();
+	tool_init();
 	velbox_init();
 	gamestate_init();
 	dl_init();
@@ -267,6 +269,7 @@ void game_destroy() {
 	dl_destroy();
 	gamestate_destroy();
 	velbox_destroy();
+	tool_destroy();
 	task_destroy();
 	gfx_destroy();
 

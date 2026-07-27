@@ -8,6 +8,7 @@
 struct mover; // "box" and "gamestate" reference each other's types
 #include "box.h"
 #include "task.h"
+#include "tool.h"
 
 #define PLAYER_SHAPE_RADIUS 800
 #define TRAIL_LIFETIME 45
@@ -53,6 +54,7 @@ struct player {
 	u8 hits, hitsCooldown;
 	box *prox;
 	dyntex_holder *skin;
+	toolInst *tool;
 };
 
 #define solidFromMover(x) ((solid*)((char*)(x) - offsetof(solid, m)))

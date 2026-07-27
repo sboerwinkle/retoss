@@ -18,7 +18,7 @@ if [ 0 -ne $? ]; then exit; fi;
 DL_STUFF="-rdynamic -ldl"
 
 g++ -std=c++20 -fdiagnostics-color -Wall -Wshadow -Wno-switch -Wno-format-truncation -Wno-invalid-offsetof -O2 -g $DL_STUFF "$@" \
-	src/{,lv/,comp/,tasks/}*.{c,cpp} \
+	src/{,lv/,comp/,tasks/,tools/}*.{c,cpp} \
 	-I./includes/ \
 	$LFLAGS -pthread -lm -lGL -o game \
  \
