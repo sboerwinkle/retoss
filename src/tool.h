@@ -6,8 +6,8 @@ struct toolInst;
 
 struct toolDefn {
 	int id;
-	void (*draw)(gamestate *gs, player *p, toolInst *data);
-	void (*use)(gamestate *gs, player *p, toolInst *data);
+	void (*draw)(gamestate *gs, player *p, float y, toolInst *data);
+	void (*use)(gamestate *gs, player *p, char input, toolInst *data);
 	char (*trans)(toolInst **data);
 	void (*copy)(toolInst **to, toolInst *from);
 	void (*destroy)(toolInst *data);

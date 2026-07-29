@@ -1,6 +1,8 @@
 
+#define RIFLE_RANGE 100'000
+
 struct toolRifle : toolInst {
-	// TODO: Actual contents lol
+	int32_t cooldown;
 };
 
 extern void toolRifle_create(toolInst **_data);

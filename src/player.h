@@ -1,6 +1,4 @@
 
-#define PL_SHOOT_RANGE 100'000
-
 extern int32_t pl_tractMult;
 extern int32_t pl_tractBonus;
 extern int32_t pl_speed;

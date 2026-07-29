@@ -32,6 +32,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	p.team=-1;
 	p.prox=gs->vb_root;
 	p.skin=NULL;
+	// Dummy tool so state is valid
 	toolRifle_create(&p.tool);
 
 	softResetPlayer(&p);
@@ -42,12 +43,15 @@ void softResetPlayer(player *_p) {
 	p.jump=0;
 	p.shoot=0;
 	p.alive=1;
-	p.cooldown=0;
 	p.hits=0;
 	p.hitsCooldown=0;
 	range(i, 3) {
 		p.vel[i] = 0;
 	}
+
+	// Eventually this will populate the tool based on player settings I guess
+	tool_destroy(p.tool);
+	toolRifle_create(&p.tool);
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
@@ -58,11 +62,6 @@ void setupPlayers(gamestate *gs, int numPlayers) {
 
 void killPlayer(player *p) {
 	p->alive = 0;
-	// If player was reloading, crosshairs will still
-	// try to play the animation frame-by-frame,
-	// but no progress is being made between game states.
-	// This causes a weird jitter.
-	p->cooldown = 0;
 }
 
 void validateSize(int64_t *_size) {
@@ -742,7 +741,6 @@ static void transPlayer(player *p) {
 	trans8(&p->shoot);
 	trans8(&p->alive);
 	trans8(&p->team);
-	trans32(&p->cooldown);
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
 	range(i, 4) trans32(&p->m.rot[i]);

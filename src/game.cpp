@@ -1020,7 +1020,9 @@ static void drawPlayer(player *p, float alpha) {
 }
 
 static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction *best) {
-	best->numer=PL_SHOOT_RANGE;
+	// This used to be the same as RIFLE_RANGE before the framework was set up
+	// for multiple tools
+	best->numer=100'000;
 	best->denom=FIXP;
 
 	unitvec dir;
@@ -1050,7 +1052,6 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 }
 
 static void drawCrosshair(gamestate *gs, player *self) {
-	centeredGrid2d(256);
 	float y;
 
 	if (look->aimType == AIM_HIGH) {
@@ -1082,29 +1083,21 @@ static void drawCrosshair(gamestate *gs, player *self) {
 		float vert = gfx_camDist * look->hovSin;
 
 		if (!dist) y = 0;
-		else y = displayAreaBounds[1] * look->fovInv * vert / dist;
+		else y = look->fovInv * vert / dist;
 	} else { // AIM_NONE
 		y = 0;
 	}
 
-	// We've got it on the "font" texture for now.
-	// We double the resolution b/c we have to draw halves in some cases,
-	// and need to split a pixel for that.
-	selectTex2d(1, 128, 128);
-	if (self->cooldown) {
-		// Split crosshair
-		float distance = (self->cooldown - gfx_interpRatio)/2;
-		// src coords, size, dest coords
-		sprite2d(0, 10, 5, 10, -5-distance, y-5);
-		sprite2d(5, 10, 5, 10,    distance, y-5);
+	if (self->alive) {
+		toolInst *tool = self->tool;
+		(*tool->defn->draw)(gs, self, y, tool);
 	} else {
-		// Could draw it as 2 halves in this case as well,
-		// I'm just not sure if it might look funny b/c of
-		// pixel nonsense.
-		// You never have the split cursor if you're dead,
-		// so we only handle the "dead" case here.
-		int x = self->alive ? 0 : 28;
-		sprite2d(x, 10, 10, 10, -5, y-5);
+		// Double the true resolution b/c we need the center to be
+		// in the middle of a pixel
+		selectTex2d(1, 128, 128);
+		centeredGrid2d(256);
+		y *= displayAreaBounds[1];
+		sprite2d(28, 10, 10, 10, -5, y-5);
 	}
 }
 

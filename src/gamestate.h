@@ -50,7 +50,6 @@ struct player {
 	int32_t inputs[3];
 	char jump, shoot, alive;
 	char team;
-	int32_t cooldown;
 	u8 hits, hitsCooldown;
 	box *prox;
 	dyntex_holder *skin;
