@@ -1056,10 +1056,7 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
-		if (
-			m == &self->m
-			|| (T_MASK & m->type) == T_PROJ // TODO eventually we can shoot these, remove exclusion!
-		) continue;
+		if (m == &self->m) continue;
 		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
 	}
 }

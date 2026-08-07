@@ -317,9 +317,9 @@ char collide_sphere(offset const p1, offset const p2, int64_t radius, mover *m, 
 	offset v1, v2;
 	offset delta;
 	range(i, 3) {
-		v1[i] = p1[i] - m->oldPos[i];
-		v2[i] = p2[i] - m->pos[i];
-		delta[i] = v2[i] - v1[i];
+		v1[i] = m->oldPos[i] - p1[i];
+		v2[i] = m->pos[i] - p2[i];
+		delta[i] = v1[i] - v2[i];
 	}
 	unitvec dir;
 	int64_t mg = mag(delta);
@@ -342,7 +342,7 @@ char collide_sphere(offset const p1, offset const p2, int64_t radius, mover *m, 
 //       needs to be better...
 int64_t raycast_sphere(offset const pos, unitvec const dir, int64_t radius) {
 	int64_t x = dot(pos, dir);
-	if (x > 0) return -1;
+	if (x < 0) return -1;
 	offset p;
 	range(i, 3) {
 		p[i] = pos[i] - x * dir[i] / FIXP;
@@ -350,7 +350,7 @@ int64_t raycast_sphere(offset const pos, unitvec const dir, int64_t radius) {
 	int64_t lowerBound = std::max(labs(p[0]), std::max(labs(p[1]), labs(p[2])));
 	if (lowerBound >= radius) return -1;
 	if (mag(p) >= radius) return -1;
-	return -x;
+	return x;
 }
 
 // Next up is probably figuring out how to collide something that has a number of spheres
@@ -358,21 +358,29 @@ int64_t raycast_sphere(offset const pos, unitvec const dir, int64_t radius) {
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
 
 static char raycast_inner(fraction *best, mover const *m, offset const vWorld, imat const rot, unitvec const dir) {
-	offset vSolid;
-	imat_applySm(vSolid, rot, vWorld);
-	unitvec dirSolid;
-	imat_apply(dirSolid, rot, dir);
-
 	int shape;
 	int64_t r;
-	if (m->type & T_PLAYER) {
+	int32_t type = m->type & T_MASK;
+	if (type == T_PLAYER) {
 		shape = 0;
 		r = PLAYER_SHAPE_RADIUS;
+	} else if (type == T_PROJ) {
+		fraction tmp = { .denom = FIXP };
+		tmp.numer = raycast_sphere(vWorld, dir, m->b->r);
+		if (tmp.numer < 0) return 0;
+		if (best->lt(tmp)) return 0;
+		*best = tmp;
+		return 1;
 	} else {
 		shape = m->type;
 		solid *s = solidFromMover(m);
 		r = s->r;
 	}
+
+	offset vSolid;
+	imat_applySm(vSolid, rot, vWorld);
+	unitvec dirSolid;
+	imat_apply(dirSolid, rot, dir);
 
 	fraction lower = {.numer = 0, .denom = 1};
 	fraction upper = *best;
