@@ -135,7 +135,7 @@ extern void setupPlayers(gamestate *gs, int numPlayers);
 extern void killPlayer(player *p);
 
 extern void validateSize(int64_t *_size);
-extern void validateShape(int32_t *_shape);
+extern void validateType(int32_t *type);
 extern void validateTex(int32_t *_tex);
 
 extern void solidPutVb(solid *s, box *guess, int duration);
@@ -158,6 +158,7 @@ extern gamestate* dup(gamestate *orig);
 extern void prepareGamestateForLoad(gamestate *gs, char isSync);
 extern void init(gamestate *gs);
 extern void cleanup(gamestate *gs);
+extern void coreSetup(gamestate *gs);
 
 extern void write32(list<char> *data, int32_t v);
 extern void transMover(mover *m);

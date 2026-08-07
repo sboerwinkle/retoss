@@ -2,24 +2,109 @@
 
 #include "gamestate.h"
 
+#include "collision.h"
 #include "game.h"
 #include "game_gamestate.h"
 #include "main.h"
 
 #include "player.h"
 
-int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a denominator, idk.
-int32_t pl_speed = 350;
-int64_t pl_walkForce = 60;
+static int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a denominator, idk.
+static int32_t pl_speed = 350;
+static int64_t pl_walkForce = 60;
 // `pl_jump > pl_speed` means that for some slopes it's faster to bunny-hop. This is fine.
-int64_t pl_jump = 400;
-int64_t pl_gummy = 80;
+static int64_t pl_jump = 400;
+static int64_t pl_gummy = 80;
 
-// TODO: We'll deal with this later, but I don't think the input desire should be rotated.
-//       Instead, just project it onto the lateral plane and scale it up.
-//       It may come out to be the zero vector, that's okay too.
-//       Maybe better is to double or triple the length, project it down,
-//       and shrink it if necessary.
+static list<mover*> queryResults;
+
+static char playerPhysLe(mover* const &a, mover* const &b) {
+	// Simple for now.
+	// We check higher objects first,
+	// mostly because this reduces the ability to jump off
+	// horizontal seams in walls.
+	return a->pos[2] >= b->pos[2];
+}
+
+void playerUpdate(gamestate *gs, player *p) {
+	// We copy `rot`=>`oldRot` when player input happens.
+	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
+	if (!p->alive) {
+		int divisor = 64;
+		// TODO some way to go real slow (but I'm out of net inputs for now lol)
+		if (p->shoot & 1) divisor /= 4;
+		range(i, 3) p->m.pos[i] += p->inputs[i] / divisor;
+
+		p->prox = gs->vb_root;
+		return;
+	}
+
+	p->vel[2] -= gs_gravity; // gravity
+
+	offset dest;
+	range(i, 3) dest[i] = p->m.pos[i] + p->vel[i];
+
+	queryResults.num = 0;
+	p->prox = velbox_query(p->prox, p->m.pos, p->vel, 2000, &queryResults);
+	unitvec forceDir;
+	offset contactVel;
+	int32_t time;
+	queryResults.qsort(playerPhysLe);
+	rangeconst(j, queryResults.num) {
+		// Todo: We are blindly assuming this mover is part of a solid.
+		//       It's a safe bet for now, since we only keep players in the
+		//       velbox space briefly (and not right now), but it's brittle.
+		solid *s = solidFromMover(queryResults[j]);
+		// todo: I think at this point `p->m.pos` and `p->m.oldPos` are the same vector?
+		//       If so, should change to `oldPos`, since that makes more sense in context.
+		int64_t dist = collide_check(p->m.pos, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel, &time);
+		if (!dist) continue;
+		range(i, 3) contactVel[i] += p->vel[i];
+		pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
+	}
+
+	memcpy(p->m.pos, dest, sizeof(dest));
+
+	if (p->hitsCooldown) {
+		p->hitsCooldown--;
+		if (!p->hitsCooldown) {
+			if (p->hits >= 3) {
+				killPlayer(p);
+				// Todo: Add gibs
+			} else {
+				p->hits = 0;
+			}
+		}
+	}
+}
+
+void playerAddBox(gamestate *gs, player *_p) {
+	player &p = *_p;
+
+	if (!p.alive) {
+		// Usually false
+		if (p.m.b) {
+			velbox_reclaimDead(p.m.b);
+			p.m.b = NULL;
+		}
+		return;
+	}
+
+	// Usually true
+	if (p.m.b) {
+		velbox_reclaimDead(p.m.b);
+	}
+
+	box *b = p.m.b = velbox_alloc();
+	memcpy(b->pos, p.m.oldPos, sizeof(b->pos));
+	range(j, 3) b->vel[j] = p.m.pos[j] - p.m.oldPos[j];
+	// TODO define for SHAPE_CUBE (=0)
+	b->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
+	b->end = b->start + 1;
+	b->data = &p.m;
+	velbox_insert(p.prox, b);
+}
+
 static void rotateInputDesire(unitvec out, unitvec const in, unitvec const norm) {
 	// Todo: There's bound to be lots of optimizations I can do here,
 	//       since we know lots of things about our inputs.
@@ -195,12 +280,27 @@ void pl_postStep(gamestate *gs, player *p) {
 	(*tool->defn->use)(gs, p, shootInput, tool);
 }
 
-void player_hitsCooldown(player *p) {
-	if (p->hits < 3) {
-		// 7 seconds to heal feels about right??
-		p->hitsCooldown = 15*7;
-	} else if (p->hits == 3) {
-		// Enough time for them to get off one more shot
-		p->hitsCooldown = 10;
+// Doesn't really sensibly account for negative hits,
+// but 0-hits are kind of meaningful.
+void player_hit(player *p, int hits) {
+	int oldHits = p->hits;
+	p->hits += hits;
+
+	if (oldHits < 3) {
+		if (p->hits < 3) {
+			// 7 seconds to heal feels about right??
+			p->hitsCooldown = 15*7;
+		} else {
+			// Enough time for them to get off one more shot
+			p->hitsCooldown = 10;
+		}
 	}
+}
+
+void player_init() {
+	queryResults.init();
+}
+
+void player_destroy() {
+	queryResults.destroy();
 }

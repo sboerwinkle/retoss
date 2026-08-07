@@ -5,12 +5,13 @@
 
 #include "task.h"
 
+#include "tasks/blast.h"
+#include "tasks/doPlayers.h"
 #include "tasks/dynamics.h"
 #include "tasks/killPlane.h"
 #include "tasks/rails.h"
 #include "tasks/rocket.h"
 #include "tasks/tdmScore.h"
-#include "tasks/blast.h"
 
 static list<taskDefn> taskDefns;
 
@@ -37,12 +38,13 @@ static void add(int id, void (*f)(taskDefn*)) {
 void task_init() {
 	taskDefns.init();
 
-	add(TSK_TDM, &defineTask_tdmScore);
+	add(TSK_BLAST, &defineTask_blast);
+	add(TSK_DO_PLAYERS, &taskDoPlayers_define);
+	add(TSK_DYNAMICS, &defineTask_dynamics);
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
 	add(TSK_RAILS, &defineTask_rails);
 	add(TSK_ROCKET, &taskRocket_define);
-	add(TSK_DYNAMICS, &defineTask_dynamics);
-	add(TSK_BLAST, &defineTask_blast);
+	add(TSK_TDM, &defineTask_tdmScore);
 }
 
 void task_destroy() {

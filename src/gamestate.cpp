@@ -6,14 +6,11 @@
 #include "gamestate.h"
 #include "game_graphics.h"
 
-#include "collision.h"
 #include "constel.h"
 #include "player.h"
 
 #include "tools/rifle.h"
 #include "tools/rl.h"
-
-static list<mover*> queryResults;
 
 int32_t gs_gravity = 30;
 
@@ -93,11 +90,15 @@ void validateSize(int64_t *_size) {
 	}
 }
 
-void validateShape(int32_t *_shape) {
-	int32_t &shape = *_shape;
+// TODO `mover` pointers are cast to other types based on T_MASK,
+//      so really we need to pass in some kind of expectations we can
+//      validate here. I'm lazy tho
+void validateType(int32_t *type) {
+	int32_t shape = *type & (~T_MASK);
+
 	if (shape < 0 || shape >= NUM_SHAPES) {
-		printf("Invalid shape type %d!!\n", shape);
-		shape = 0;
+		printf("Invalid shape %d from mover type 0x%X\n", shape, *type);
+		*type = 0;
 	}
 }
 
@@ -111,7 +112,7 @@ void validateTex(int32_t *_tex) {
 }
 
 static void moverValidate(mover *m) {
-	validateShape(&m->type);
+	validateType(&m->type);
 }
 
 static void solidValidate(solid *s) {
@@ -339,94 +340,6 @@ void addTaskEnd(gamestate *gs, int taskId, void *data) {
 	p->next = t;
 }
 
-static char playerPhysLe(mover* const &a, mover* const &b) {
-	// Simple for now.
-	// We check higher objects first,
-	// mostly because this reduces the ability to jump off
-	// horizontal seams in walls.
-	return a->pos[2] >= b->pos[2];
-}
-
-static void playerUpdate(gamestate *gs, player *p) {
-	// We copy `rot`=>`oldRot` when player input happens.
-	memcpy(p->m.oldPos, p->m.pos, sizeof(p->m.pos));
-	if (!p->alive) {
-		int divisor = 64;
-		// TODO some way to go real slow (but I'm out of net inputs for now lol)
-		if (p->shoot & 1) divisor /= 4;
-		range(i, 3) p->m.pos[i] += p->inputs[i] / divisor;
-
-		p->prox = gs->vb_root;
-		return;
-	}
-
-	p->vel[2] -= gs_gravity; // gravity
-
-	offset dest;
-	range(i, 3) dest[i] = p->m.pos[i] + p->vel[i];
-
-	queryResults.num = 0;
-	p->prox = velbox_query(p->prox, p->m.pos, p->vel, 2000, &queryResults);
-	unitvec forceDir;
-	offset contactVel;
-	int32_t time;
-	queryResults.qsort(playerPhysLe);
-	rangeconst(j, queryResults.num) {
-		// Todo: We are blindly assuming this mover is part of a solid.
-		//       It's a safe bet for now, since we only keep players in the
-		//       velbox space briefly (and not right now), but it's brittle.
-		solid *s = solidFromMover(queryResults[j]);
-		// todo: I think at this point `p->m.pos` and `p->m.oldPos` are the same vector?
-		//       If so, should change to `oldPos`, since that makes more sense in context.
-		int64_t dist = collide_check(p->m.pos, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel, &time);
-		if (!dist) continue;
-		range(i, 3) contactVel[i] += p->vel[i];
-		pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
-	}
-
-	memcpy(p->m.pos, dest, sizeof(dest));
-
-	if (p->hitsCooldown) {
-		p->hitsCooldown--;
-		if (!p->hitsCooldown) {
-			if (p->hits >= 3) {
-				killPlayer(p);
-				// Todo: Add gibs
-			} else {
-				p->hits = 0;
-			}
-		}
-	}
-}
-
-static void playerAddBoxes(gamestate *gs) {
-	rangeconst(i, gs->players.num) {
-		player &p = gs->players[i];
-		if (!p.alive) {
-			// Usually false
-			if (p.m.b) {
-				velbox_reclaimDead(p.m.b);
-				p.m.b = NULL;
-			}
-			continue;
-		}
-
-		// Usually true
-		if (p.m.b) {
-			velbox_reclaimDead(p.m.b);
-		}
-
-		box *b = p.m.b = velbox_alloc();
-		memcpy(b->pos, p.m.oldPos, sizeof(b->pos));
-		range(j, 3) b->vel[j] = p.m.pos[j] - p.m.oldPos[j];
-		// TODO define for SHAPE_CUBE (=0)
-		b->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
-		b->end = b->start + 1;
-		b->data = &p.m;
-		velbox_insert(p.prox, b);
-	}
-}
-
 void runTick(gamestate *gs) {
 
 	gs->clock++;
@@ -446,6 +359,7 @@ void runTick(gamestate *gs) {
 			(*t->defn->step)(gs, t->data);
 		}
 	}
+	// Todo: Maybe this step is also a task, have it sit after rails?
 	rangeconst(i, gs->constels.num) {
 		constelUpdate(gs, gs->constels[i]);
 	}
@@ -463,20 +377,6 @@ void runTick(gamestate *gs) {
 	// Todo: If I cared about efficiency here, `trails` could be a `queue`.
 	while(gs->trails.num && gs->trails[0].expiry <= vb_now) {
 		gs->trails.stableRmAt(0);
-	}
-
-	range(i, gs->players.num) {
-		playerUpdate(gs, &gs->players[i]);
-	}
-
-	// TODO Player stuff should be a task so we can order it correctly (after dynamics, before rockets)
-	playerAddBoxes(gs);
-	range(i, gs->players.num) {
-		if (gs->players[i].alive) {
-			// This uses `bcast`, which requires stuff to have its
-			// old position populated. Must run after other stuff.
-			pl_postStep(gs, &gs->players[i]);
-		}
 	}
 
 	while (toDelete) {
@@ -629,6 +529,10 @@ void cleanup(gamestate *gs) {
 	gs->selection.destroy();
 	rangeconst(i, gs->players.num) playerDestroy(&gs->players[i]);
 	gs->players.destroy();
+}
+
+void coreSetup(gamestate *gs) {
+	addTaskStart(gs, TSK_DO_PLAYERS, NULL);
 }
 
 // Seriz / Deser stuff
@@ -898,9 +802,7 @@ void dyntex_holder::decr() {
 }
 
 void gamestate_init() {
-	queryResults.init();
 }
 
 void gamestate_destroy() {
-	queryResults.destroy();
 }

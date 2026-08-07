@@ -51,8 +51,7 @@ static void blowUp(taskRocket *data, box *p) {
 		int64_t mg = mag(d);
 		if (mg > BLAST_R || !mg) continue;
 		range(i, 3) blastee->vel[i] += d[i]*800/mg;
-		blastee->hits += 2;
-		player_hitsCooldown(blastee);
+		player_hit(blastee, 2);
 	}
 	blastMovers.destroy();
 }
@@ -88,18 +87,18 @@ static char step(gamestate *gs, void *_data) {
 		data->m.pos[i] += data->vel[i];
 		smokeV[i] = data->vel[i] - 4*data->accel[i];
 	}
-	tskBlast_create(gs, data->m.oldPos, smokeV, 1000, 0, 4);
+	tskBlast_create(gs, data->m.oldPos, smokeV, 2000, 0, 2);
 
 	// Todo: Can I do better than re-allocating every time? Is it worth it?
 	list<mover*> toCheck;
 	toCheck.init();
 
-	unitvec _forceDir;
-	// `vec` will mean different things depending on what we hit,
-	// but it's always related to figuring out the rocket's explosion positoin.
-	offset vec; // Has different meanin
+	unitvec forceDir;
+	offset contactVel;
 	mover *best = NULL;
 	int32_t bestTime = FIXP+1;
+	// `bestVec` will mean different things depending on what we hit,
+	// but it's always related to figuring out the rocket's explosion positoin.
 	offset bestVec;
 
 	parent = velbox_query(parent, data->m.oldPos, data->vel, RADIUS, &toCheck);
@@ -107,28 +106,7 @@ static char step(gamestate *gs, void *_data) {
 		mover *other = toCheck[iter];
 		int32_t type = other->type & T_MASK;
 		int32_t time;
-		if (!type) {
-			solid *s = solidFromMover(other);
-			int64_t dist = collide_check(data->m.oldPos, data->m.pos, RADIUS, s, _forceDir, vec, &time);
-			if ((dist) && time < bestTime) {
-				best = other;
-				bestTime = time;
-				memcpy(bestVec, vec, sizeof(vec));
-			}
-		} else if (type == T_PLAYER) {
-			// TODO players should contain a full-fledged solid,
-			//      but making it on the fly works for now.
-			solid tmp;
-			tmp.m = *other;
-			tmp.r = PLAYER_SHAPE_RADIUS;
-			// `tex`, `b`, and `clone` don't matter
-			int64_t dist = collide_check(data->m.oldPos, data->m.pos, RADIUS, &tmp, _forceDir, vec, &time);
-			if ((dist) && time < bestTime) {
-				best = other;
-				bestTime = time;
-				memcpy(bestVec, vec, sizeof(vec));
-			}
-		} else if (type == T_PROJ) {
+		if (type == T_PROJ) {
 			// Need to figure out where the radius comes from -
 			// mover should probably have either a radius or the box ptr
 			char hit = collide_sphere(data->m.oldPos, data->m.pos, RADIUS*2, other, &time);
@@ -136,6 +114,35 @@ static char step(gamestate *gs, void *_data) {
 				best = other;
 				bestTime = time;
 				memcpy(bestVec, other->pos, sizeof(bestVec));
+			}
+			continue;
+		}
+		solid *s;
+		solid tmp;
+		if (!type) {
+			s = solidFromMover(other);
+		} else if (type == T_PLAYER) {
+			// TODO players should contain a full-fledged solid,
+			//      but making it on the fly works for now.
+			tmp.m = *other;
+			tmp.r = PLAYER_SHAPE_RADIUS;
+			// `tex`, `b`, and `clone` don't matter
+			s = &tmp;
+		} else {
+			printf("tasks/rocket: bad type 0x%X\n", type);
+			continue;
+		}
+
+		int64_t dist = collide_check(data->m.oldPos, data->m.pos, RADIUS, s, forceDir, contactVel, &time);
+		if (dist && time < bestTime) {
+			// contactVel has to be updated with our velocity,
+			// definitely the weirdest part of the `collide_check` behavior.
+			range(i, 3) contactVel[i] += data->vel[i];
+			// To avoid hitting things we're leaving... like the player that launched the rocket
+			if (dot(contactVel, forceDir) <= 0) {
+				best = other;
+				bestTime = time;
+				memcpy(bestVec, contactVel, sizeof(bestVec));
 			}
 		}
 	}
@@ -160,14 +167,12 @@ static char step(gamestate *gs, void *_data) {
 			}
 			memcpy(data->vel, pl->vel, sizeof(data->vel));
 			// Direct hit kills you
-			pl->hits += 3;
-			player_hitsCooldown(pl);
+			player_hit(pl, 3);
 		} else {
 			range(i, 3) {
-				// TODO make sure sign isn't backwards
-				data->m.pos[i] += bestVec[i] * (FIXP-bestTime) / FIXP;
+				data->m.pos[i] -= bestVec[i] * (FIXP-bestTime) / FIXP;
+				data->vel[i] -= bestVec[i];
 			}
-			memcpy(data->vel, bestVec, sizeof(bestVec));
 		}
 		data->ttl = 1;
 	}
@@ -245,12 +250,12 @@ void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *p
 		data->m.oldPos[i] = -1;
 		// Arbitrarily use radius as starting offset here
 		data->m.pos[i] = p1[i] + RADIUS * dir[i] / FIXP;
-		data->vel[i] = vel[i] + 100 * dir[i] / FIXP;
-		data->accel[i] = 100 * dir[i] / FIXP;
+		data->vel[i] = vel[i] + 600 * dir[i] / FIXP;
+		data->accel[i] = 300 * dir[i] / FIXP;
 	}
 	data->m.type = T_PROJ;
-	// A minute of flight time should be plenty lol
-	data->ttl = 60*15;
+	// 10s of flight time
+	data->ttl = 10*15;
 
 	// a dead box with the right parent
 	data->m.b = velbox_alloc();

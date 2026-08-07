@@ -21,8 +21,9 @@ struct taskInstance {
 #define TSK_KILL_PLANE 120
 #define TSK_RAILS 140
 #define TSK_DYNAMICS 200
-#define TSK_ROCKET 300
-#define TSK_RIFLE_SHOT 400
+#define TSK_DO_PLAYERS 300
+#define TSK_ROCKET 400
+#define TSK_RIFLE_SHOT 500
 
 extern taskDefn* taskLookup(int id);
 

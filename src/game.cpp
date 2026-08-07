@@ -226,6 +226,7 @@ void game_init() {
 	tool_init();
 	velbox_init();
 	gamestate_init();
+	player_init();
 	dl_init();
 	bctx_init();
 	bcast_init();
@@ -247,7 +248,9 @@ gamestate* game_init2() {
 	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
 	gs->seed = now.tv_sec;
 
+	coreSetup(gs);
 	lv_tdm1(gs);
+
 	if (strcmp("y", cfg_no_ui.get())) {
 		// This setup code actually runs before we get our response from the server,
 		// which can result in weirdness if we wind up hanging waiting for a connection
@@ -268,6 +271,7 @@ void game_destroy() {
 	bcast_destroy();
 	bctx_destroy();
 	dl_destroy();
+	player_destroy();
 	gamestate_destroy();
 	velbox_destroy();
 	tool_destroy();
@@ -921,21 +925,25 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	} else if (isCmd(str, "/lv_tdm1")) {
 		if (isReal) {
 			prepareGamestateForLoad(gs, 0);
+			coreSetup(gs);
 			lv_tdm1(gs);
 		}
 	} else if (isCmd(str, "/lv_playground")) {
 		if (isReal) {
 			prepareGamestateForLoad(gs, 0);
+			coreSetup(gs);
 			lv_playground(gs);
 		}
 	} else if (isCmd(str, "/lv_swarm")) {
 		if (isReal) {
 			prepareGamestateForLoad(gs, 0);
+			coreSetup(gs);
 			lv_swarm(gs);
 		}
 	} else if (isCmd(str, "/lv_peaks")) {
 		if (isReal) {
 			prepareGamestateForLoad(gs, 0);
+			coreSetup(gs);
 			lv_peaks(gs);
 		}
 	} else if (isCmd(str, "/die")) {
@@ -1048,7 +1056,10 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
-		if (m == &self->m) continue;
+		if (
+			m == &self->m
+			|| (T_MASK & m->type) == T_PROJ // TODO eventually we can shoot these, remove exclusion!
+		) continue;
 		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
 	}
 }

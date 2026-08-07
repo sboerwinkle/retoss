@@ -44,8 +44,10 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 		// Todo: Surely we'll need this more often, right? Save it somewhere?
 		unitvec look;
 		iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
+		offset vel;
+		range(i, 3) vel[i] = p->m.pos[i] - p->m.oldPos[i];
 
-		taskRocket_create(gs, p->m.oldPos, p->vel, look, p->prox);
+		taskRocket_create(gs, p->m.oldPos, vel, look, p->prox);
 	}
 }
 

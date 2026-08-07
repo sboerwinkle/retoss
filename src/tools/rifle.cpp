@@ -55,8 +55,7 @@ static void shoot(gamestate *gs, player *p) {
 				+ who * 0x1'0000
 				+ shootee->hits;
 			addPlayerSound(soundTime, who, soundId, 1);
-			shootee->hits++;
-			player_hitsCooldown(shootee);
+			player_hit(shootee, 1);
 		} else {
 			uint32_t soundId =
 				0xFF00'FF01
