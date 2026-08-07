@@ -73,7 +73,8 @@ shapeSpec shapeSpecs[3] = {
 	},
 };
 
-int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out) {
+// Todo `radius` should be int64_t
+int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out, int32_t *time_out) {
 	/*
 	char debug = s->m.type == 1 && s->tex == 5;
 	char debug =
@@ -98,7 +99,7 @@ int64_t collide_check(offset const oldPos, offset dest, int32_t radius, solid *s
 	imat_applySm(v1, rot1, v1raw);
 	imat_applySm(v2, rot2, v2raw);
 
-	shapeSpec &sh = shapeSpecs[s->m.type];
+	shapeSpec &sh = shapeSpecs[s->m.type & (~T_MASK)];
 	int winner1 = 0;
 	int64_t best = INT64_MIN;
 	//int64_t winnerDepth = 0;
@@ -280,6 +281,8 @@ foundSampleNorm:;
 		if (lower >= upper) return 0;
 	}
 
+	*time_out = lower;
+
 	// Okay! All that rigamarole later, we still haven't
 	// returned, so the answer is "yes, we have a hit".
 	range(i, 3) o[i] = magicPt[i] - v2[i];
@@ -308,6 +311,46 @@ foundSampleNorm:;
 	range(i, 3) contactVel_out[i] = s->m.oldPos[i] - s->m.pos[i] + v1[i] - v2[i];
 
 	return dist;
+}
+
+char collide_sphere(offset const p1, offset const p2, int64_t radius, mover *m, int32_t *time) {
+	offset v1, v2;
+	offset delta;
+	range(i, 3) {
+		v1[i] = p1[i] - m->oldPos[i];
+		v2[i] = p2[i] - m->pos[i];
+		delta[i] = v2[i] - v1[i];
+	}
+	unitvec dir;
+	int64_t mg = mag(delta);
+	range(i, 3) {
+		dir[i] = delta[i] * FIXP / mg;
+	}
+
+	int64_t dist = raycast_sphere(v1, dir, radius);
+
+	if (dist >= 0 && dist <= mg) {
+		*time = dist * FIXP / mg;
+		return 1;
+	}
+	return 0;
+}
+
+// Todo: Actually returns the distance until closest approach (if it hits), not
+//       the distance until it hits the surface. Doesn't really matter for our
+//       current usages. Will have to handle trying to square `radius` if it
+//       needs to be better...
+int64_t raycast_sphere(offset const pos, unitvec const dir, int64_t radius) {
+	int64_t x = dot(pos, dir);
+	if (x > 0) return -1;
+	offset p;
+	range(i, 3) {
+		p[i] = pos[i] - x * dir[i] / FIXP;
+	}
+	int64_t lowerBound = std::max(labs(p[0]), std::max(labs(p[1]), labs(p[2])));
+	if (lowerBound >= radius) return -1;
+	if (mag(p) >= radius) return -1;
+	return -x;
 }
 
 // Next up is probably figuring out how to collide something that has a number of spheres

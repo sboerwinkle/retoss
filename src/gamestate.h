@@ -18,6 +18,8 @@ struct mover; // "box" and "gamestate" reference each other's types
 
 #define NUM_SHAPES 3
 #define T_PLAYER 32
+#define T_PROJ 64
+#define T_MASK (15*32)
 
 extern int32_t gs_gravity;
 extern double const shapeDiagonalMultipliers[NUM_SHAPES];
@@ -27,6 +29,7 @@ struct mover { // This is kind of just a grouping of fields; we use it for e.g. 
 	int64_t oldPos[3];
 	iquat rot, oldRot;
 	int type;
+	box *b;
 };
 
 #define DYNTEX_BUF_LEN 8
@@ -50,6 +53,7 @@ struct player {
 	int32_t inputs[3];
 	char jump, shoot, alive;
 	char team;
+	char loadout;
 	u8 hits, hitsCooldown;
 	box *prox;
 	dyntex_holder *skin;
@@ -62,7 +66,6 @@ struct solid {
 	//int64_t vel[3];
 	int64_t r;
 	int32_t tex;
-	box *b;
 
 	// Currently this is only being used for `gs->selection`.
 	clone_t clone;
@@ -127,6 +130,7 @@ struct gamestate {
 
 extern void resetPlayer(gamestate *gs, int i);
 extern void softResetPlayer(player *p);
+extern void rekitPlayer(player *p);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 extern void killPlayer(player *p);
 
@@ -143,7 +147,8 @@ extern constelInst* mkConstelInst(constel *c, int32_t duration);
 extern void addConstelInst(gamestate *gs, constelInst *ci);
 extern void deleteConstelInst(constelInst *ci);
 
-extern void addTask(gamestate *gs, int taskId, void *data);
+extern void addTaskStart(gamestate *gs, int taskId, void *data);
+extern void addTaskEnd(gamestate *gs, int taskId, void *data);
 
 extern void runTick(gamestate *gs);
 
@@ -155,6 +160,7 @@ extern void init(gamestate *gs);
 extern void cleanup(gamestate *gs);
 
 extern void write32(list<char> *data, int32_t v);
+extern void transMover(mover *m);
 extern void transSolid(solid *s);
 extern void serialize(gamestate *gs, list<char> *data);
 extern void deserialize(gamestate *gs, list<char> *data, char fullState);

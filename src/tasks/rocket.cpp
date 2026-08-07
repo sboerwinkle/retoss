@@ -1,0 +1,265 @@
+#include <math.h>
+#include "../util.h"
+
+#include "../matrix.h"
+#include "../gamestate.h"
+
+#include "../bctx.h"
+#include "../collision.h"
+#include "../graphics.h"
+#include "../player.h"
+#include "../task.h"
+#include "../serialize.h"
+
+#include "blast.h"
+
+#include "rocket.h"
+
+#define RADIUS 400
+#define BLAST_R 5000
+
+static void putVb(taskRocket *data, box *guess) {
+	box *tmp = velbox_alloc();
+	data->m.b = tmp;
+	memcpy(tmp->pos, data->m.oldPos, sizeof(tmp->pos));
+	// Todo usually data->vel is correct, maybe
+	//      add special case for after impact to do more math?
+	//memcpy(tmp->vel, data->vel, sizeof(tmp->vel));
+	range(i, 3) tmp->vel[i] = data->m.pos[i] - data->m.oldPos[i];
+	tmp->r = RADIUS;
+	tmp->end = tmp->start + 1;
+	tmp->data = &data->m;
+	velbox_insert(guess, tmp);
+}
+
+static void blowUp(taskRocket *data, box *p) {
+
+	offset queryV;
+	range(i, 3) queryV[i] = data->m.pos[i] - data->m.oldPos[i];
+
+	list<mover*> blastMovers;
+	blastMovers.init();
+	velbox_query(p, data->m.oldPos, queryV, BLAST_R, &blastMovers);
+	rangeconst(iter, blastMovers.num) {
+		mover *m = blastMovers[iter];
+		if (!(m->type & T_PLAYER)) continue;
+		player *blastee = playerFromMover(m);
+		offset d;
+		range(i, 3) d[i] = blastee->m.pos[i] - data->m.pos[i];
+		// This should almost always be small enough to safely square,
+		// but for relativistic players maybe not.
+		int64_t mg = mag(d);
+		if (mg > BLAST_R || !mg) continue;
+		range(i, 3) blastee->vel[i] += d[i]*800/mg;
+		blastee->hits += 2;
+		player_hitsCooldown(blastee);
+	}
+	blastMovers.destroy();
+}
+
+static char step(gamestate *gs, void *_data) {
+	taskRocket *data = (taskRocket*)_data;
+
+	box *parent = data->m.b->parent;
+	// For now these are 1-frame only boxes,
+	// so we know it's dead!
+	velbox_reclaimDead(data->m.b);
+
+	if (!data->ttl) {
+		// force/damage happened at the end of last frame,
+		// smoke happens at the start of this one.
+		tskBlast_create(gs, data->m.pos, data->vel, 5000, 80, 160);
+		return 1;
+	}
+
+	// TODO We're never going to use `oldRot` or `rot`,
+	//      maybe they rightly belong to `solid`?
+	//      Players need them too; maybe players have a solid?
+	memcpy(data->m.oldPos, data->m.pos, sizeof(offset));
+	offset smokeV;
+	if (!(data->ttl % 4)) {
+		// Only applying `accel` periodically lets it be
+		// more granular in terms of direction
+		range(i, 3) {
+			data->vel[i] += data->accel[i];
+		}
+	}
+	range(i, 3) {
+		data->m.pos[i] += data->vel[i];
+		smokeV[i] = data->vel[i] - 4*data->accel[i];
+	}
+	tskBlast_create(gs, data->m.oldPos, smokeV, 1000, 0, 4);
+
+	// Todo: Can I do better than re-allocating every time? Is it worth it?
+	list<mover*> toCheck;
+	toCheck.init();
+
+	unitvec _forceDir;
+	// `vec` will mean different things depending on what we hit,
+	// but it's always related to figuring out the rocket's explosion positoin.
+	offset vec; // Has different meanin
+	mover *best = NULL;
+	int32_t bestTime = FIXP+1;
+	offset bestVec;
+
+	parent = velbox_query(parent, data->m.oldPos, data->vel, RADIUS, &toCheck);
+	rangeconst(iter, toCheck.num) {
+		mover *other = toCheck[iter];
+		int32_t type = other->type & T_MASK;
+		int32_t time;
+		if (!type) {
+			solid *s = solidFromMover(other);
+			int64_t dist = collide_check(data->m.oldPos, data->m.pos, RADIUS, s, _forceDir, vec, &time);
+			if ((dist) && time < bestTime) {
+				best = other;
+				bestTime = time;
+				memcpy(bestVec, vec, sizeof(vec));
+			}
+		} else if (type == T_PLAYER) {
+			// TODO players should contain a full-fledged solid,
+			//      but making it on the fly works for now.
+			solid tmp;
+			tmp.m = *other;
+			tmp.r = PLAYER_SHAPE_RADIUS;
+			// `tex`, `b`, and `clone` don't matter
+			int64_t dist = collide_check(data->m.oldPos, data->m.pos, RADIUS, &tmp, _forceDir, vec, &time);
+			if ((dist) && time < bestTime) {
+				best = other;
+				bestTime = time;
+				memcpy(bestVec, vec, sizeof(vec));
+			}
+		} else if (type == T_PROJ) {
+			// Need to figure out where the radius comes from -
+			// mover should probably have either a radius or the box ptr
+			char hit = collide_sphere(data->m.oldPos, data->m.pos, RADIUS*2, other, &time);
+			if (hit && time < bestTime) {
+				best = other;
+				bestTime = time;
+				memcpy(bestVec, other->pos, sizeof(bestVec));
+			}
+		}
+	}
+
+	toCheck.destroy();
+
+	if (best) {
+		int32_t type = T_MASK & best->type;
+		if (type == T_PROJ) {
+			memcpy(data->m.pos, bestVec, sizeof(bestVec));
+			taskRocket *other = rocketFromMover(best);
+			if (other->ttl) other->ttl = 1;
+			// data->vel unchanged.
+		} else if (type == T_PLAYER) {
+			// Ignore the surface velocity of players,
+			// it'd be kinda funny if you could "flick"
+			// rockets but frankly it would mostly be weird
+			player *pl = playerFromMover(best);
+			range(i, 3) {
+				int64_t d = (pl->m.pos[i] - pl->m.oldPos[i]) - (data->m.pos[i] - data->m.oldPos[i]);
+				data->m.pos[i] += d * (FIXP-bestTime) / FIXP;
+			}
+			memcpy(data->vel, pl->vel, sizeof(data->vel));
+			// Direct hit kills you
+			pl->hits += 3;
+			player_hitsCooldown(pl);
+		} else {
+			range(i, 3) {
+				// TODO make sure sign isn't backwards
+				data->m.pos[i] += bestVec[i] * (FIXP-bestTime) / FIXP;
+			}
+			memcpy(data->vel, bestVec, sizeof(bestVec));
+		}
+		data->ttl = 1;
+	}
+	if (data->ttl == 1) {
+		blowUp(data, parent);
+	}
+	data->ttl--;
+
+	putVb(data, parent);
+
+	return 0;
+}
+
+static char trans(gamestate *gs, void **ptr) {
+	if (seriz_reading) {
+		*ptr = malloc(sizeof(taskRocket));
+	}
+	taskRocket *data = (taskRocket*)*ptr;
+
+	if (!seriz_reading && !vb_live(data->m.b)) {
+		if (seriz_error()) {
+			puts("Rocket velbox not live, was it initialized improperly?");
+		}
+	}
+	transMover(&data->m);
+	transOffset(data->vel);
+	transOffset(data->accel);
+	trans32(&data->ttl);
+	return 0;
+}
+
+static void copy(void **_to, void *_from) {
+	taskRocket *from = (taskRocket*)_from;
+	taskRocket *to = (taskRocket*)malloc(sizeof(taskRocket));
+	*_to = to;
+
+#ifndef NODEBUG
+	if (!vb_live(from->m.b)) {
+		puts("Rocket velbox not live during copy!");
+	}
+#endif
+	*to = *from;
+	to->m.b = (box*)to->m.b->clone.ptr;
+	to->m.b->data = &to->m;
+}
+
+static void destroy(void *_data) {
+	taskRocket *data = (taskRocket*)_data;
+
+	// No need to clean up our box.
+	// During a game cleanup the velbox heirarchy will already be torn down,
+	// and we only explicitly request a destroy after cleaning up our box.
+
+	free(data);
+}
+
+void taskRocket_draw(void *_data) {
+	taskRocket *data = (taskRocket*)_data;
+	// TODO Is radius correct? Off by a factor of 2 in some direction?
+	// TODO Should pulse / waver
+	int64_t r = RADIUS;
+	drawBillboard(data->m.oldPos, data->m.pos, 1, 42.0/64, 0, 6.0/64, r);
+
+	reset3dTexScale();
+}
+
+// TODO Review anything that might be looking at T_PROJ.
+//      Eventually the rifle tool, but maybe not yet???
+
+void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent) {
+	taskRocket *data = (taskRocket*)malloc(sizeof(taskRocket));
+	addTaskEnd(gs, TSK_ROCKET, data);
+
+	range(i, 3) {
+		data->m.oldPos[i] = -1;
+		// Arbitrarily use radius as starting offset here
+		data->m.pos[i] = p1[i] + RADIUS * dir[i] / FIXP;
+		data->vel[i] = vel[i] + 100 * dir[i] / FIXP;
+		data->accel[i] = 100 * dir[i] / FIXP;
+	}
+	data->m.type = T_PROJ;
+	// A minute of flight time should be plenty lol
+	data->ttl = 60*15;
+
+	// a dead box with the right parent
+	data->m.b = velbox_alloc();
+	data->m.b->parent = parent;
+}
+
+void taskRocket_define(taskDefn *d) {
+	d->step = &step;
+	d->trans = &trans;
+	d->copy = &copy;
+	d->destroy = &destroy;
+}

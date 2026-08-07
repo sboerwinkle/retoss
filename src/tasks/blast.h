@@ -5,6 +5,7 @@ struct tskBlastBits {
 	int32_t time;
 	uint32_t seed;
 	int64_t r;
+	int32_t fireCount, smokeCount;
 	offset pos, vel;
 	list<tskBlastItem> bits;
 };
@@ -16,7 +17,7 @@ struct tskBlastData {
 	tskBlastBits *bb;
 };
 
-extern tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel);
+extern tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t r, int32_t fireCount, int32_t smokeCount);
 extern void tskBlast_draw(void *data, int32_t now);
 
 extern void defineTask_blast(taskDefn *d);

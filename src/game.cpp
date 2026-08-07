@@ -39,8 +39,9 @@
 
 #include "collision.h" // For raycasting
 
-#include "tasks/tdmScore.h"
 #include "tasks/blast.h"
+#include "tasks/rocket.h"
+#include "tasks/tdmScore.h"
 
 #include "game.h"
 #include "game_callbacks.h"
@@ -890,6 +891,15 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		} else if (isMe && isReal) {
 			printf("team = %hhd\n", p->team);
 		}
+	} else if (isCmd(str, "/kit")) {
+		char const *pos = str + 4;
+		int kit;
+		if (getNum(&pos, &kit)) {
+			p->loadout = kit;
+			rekitPlayer(p);
+		} else if (isMe && isReal) {
+			printf("kit = %hhd\n", p->loadout);
+		}
 	} else if (isCmd(str, "/name")) {
 		// We could do this without waiting for
 		// `isReal`, we'd just have to send and
@@ -1027,15 +1037,6 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 
 	unitvec dir;
 	range(i, 3) dir[i] = gfx_lookDir[i] * FIXP;
-	// Could use the stuff in vb_root, but the problem is not everything that's
-	// present while shooting is still there. For example, player boxes are
-	// cleaned up before the end of the step.
-	// For now we just try to check the same things that shooting does.
-	rangeconst(i, gs->players.num) {
-		player *p = &gs->players[i];
-		if (p == self || !p->alive) continue;
-		raycast_interp(best, &p->m, p1, p2, dir, gfx_interpRatio);
-	}
 
 	// Todo:
 	// This is horribly inefficient, but we're only doing it once per frame,
@@ -1047,6 +1048,7 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
+		if (m == &self->m) continue;
 		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
 	}
 }
@@ -1143,6 +1145,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 			drawSolid((solid*)t->data);
 		} else if (t->defn->id == TSK_BLAST) {
 			tskBlast_draw(t->data, now);
+		} else if (t->defn->id == TSK_ROCKET) {
+			taskRocket_draw(t->data);
 		}
 	}
 

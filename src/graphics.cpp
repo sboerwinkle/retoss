@@ -561,6 +561,8 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	fraction best = {.numer=hovDist, .denom=FIXP};
 	rangeconst(i, camCastCands.num) {
 		mover *m = camCastCands[i];
+		// Treat players as transparent for these purposes
+		if ((m->type & T_MASK) == T_PLAYER) continue;
 		range(j, 4) {
 			raycast_interp(&best, m, corners1[j], corners2[j], dir, gfx_interpRatio);
 		}

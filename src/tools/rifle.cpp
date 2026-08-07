@@ -5,6 +5,7 @@
 #include "../game_gamestate.h"
 #include "../graphics.h"
 #include "../main.h"
+#include "../player.h"
 #include "../serialize.h"
 #include "../tool.h"
 
@@ -55,13 +56,7 @@ static void shoot(gamestate *gs, player *p) {
 				+ shootee->hits;
 			addPlayerSound(soundTime, who, soundId, 1);
 			shootee->hits++;
-			if (shootee->hits < 3) {
-				// 7 seconds to heal feels about right??
-				shootee->hitsCooldown = 15*7;
-			} else if (shootee->hits == 3) {
-				// Enough time for them to get off one more shot
-				shootee->hitsCooldown = 10;
-			}
+			player_hitsCooldown(shootee);
 		} else {
 			uint32_t soundId =
 				0xFF00'FF01
@@ -72,13 +67,13 @@ static void shoot(gamestate *gs, player *p) {
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
 			addSound(soundTime, impact, v, soundId, 3);
-			tskBlast_create(gs, impact, v);
+			tskBlast_create(gs, impact, v, 3000, 20, 40);
 
 			solid *s = solidFromMover(result);
 			list<mover*> blastMovers;
 			blastMovers.init();
 			// Currently the blast radius is 3k units, need to write this down somewhere
-			velbox_query(s->b, impact, v, 3000, &blastMovers);
+			velbox_query(s->m.b, impact, v, 3000, &blastMovers);
 			rangeconst(iter, blastMovers.num) {
 				mover *m = blastMovers[iter];
 				if (!(m->type & T_PLAYER)) continue;
@@ -142,7 +137,7 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 
 static char trans(toolInst **_data) {
 	if (seriz_reading) {
-		*_data = new toolRifle;
+		*_data = (toolRifle*)malloc(sizeof(toolRifle));
 	}
 	toolRifle &data = *(toolRifle*)*_data;
 	trans32(&data.cooldown);
@@ -150,18 +145,18 @@ static char trans(toolInst **_data) {
 }
 
 static void copy(toolInst **_to, toolInst *_from) {
-	*_to = new toolRifle;
+	*_to = (toolRifle*)malloc(sizeof(toolRifle));
 	toolRifle &to = *(toolRifle*)*_to;
 	toolRifle &from = *(toolRifle*)_from;
 	to.cooldown = from.cooldown;
 }
 
 static void destroy(toolInst *data) {
-	delete data;
+	free(data);
 }
 
 void toolRifle_create(toolInst **_data) {
-	*_data = new toolRifle;
+	*_data = (toolRifle*)malloc(sizeof(toolRifle));
 	toolRifle &data = *(toolRifle*)*_data;
 	data.defn = toolLookup(TOOL_RIFLE);
 	data.cooldown = 0;

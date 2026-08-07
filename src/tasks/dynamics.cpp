@@ -52,10 +52,10 @@ static char step(gamestate *gs, void *_data) {
 	data->vel[2] -= gs_gravity;
 	range(i, 3) data->s.m.pos[i] += data->vel[i];
 
-	box *p = data->s.b->parent;
+	box *p = data->s.m.b->parent;
 	// For now these are 1-frame only boxes,
 	// so we know it's dead!
-	velbox_reclaimDead(data->s.b);
+	velbox_reclaimDead(data->s.m.b);
 
 	list<mover*> toCheck;
 	list<pendingCollide> collisions;
@@ -87,7 +87,8 @@ static char step(gamestate *gs, void *_data) {
 				corner_p1[k] = o1[k] + data->s.m.oldPos[k];
 				corner_p2[k] = o2[k] + data->s.m.pos[k];
 			}
-			int64_t dist = collide_check(corner_p1, corner_p2, KNOB_R, s, collide->forceDir, collide->contactVel);
+			int32_t time_dummy;
+			int64_t dist = collide_check(corner_p1, corner_p2, KNOB_R, s, collide->forceDir, collide->contactVel, &time_dummy);
 			if (dist) {
 				collide->dist = dist;
 				collide = &collisions.add();
@@ -291,7 +292,7 @@ static void destroy(void *_data) {
 
 void tskDynamics_create(gamestate *gs, buildCtx *c, offset const vel, iquat const rvel) {
 	tskDynamicsData *data = (tskDynamicsData*)malloc(sizeof(tskDynamicsData));
-	addTask(gs, TSK_DYNAMICS, data);
+	addTaskEnd(gs, TSK_DYNAMICS, data);
 
 	memcpy(data->s.m.pos, c->transf.pos, sizeof(offset));
 	memcpy(data->s.m.rot, c->transf.rot, sizeof(iquat));

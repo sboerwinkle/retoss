@@ -1,10 +1,14 @@
+- Lower TDM score limit / make configurable
+- Snap position to players when dead somehow?
 . Non-obvious issues if there's no connection to server
 . Robert's mad about favicon
 - Weird smearing from mipmaps
-- Windows port I guess
+. Windows port I guess
 . climbing route issue in peaks
 - sounds
+	- taunt
 	- Change damaged noise
+	- (loud) Death noise
 	. Kinda there!
 	- volume control (at least mute)
 	. shooting, hurting sounds

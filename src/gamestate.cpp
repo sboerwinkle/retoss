@@ -11,9 +11,9 @@
 #include "player.h"
 
 #include "tools/rifle.h"
+#include "tools/rl.h"
 
 static list<mover*> queryResults;
-static list<box*> tmpPlayerBoxes;
 
 int32_t gs_gravity = 30;
 
@@ -25,12 +25,14 @@ void resetPlayer(gamestate *gs, int ix) {
 		.rot={FIXP,0,0,0},
 		.oldRot={0,0,0,0},
 		.type=T_PLAYER,
+		.b=NULL,
 	};
 	range(i, 3) {
 		p.inputs[i] = 0;
 	}
 	p.team=-1;
 	p.prox=gs->vb_root;
+	p.loadout=0;
 	p.skin=NULL;
 	// Dummy tool so state is valid
 	toolRifle_create(&p.tool);
@@ -49,9 +51,17 @@ void softResetPlayer(player *_p) {
 		p.vel[i] = 0;
 	}
 
-	// Eventually this will populate the tool based on player settings I guess
+	rekitPlayer(_p);
+}
+
+void rekitPlayer(player *_p) {
+	player &p = *_p;
 	tool_destroy(p.tool);
-	toolRifle_create(&p.tool);
+	if (p.loadout) {
+		toolRl_create(&p.tool);
+	} else {
+		toolRifle_create(&p.tool);
+	}
 }
 
 void setupPlayers(gamestate *gs, int numPlayers) {
@@ -100,20 +110,23 @@ void validateTex(int32_t *_tex) {
 	}
 }
 
+static void moverValidate(mover *m) {
+	validateShape(&m->type);
+}
+
+static void solidValidate(solid *s) {
+	validateSize(&s->r);
+	validateTex(&s->tex);
+}
+
 // cube diagonal is sqrt(3), or approx 1.75 (=7/4)
 // slab diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
 // pole diagonal is like really close to 1 once you do the math
 double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2, 33.0f/32};
 
-static void solidValidate(solid *s) {
-	validateSize(&s->r);
-	validateShape(&s->m.type);
-	validateTex(&s->tex);
-}
-
 void solidPutVb(solid *s, box *guess, int duration) {
 	box *tmp = velbox_alloc();
-	s->b = tmp;
+	s->m.b = tmp;
 	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
 	range(i, 3) tmp->vel[i] = s->m.pos[i] - s->m.oldPos[i];
 	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type];
@@ -129,8 +142,8 @@ static void solidUpdate(gamestate *gs, solid *s) {
 
 	// The only other thing we're doing is updating our velbox,
 	// so if it's still live we leave it alone.
-	if (vb_live(s->b)) return;
-	box *old = s->b;
+	if (vb_live(s->m.b)) return;
+	box *old = s->m.b;
 	box *p = old->parent;
 	velbox_reclaimDead(old);
 	solidPutVb(s, p, 15);
@@ -145,8 +158,8 @@ void cpSolid(solid *t, solid *s) {
 	// I don't care enough to reset oldRot, but the same logic applies.
 
 	s->clone.ptr = t;
-	t->b = (box*)(s->b->clone.ptr);
-	t->b->data = &t->m;
+	t->m.b = (box*)(s->m.b->clone.ptr);
+	t->m.b->data = &t->m;
 }
 
 solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
@@ -177,7 +190,7 @@ void rmSolid(gamestate *gs, solid *s) {
 	// May not exist in selection, need to check first.
 	int ix;
 	if (-1 != (ix = gs->selection.find(s))) gs->selection.stableRmAt(ix);
-	velbox_remove(s->b);
+	velbox_remove(s->m.b);
 	delete s;
 }
 
@@ -218,9 +231,9 @@ static void constelUpdate(gamestate *gs, constelInst *_ci) {
 	if (ci.solids.num) {
 		constelMoveSolids(&ci);
 
-		if (!vb_live(ci.solids[0].b)) {
+		if (!vb_live(ci.solids[0].m.b)) {
 			rangeconst(i, ci.solids.num) {
-				box *old = ci.solids[i].b;
+				box *old = ci.solids[i].m.b;
 				box *p = old->parent;
 				velbox_reclaimDead(old);
 				solidPutVb(&ci.solids[i], p, ci.duration);
@@ -281,7 +294,7 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 	box *p = gs->vb_root;
 	rangeconst(i, ci->solids.num) {
 		solidPutVb(&ci->solids[i], p, ci->duration);
-		p = ci->solids[i].b->parent;
+		p = ci->solids[i].m.b->parent;
 	}
 
 	gs->constels.add(ci);
@@ -290,20 +303,40 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 void deleteConstelInst(constelInst *ci) {
 	ci->c->decr();
 	rangeconst(i, ci->solids.num) {
-		velbox_remove(ci->solids[i].b);
+		velbox_remove(ci->solids[i].m.b);
 	}
 	ci->solids.destroy();
 	free(ci);
 }
 
-void addTask(gamestate *gs, int taskId, void *data) {
+void addTaskStart(gamestate *gs, int taskId, void *data) {
 	taskInstance *t = new taskInstance;
 	t->defn = taskLookup(taskId);
 	t->data = data;
-	t->prev = gs->tasks.prev;
+
+	taskInstance *n = gs->tasks.next;
+	while (n != &gs->tasks && n->defn->id < taskId) {
+		n = n->next;
+	}
+	t->prev = n->prev;
 	t->prev->next = t;
-	t->next = &gs->tasks;
-	gs->tasks.prev = t;
+	t->next = n;
+	n->prev = t;
+}
+
+void addTaskEnd(gamestate *gs, int taskId, void *data) {
+	taskInstance *t = new taskInstance;
+	t->defn = taskLookup(taskId);
+	t->data = data;
+
+	taskInstance *p = gs->tasks.prev;
+	while (p != &gs->tasks && p->defn->id > taskId) {
+		p = p->prev;
+	}
+	t->next = p->next;
+	t->next->prev = t;
+	t->prev = p;
+	p->next = t;
 }
 
 static char playerPhysLe(mover* const &a, mover* const &b) {
@@ -336,6 +369,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 	p->prox = velbox_query(p->prox, p->m.pos, p->vel, 2000, &queryResults);
 	unitvec forceDir;
 	offset contactVel;
+	int32_t time;
 	queryResults.qsort(playerPhysLe);
 	rangeconst(j, queryResults.num) {
 		// Todo: We are blindly assuming this mover is part of a solid.
@@ -344,7 +378,7 @@ static void playerUpdate(gamestate *gs, player *p) {
 		solid *s = solidFromMover(queryResults[j]);
 		// todo: I think at this point `p->m.pos` and `p->m.oldPos` are the same vector?
 		//       If so, should change to `oldPos`, since that makes more sense in context.
-		int64_t dist = collide_check(p->m.pos, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel);
+		int64_t dist = collide_check(p->m.pos, dest, PLAYER_SHAPE_RADIUS, s, forceDir, contactVel, &time);
 		if (!dist) continue;
 		range(i, 3) contactVel[i] += p->vel[i];
 		pl_phys_standard(gs, forceDir, contactVel, dist, dest, p);
@@ -366,26 +400,30 @@ static void playerUpdate(gamestate *gs, player *p) {
 }
 
 static void playerAddBoxes(gamestate *gs) {
-	tmpPlayerBoxes.num = 0;
 	rangeconst(i, gs->players.num) {
 		player &p = gs->players[i];
-		if (!p.alive) continue;
+		if (!p.alive) {
+			// Usually false
+			if (p.m.b) {
+				velbox_reclaimDead(p.m.b);
+				p.m.b = NULL;
+			}
+			continue;
+		}
 
-		box *tmp = velbox_alloc();
-		memcpy(tmp->pos, p.m.oldPos, sizeof(tmp->pos));
-		range(j, 3) tmp->vel[j] = p.m.pos[j] - p.m.oldPos[j];
+		// Usually true
+		if (p.m.b) {
+			velbox_reclaimDead(p.m.b);
+		}
+
+		box *b = p.m.b = velbox_alloc();
+		memcpy(b->pos, p.m.oldPos, sizeof(b->pos));
+		range(j, 3) b->vel[j] = p.m.pos[j] - p.m.oldPos[j];
 		// TODO define for SHAPE_CUBE (=0)
-		tmp->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
-		tmp->end = tmp->start + 1;
-		tmp->data = &p.m;
-		velbox_insert(p.prox, tmp);
-		tmpPlayerBoxes.add(tmp);
-	}
-}
-
-static void playerRmBoxes(gamestate *gs) {
-	rangeconst(i, tmpPlayerBoxes.num) {
-		velbox_remove(tmpPlayerBoxes[i]);
+		b->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
+		b->end = b->start + 1;
+		b->data = &p.m;
+		velbox_insert(p.prox, b);
 	}
 }
 
@@ -422,15 +460,16 @@ void runTick(gamestate *gs) {
 		}
 	}
 
-	range(i, gs->players.num) {
-		playerUpdate(gs, &gs->players[i]);
-	}
-
 	// Todo: If I cared about efficiency here, `trails` could be a `queue`.
 	while(gs->trails.num && gs->trails[0].expiry <= vb_now) {
 		gs->trails.stableRmAt(0);
 	}
 
+	range(i, gs->players.num) {
+		playerUpdate(gs, &gs->players[i]);
+	}
+
+	// TODO Player stuff should be a task so we can order it correctly (after dynamics, before rockets)
 	playerAddBoxes(gs);
 	range(i, gs->players.num) {
 		if (gs->players[i].alive) {
@@ -439,7 +478,6 @@ void runTick(gamestate *gs) {
 			pl_postStep(gs, &gs->players[i]);
 		}
 	}
-	playerRmBoxes(gs);
 
 	while (toDelete) {
 		taskInstance *t = toDelete;
@@ -485,6 +523,10 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 
 static void playerDupCleanup(player *p) {
 	p->prox = (box*)p->prox->clone.ptr;
+	if (p->m.b) {
+		p->m.b = (box*)p->m.b->clone.ptr;
+		p->m.b->data = &p->m;
+	}
 	range(i, 3) p->m.oldPos[i] = -1;
 	if (p->skin) p->skin->refs++;
 	// Feels like it shouldn't work, but it's fine
@@ -494,6 +536,7 @@ static void playerDupCleanup(player *p) {
 static void playerDestroy(player *p) {
 	if (p->skin) p->skin->decr();
 	tool_destroy(p->tool);
+	// Velbox heirarchy is gone by now, p->m.b is already dead
 }
 
 gamestate* dup(gamestate *orig) {
@@ -589,28 +632,34 @@ void cleanup(gamestate *gs) {
 }
 
 // Seriz / Deser stuff
-
-void transSolid(solid *s) {
-	transBlock(s->m.pos, sizeof(s->m.pos));
-	//transBlock(s->vel, sizeof(s->vel));
-	trans64(&s->r);
-	trans32(&s->m.type);
-	trans32(&s->tex);
-	transBlock(s->m.rot, sizeof(s->m.rot));
-	transWeakRef(&s->b, &boxSerizPtrs);
+void transMover(mover *m) {
+	trans32(&m->type);
+	transBlock(m->pos, sizeof(m->pos));
+	transBlock(m->rot, sizeof(m->rot));
+	transWeakRef(&m->b, &boxSerizPtrs);
 	if (seriz_reading) {
 		// Some fields that we want consistently initialized,
 		// but ideally nothing will need them before they are reset.
-		memset(s->m.oldPos, 0, sizeof(s->m.oldPos));
-		memset(s->m.oldRot, 0, sizeof(s->m.oldRot));
+		memset(m->oldPos, 0, sizeof(m->oldPos));
+		memset(m->oldRot, 0, sizeof(m->oldRot));
 
-		// Sanity / malicious data check.
-		// Doing our own serialization means we're responsible for avoiding array access issues...
-		solidValidate(s);
+		moverValidate(m);
 
 		// Box and Solid have ptrs to each other, but only one dir gets
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
-		s->b->data = &s->m;
+		m->b->data = m;
+	}
+
+}
+
+void transSolid(solid *s) {
+	transMover(&s->m);
+	trans64(&s->r);
+	trans32(&s->tex);
+	if (seriz_reading) {
+		// Sanity / malicious data check.
+		// Doing our own serialization means we're responsible for avoiding array access issues...
+		solidValidate(s);
 	}
 }
 
@@ -741,9 +790,11 @@ static void transPlayer(player *p) {
 	trans8(&p->shoot);
 	trans8(&p->alive);
 	trans8(&p->team);
+	trans8(&p->loadout);
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
 	range(i, 4) trans32(&p->m.rot[i]);
+	transWeakRef(&p->m.b, &boxSerizPtrs);
 	if (seriz_reading) tool_destroy(p->tool);
 	tool_trans(&p->tool);
 
@@ -760,6 +811,7 @@ static void transPlayer(player *p) {
 	if (p->skin) transDyntexHolder(p->skin);
 
 	if (seriz_reading) {
+		if (p->m.b) p->m.b->data = &p->m;
 		range(i, 3) p->m.oldPos[i] = -1;
 		range(i, 4) p->m.oldRot[i] = 0;
 	}
@@ -847,10 +899,8 @@ void dyntex_holder::decr() {
 
 void gamestate_init() {
 	queryResults.init();
-	tmpPlayerBoxes.init();
 }
 
 void gamestate_destroy() {
-	tmpPlayerBoxes.destroy();
 	queryResults.destroy();
 }

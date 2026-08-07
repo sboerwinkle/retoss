@@ -194,3 +194,13 @@ void pl_postStep(gamestate *gs, player *p) {
 	toolInst *tool = p->tool;
 	(*tool->defn->use)(gs, p, shootInput, tool);
 }
+
+void player_hitsCooldown(player *p) {
+	if (p->hits < 3) {
+		// 7 seconds to heal feels about right??
+		p->hitsCooldown = 15*7;
+	} else if (p->hits == 3) {
+		// Enough time for them to get off one more shot
+		p->hitsCooldown = 10;
+	}
+}

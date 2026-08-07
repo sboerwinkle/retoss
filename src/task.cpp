@@ -8,6 +8,7 @@
 #include "tasks/dynamics.h"
 #include "tasks/killPlane.h"
 #include "tasks/rails.h"
+#include "tasks/rocket.h"
 #include "tasks/tdmScore.h"
 #include "tasks/blast.h"
 
@@ -39,6 +40,7 @@ void task_init() {
 	add(TSK_TDM, &defineTask_tdmScore);
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
 	add(TSK_RAILS, &defineTask_rails);
+	add(TSK_ROCKET, &taskRocket_define);
 	add(TSK_DYNAMICS, &defineTask_dynamics);
 	add(TSK_BLAST, &defineTask_blast);
 }

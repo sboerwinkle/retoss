@@ -19,6 +19,7 @@ struct toolInst {
 
 enum {
 	TOOL_RIFLE,
+	TOOL_RL,
 };
 
 extern toolDefn* toolLookup(int id);

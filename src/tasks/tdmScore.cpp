@@ -374,7 +374,7 @@ tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore) {
 		maxScore = 24;
 	}
 	tskTdmData *data = (tskTdmData*)malloc(sizeof(tskTdmData));
-	addTask(gs, TSK_TDM, data);
+	addTaskStart(gs, TSK_TDM, data);
 	data->scores[0] = data->scores[1] = data->winner = data->animDest = data->timer = 0;
 	data->state = TSK_TDM_ST_PREP_START;
 	data->scoreLimit = maxScore * 10;

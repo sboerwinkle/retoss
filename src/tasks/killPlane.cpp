@@ -31,7 +31,7 @@ static void copy(void **to, void *from) {
 
 void taskKillPlane_create(gamestate *gs, int64_t altitude) {
 	int64_t *data = (int64_t*)malloc(sizeof(int64_t));
-	addTask(gs, TSK_KILL_PLANE, data);
+	addTaskStart(gs, TSK_KILL_PLANE, data);
 	*data = altitude;
 }
 

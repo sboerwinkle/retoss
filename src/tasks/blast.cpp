@@ -16,15 +16,6 @@ struct tskBlastItem {
 	float spr_x, spr_y, spr_w;
 };
 
-/*
-static tskBlastInstructions* mkInstr() {
-	tskBlastInstructions *instr = (tskBlastInstructions*)malloc(sizeof(tskBlastInstructions));
-	instr->refs = 1;
-	instr->pts.init();
-	return instr;
-}
-*/
-
 static void initBlastBits(tskBlastData *data) {
 	tskBlastBits *bb = new tskBlastBits;
 	bb->bits.init();
@@ -69,7 +60,7 @@ static void populateBlastBits(tskBlastBits *data) {
 	// We'll add particles for sparks and smoke.
 	// Sparks tend to move faster!
 	offset dest;
-	range(i, 20) {
+	range(i, data->fireCount) {
 		int32_t x = getPt(&seed, dest, r);
 		if (x == -1) continue;
 		tskBlastItem &item = data->bits.add();
@@ -77,9 +68,9 @@ static void populateBlastBits(tskBlastBits *data) {
 		item.spr_y = 0;
 		item.spr_x = (27 + 5*(x%3)) / 64.0;
 		item.dur = 2 + x*4/FIXP;
-		range(j, 3) item.v[j] = dest[j] / item.dur;
+		range(j, 3) item.v[j] = dest[j] / item.dur + data->vel[j];
 	}
-	range(i, 40) {
+	range(i, data->smokeCount) {
 		int32_t x = getPt(&seed, dest, r);
 		if (x == -1) continue;
 		tskBlastItem &item = data->bits.add();
@@ -87,7 +78,7 @@ static void populateBlastBits(tskBlastBits *data) {
 		item.spr_x = (20 + (x%4)) / 64.0;
 		item.spr_y = ((x/4)%4) / 64.0;
 		item.dur = 4 + x*12/FIXP;
-		range(j, 3) item.v[j] = dest[j] / item.dur;
+		range(j, 3) item.v[j] = dest[j] / item.dur + data->vel[j];
 	}
 }
 
@@ -135,6 +126,8 @@ static char trans(gamestate *gs, void **ptr) {
 	trans32(&data->bb->time);
 	trans32(&data->bb->seed);
 	trans64(&data->bb->r);
+	trans32(&data->bb->fireCount);
+	trans32(&data->bb->smokeCount);
 	transOffset(data->bb->pos);
 	transOffset(data->bb->vel);
 	if (seriz_reading) {
@@ -158,14 +151,16 @@ static void destroy(void *_data) {
 	delete data;
 }
 
-tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel) {
+tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t r, int32_t fireCount, int32_t smokeCount) {
 	tskBlastData *data = new tskBlastData;
-	addTask(gs, TSK_BLAST, data);
+	addTaskStart(gs, TSK_BLAST, data);
 
 	initBlastBits(data);
 	data->bb->time = gs->clock - 1;
 	data->bb->seed = splitmix32(&gs->seed);
-	data->bb->r = 3000;
+	data->bb->r = r;
+	data->bb->fireCount = fireCount;
+	data->bb->smokeCount = smokeCount;
 	memcpy(data->bb->pos, oldPos, sizeof(offset));
 	memcpy(data->bb->vel, vel, sizeof(offset));
 	populateBlastBits(data->bb);
@@ -185,23 +180,21 @@ tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel) {
 void tskBlast_draw(void *data, int32_t now) {
 	tskBlastBits *bb = ((tskBlastData*)data)->bb;
 
-	int32_t t2 = now - bb->time;
-	int32_t t1 = t2-1;
+	// `now` is the time at the end of the frame,
+	// so `p1` (basically `oldPos`) should be one
+	// frame earlier.
+	int32_t t1 = now - bb->time - 1;
 
-	offset core_p1;
-	range(i, 3) {
-		core_p1[i] = bb->pos[i] + bb->vel[i]*t1;
-	}
 	offset p1, p2;
 
 	rangeconst(iter, bb->bits.num) {
 		tskBlastItem const &item = bb->bits[iter];
 
-		if (t2 > item.dur) continue;
+		if (t1 >= item.dur) continue;
 
 		range(i, 3) {
-			p1[i] = core_p1[i] + item.v[i]*t1;
-			p2[i] = p1[i] + bb->vel[i] + item.v[i];
+			p1[i] = bb->pos[i] + item.v[i]*t1;
+			p2[i] = p1[i] + item.v[i];
 		}
 
 		// TODO We're always rendering from tex 1 here,

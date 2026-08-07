@@ -213,7 +213,7 @@ void tskRails_timeHelper(tskRailsData *data) {
 
 tskRailsData* tskRails_create(gamestate *gs, constelInst *ci) {
 	tskRailsData *data = (tskRailsData*)malloc(sizeof(tskRailsData));
-	addTask(gs, TSK_RAILS, data);
+	addTaskStart(gs, TSK_RAILS, data);
 
 	data->ic = data->time = 0;
 	data->ci = ci;

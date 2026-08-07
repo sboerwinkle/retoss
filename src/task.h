@@ -16,13 +16,13 @@ struct taskInstance {
 	taskInstance *prev, *next;
 };
 
-enum {
-	TSK_TDM,
-	TSK_KILL_PLANE,
-	TSK_RAILS,
-	TSK_DYNAMICS,
-	TSK_BLAST,
-};
+#define TSK_BLAST 1
+#define TSK_TDM 100
+#define TSK_KILL_PLANE 120
+#define TSK_RAILS 140
+#define TSK_DYNAMICS 200
+#define TSK_ROCKET 300
+#define TSK_RIFLE_SHOT 400
 
 extern taskDefn* taskLookup(int id);
 

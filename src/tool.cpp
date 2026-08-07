@@ -7,6 +7,7 @@
 #include "tool.h"
 
 #include "tools/rifle.h"
+#include "tools/rl.h"
 
 // This file is pretty similar to task.cpp
 
@@ -59,6 +60,7 @@ void tool_init() {
 	toolDefns.init();
 
 	add(TOOL_RIFLE, &toolRifle_define);
+	add(TOOL_RL, &toolRl_define);
 }
 
 void tool_destroy() {
