@@ -35,7 +35,6 @@ char poll_game_data[POLL_BUF_LEN];
 #ifdef _WIN32
 
 void* mypoll_threadFunc(void *arg) {
-	http_preload();
 	timeval timeout = {.tv_usec = 200'000};
 	fd_set readFds;
 	char checkNet = 1, checkHttp = (http_fd != -1);
