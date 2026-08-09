@@ -45,6 +45,33 @@ void trans8(unsigned char *x) {
 	trans8((char*) x);
 }
 
+// We're not *quite* as cheeky with `bool`, since I think it could
+// be a different size technically (even if not likely).
+void trans8(bool *x) {
+	if (seriz_reading) *x = read8();
+	else write8(*x);
+}
+
+void write16(int16_t v) {
+	int n = seriz_data->num;
+	seriz_data->setMaxUp(n+2);
+	*(int16_t*)(seriz_data->items + n) = htons(v);
+	seriz_data->num = n+2;
+}
+
+int16_t read16() {
+	int i = seriz_index;
+	if (i + 2 > seriz_data->num) return 0;
+	seriz_index += 2;
+	return ntohs(*(int16_t*)(seriz_data->items + i));
+}
+
+void trans16(int16_t *x) {
+	if (seriz_reading) *x = read16();
+	else write16(*x);
+}
+void trans16(uint16_t *x) { trans16((int16_t*)x); }
+
 // This one can be used outside of serialization if we want
 void write32Raw(list<char> *data, int addr, int32_t v) {
 	*(int32_t*)(data->items + addr) = htonl(v);

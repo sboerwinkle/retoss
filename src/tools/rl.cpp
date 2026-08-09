@@ -47,7 +47,8 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 		offset vel;
 		range(i, 3) vel[i] = p->m.pos[i] - p->m.oldPos[i];
 
-		taskRocket_create(gs, p->m.oldPos, vel, look, p->prox);
+		uint32_t soundId = SND_ID_TOOL_RL(p - gs->players.items);
+		taskRocket_create(gs, p->m.oldPos, vel, look, p->prox, soundId);
 	}
 }
 

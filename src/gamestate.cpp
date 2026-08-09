@@ -413,6 +413,9 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 
 			gs->players[i].skin = tmp[i].skin;
 			if (tmp[i].skin) tmp[i].skin->refs++;
+
+			gs->players[i].loadout = tmp[i].loadout;
+			rekitPlayer(&gs->players[i]);
 		}
 	}
 	rangeconst(i, tmp.num) {

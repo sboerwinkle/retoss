@@ -6,10 +6,12 @@
 
 #include "../bctx.h"
 #include "../collision.h"
+#include "../game_gamestate.h"
 #include "../graphics.h"
 #include "../player.h"
-#include "../task.h"
+#include "../random.h"
 #include "../serialize.h"
+#include "../task.h"
 
 #include "blast.h"
 
@@ -64,8 +66,8 @@ static char step(gamestate *gs, void *_data) {
 	// so we know it's dead!
 	velbox_reclaimDead(data->m.b);
 
-	if (!data->ttl) {
-		// force/damage happened at the end of last frame,
+	if (data->dead) {
+		// force/damage/sound happened at the end of last frame,
 		// smoke happens at the start of this one.
 		tskBlast_create(gs, data->m.pos, data->vel, 5000, 80, 160);
 		return 1;
@@ -82,12 +84,17 @@ static char step(gamestate *gs, void *_data) {
 		range(i, 3) {
 			data->vel[i] += data->accel[i];
 		}
+		// Our "whoosh" sounds are about 4 frames long (plus 0.09 seconds of fade in/out)
+		uint32_t soundId = data->soundId + data->ttl;
+		uint32_t seed = gs->clock*17 + data->ttl/4;
+		int variant = splitmix32(&seed) % 3;
+		addSound(gs->clock - 1, data->m.pos, data->vel, soundId, SND_WHOOSH_A + variant);
 	}
 	range(i, 3) {
 		data->m.pos[i] += data->vel[i];
 		smokeV[i] = data->vel[i] - 4*data->accel[i];
 	}
-	tskBlast_create(gs, data->m.oldPos, smokeV, 2000, 0, 2);
+	tskBlast_create(gs, data->m.oldPos, smokeV, 2000, 0, 1);
 
 	// Todo: Can I do better than re-allocating every time? Is it worth it?
 	list<mover*> toCheck;
@@ -154,7 +161,7 @@ static char step(gamestate *gs, void *_data) {
 		if (type == T_PROJ) {
 			memcpy(data->m.pos, bestVec, sizeof(bestVec));
 			taskRocket *other = rocketFromMover(best);
-			if (other->ttl) other->ttl = 1;
+			other->live = 0;
 			// data->vel unchanged.
 		} else if (type == T_PLAYER) {
 			// Ignore the surface velocity of players,
@@ -174,12 +181,18 @@ static char step(gamestate *gs, void *_data) {
 				data->vel[i] -= bestVec[i];
 			}
 		}
-		data->ttl = 1;
+		data->live = 0;
 	}
-	if (data->ttl == 1) {
-		blowUp(data, parent);
-	}
+
 	data->ttl--;
+	if (!data->ttl) data->live = 0;
+
+	if (!data->live) {
+		blowUp(data, parent);
+		uint32_t soundId = data->soundId + 0x800 + data->ttl;
+		addSound(gs->clock, data->m.pos, data->vel, soundId, SND_POP);
+		data->dead = 1;
+	}
 
 	putVb(data, parent);
 
@@ -200,7 +213,10 @@ static char trans(gamestate *gs, void **ptr) {
 	transMover(&data->m);
 	transOffset(data->vel);
 	transOffset(data->accel);
-	trans32(&data->ttl);
+	trans8(&data->dead);
+	trans8(&data->live);
+	trans16(&data->ttl);
+	trans32(&data->soundId);
 	return 0;
 }
 
@@ -242,7 +258,7 @@ void taskRocket_draw(void *_data) {
 // TODO Review anything that might be looking at T_PROJ.
 //      Eventually the rifle tool, but maybe not yet???
 
-void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent) {
+void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent, uint32_t soundId) {
 	taskRocket *data = (taskRocket*)malloc(sizeof(taskRocket));
 	addTaskEnd(gs, TSK_ROCKET, data);
 
@@ -253,9 +269,17 @@ void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *p
 		data->vel[i] = vel[i] + 600 * dir[i] / FIXP;
 		data->accel[i] = 300 * dir[i] / FIXP;
 	}
+
+	// Not really ever used, but prevents warnings from valgrind about `write()`ing uninitialized data
+	memset(data->m.rot, 0, sizeof(data->m.rot));
+
 	data->m.type = T_PROJ;
+	data->dead = 0;
+	data->live = 1;
 	// 10s of flight time
-	data->ttl = 10*15;
+	// (`+2` => make it divisible by 4 so sound starts immediately)
+	data->ttl = 10*15 + 2;
+	data->soundId = soundId;
 
 	// a dead box with the right parent
 	data->m.b = velbox_alloc();

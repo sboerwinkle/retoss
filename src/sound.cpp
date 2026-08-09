@@ -234,6 +234,12 @@ void sound_init() {
 	refDists[2] = 6000;
 	loadFile("assets/sounds/tap.mp3", alBuffers[3]);
 	refDists[3] = 500;
+	loadFile("assets/sounds/whoosh_a.mp3", alBuffers[4]);
+	refDists[4] = 1700;
+	loadFile("assets/sounds/whoosh_b.mp3", alBuffers[5]);
+	refDists[5] = 1700;
+	loadFile("assets/sounds/whoosh_c.mp3", alBuffers[6]);
+	refDists[6] = 1700;
 }
 
 void sound_destroy() {

@@ -15,6 +15,12 @@ extern void write8(char v);
 extern char read8();
 extern void trans8(char *x);
 extern void trans8(unsigned char *x);
+extern void trans8(bool *x);
+
+extern void write16(int16_t v);
+extern int16_t read16();
+extern void trans16(int16_t *x);
+extern void trans16(uint16_t *x);
 
 // This one can be used outside of serialization if we want
 extern void write32Raw(list<char> *data, int offset, int32_t v);

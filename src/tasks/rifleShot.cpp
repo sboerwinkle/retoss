@@ -61,7 +61,7 @@ static void shoot(gamestate *gs, player *p) {
 			player_hit(shootee, 1);
 		} else if (type == T_PROJ) {
 			taskRocket *rocket = rocketFromMover(result);
-			if (rocket->ttl) rocket->ttl = 1;
+			rocket->live = 0;
 		} else {
 			uint32_t soundId =
 				0xFF00'FF01
@@ -71,7 +71,7 @@ static void shoot(gamestate *gs, player *p) {
 			offset v;
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
-			addSound(soundTime, impact, v, soundId, 3);
+			addSound(soundTime, impact, v, soundId, SND_TAP);
 			tskBlast_create(gs, impact, v, 3000, 20, 40);
 
 			solid *s = solidFromMover(result);
@@ -99,7 +99,7 @@ static void shoot(gamestate *gs, player *p) {
 	uint32_t soundId =
 		0xFF00'FF00
 		+ who * 0x1'0000;
-	addPlayerSound(soundTime, who, soundId, 2);
+	addPlayerSound(soundTime, who, soundId, SND_POP);
 
 	trail &tr = gs->trails.add();
 	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
