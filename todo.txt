@@ -1,4 +1,8 @@
-- Lower TDM score limit / make configurable
+. Lower TDM score limit / make configurable
+- randomize teams
+- Too many submit buttons I guess
+- "net2.cpp should ensure we don't have invalid lengths here!"
+- /kit UI ofc
 - Snap position to players when dead somehow?
 . Non-obvious issues if there's no connection to server
 . Robert's mad about favicon
