@@ -1,5 +1,5 @@
 #version 430 core
-layout(location=1, binding=0) uniform sampler2D u_tex;
+layout(binding=0) uniform sampler2D u_tex;
 layout(binding=1) uniform sampler2D u_mottle_tex;
 uniform vec4 u_tint;
 uniform float u_transparency;
