@@ -387,11 +387,6 @@ void runTick(gamestate *gs) {
 	}
 }
 
-void mkSolidAtPlayer(gamestate *gs, player *p) {
-	solid *s = addSolid(gs, p->prox, p->m.pos[0], p->m.pos[1], p->m.pos[2], 1000, 0, 4);
-	memcpy(s->m.rot, p->m.rot, sizeof(iquat)); // Array types are weird in C
-}
-
 void prepareGamestateForLoad(gamestate *gs, char isSync) {
 	// Shallow copy of player data.
 	// We don't need all of it, but it's okay to be slow here.

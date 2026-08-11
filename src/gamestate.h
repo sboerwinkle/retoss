@@ -152,8 +152,6 @@ extern void addTaskEnd(gamestate *gs, int taskId, void *data);
 
 extern void runTick(gamestate *gs);
 
-extern void mkSolidAtPlayer(gamestate *gs, player *p);
-
 extern gamestate* dup(gamestate *orig);
 extern void prepareGamestateForLoad(gamestate *gs, char isSync);
 extern void init(gamestate *gs);

@@ -36,6 +36,7 @@ extern void drawBillboard(offset p1, offset p2, int tex, float x, float y, float
 extern void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp);
 
 extern void setup2dDrawing();
+extern void defaultTextColor();
 extern void spriteColorMult(float r, float g, float b, float a);
 extern void spriteColorAdd(float r, float g, float b, float a);
 
@@ -45,4 +46,5 @@ extern void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x
 
 extern void setup2dTextDrawing();
 extern void drawTextCentered(char const *str, int y);
-extern void drawText(char const *str, int x, int y);
+extern void drawTextRight(char const *str, float x, int y);
+extern void drawText(char const *str, float x, int y);

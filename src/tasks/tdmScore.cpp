@@ -41,6 +41,10 @@ static void drawSmallScores(u8 const scores[2]) {
 // Whole space avail
 static void drawSnakes(tskTdmData const *data, u8 dests[2], u8 heads[2], float interp) {
 	drawSmallScores(dests);
+	char text[6];
+	snprintf(text, 6, "of %d", data->scoreLimit/10);
+	defaultTextColor();
+	drawText(text, 0, 14);
 
 	selectTex2d(TEX_SNAKE, 40, 40);
 	// Color multiple is set different for text, need to reset it for sprites.

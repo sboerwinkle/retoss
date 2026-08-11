@@ -850,7 +850,7 @@ static void setupTextDrawingInner() {
 	glUniform2f(u_spr_tex_scale, 1.0/64, 1.0/64);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_FONT]);
 
-	spriteColorMult(0.75, 0.75, 0.75, 1);
+	defaultTextColor();
 }
 
 void setup2dTextDrawing() {
@@ -863,11 +863,19 @@ void setup2dTextDrawing() {
 	setupTextDrawingInner();
 }
 
+void defaultTextColor() {
+	spriteColorMult(0.75, 0.75, 0.75, 1);
+}
+
 void drawTextCentered(char const *str, int y) {
 	drawText(str, displayAreaBounds[0] - (1 + strlen(str)*5)/2, y);
 }
 
-void drawText(char const* str, int x, int y) {
+void drawTextRight(char const *str, float x, int y) {
+	drawText(str, x - (1 + strlen(str)*5), y);
+}
+
+void drawText(char const* str, float x, int y) {
 	// Text is 4x6, stride is 5x7, and the copied piece is 5x8 (including blank pixels above, below, and to the right).
 
 	float cursorX = -displayAreaBounds[0]+x;

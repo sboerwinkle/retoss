@@ -883,9 +883,15 @@ char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char i
 }
 
 char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) {
-	if (isCmd(str, "/c")) {
-		// I have no idea if this works correctly lol
-		mkSolidAtPlayer(gs, p);
+	// Put the super common commands up at the front (tiny optimization)
+	if (isCmd(str, "/_J")) {
+		p->jump |= 3; // Set 'jump this frame' and 'jump continuing' bits
+	} else if (isCmd(str, "/_j")) {
+		p->jump &= ~1; // Clear 'jump continuing' bit
+	} else if (isCmd(str, "/_S")) {
+		p->shoot = 3;
+	} else if (isCmd(str, "/_s")) {
+		p->shoot &= 2;
 	} else if (isCmd(str, "/team")) {
 		char const *pos = str + 5;
 		int team;
@@ -914,14 +920,28 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 				setSkin(p, str+6);
 			}
 		}
-	} else if (isCmd(str, "/_J")) {
-		p->jump |= 3; // Set 'jump this frame' and 'jump continuing' bits
-	} else if (isCmd(str, "/_j")) {
-		p->jump &= ~1; // Clear 'jump continuing' bit
-	} else if (isCmd(str, "/_S")) {
-		p->shoot = 3;
-	} else if (isCmd(str, "/_s")) {
-		p->shoot &= 2;
+	} else if (isCmd(str, "/score_limit")) {
+		char const *pos = str + 12;
+		int num;
+		tskTdmData *data = NULL;
+		for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+			if (t->defn->id == TSK_TDM) {
+				data = (tskTdmData*)t->data;
+				break;
+			}
+		}
+		if (data) {
+			if (getNum(&pos, &num)) {
+				data->scoreLimit = 10*num;
+				if (isReal) {
+					printf("/score_limit set to %.1f\n", data->scoreLimit/10.0);
+				}
+			} else if (isMe && isReal) {
+				printf("/score_limit: %.1f\n", data->scoreLimit/10.0);
+			}
+		} else if (isMe && isReal) {
+			puts("/score_limit: No TDM active");
+		}
 	} else if (isCmd(str, "/lv_tdm1")) {
 		if (isReal) {
 			prepareGamestateForLoad(gs, 0);

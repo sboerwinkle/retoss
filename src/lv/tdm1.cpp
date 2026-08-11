@@ -135,7 +135,7 @@ void lv_tdm1(gamestate *gs) {
 		}
 	}
 	if (!data) {
-		data = taskTdm_create(gs, 2, 10);
+		data = taskTdm_create(gs, 2, 5);
 	}
 
 	gp("spawns");
