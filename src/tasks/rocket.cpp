@@ -77,13 +77,13 @@ static char step(gamestate *gs, void *_data) {
 	//      maybe they rightly belong to `solid`?
 	//      Players need them too; maybe players have a solid?
 	memcpy(data->m.oldPos, data->m.pos, sizeof(offset));
+
+	range(i, 3) {
+		data->vel[i] += data->accel[i];
+	}
+
 	offset smokeV;
 	if (!(data->ttl % 4)) {
-		// Only applying `accel` periodically lets it be
-		// more granular in terms of direction
-		range(i, 3) {
-			data->vel[i] += data->accel[i];
-		}
 		// Our "whoosh" sounds are about 4 frames long (plus 0.09 seconds of fade in/out)
 		uint32_t soundId = data->soundId + data->ttl;
 		uint32_t seed = gs->clock*17 + data->ttl/4;

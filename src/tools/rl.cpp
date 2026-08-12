@@ -23,7 +23,7 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 	y *= displayAreaBounds[1];
 	if (data.cooldown) {
 		// Split crosshair
-		float distance = (data.cooldown - gfx_interpRatio)/4;
+		float distance = (data.cooldown - gfx_interpRatio)/2;
 		// src coords, size, dest coords
 		sprite2d(0, 10, 5, 10, -5-distance, y-5);
 		sprite2d(5, 10, 5, 10,    distance, y-5);
@@ -39,7 +39,7 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 	toolRl &data = *(toolRl*)_data;
 	if (data.cooldown) data.cooldown--;
 	if (input && !data.cooldown) {
-		data.cooldown = 20;
+		data.cooldown = 10;
 
 		// Todo: Surely we'll need this more often, right? Save it somewhere?
 		unitvec look;
