@@ -236,6 +236,10 @@ static void read_inner(int fd) {
 		write200(fd, defaultHtml.l.items, defaultHtml.l.num, "text/html");
 	} else if (!strcmp(buf, "/config")) {
 		writeConfigs(fd);
+	} else if (!strncmp(buf, "/kit/", 5)) {
+		buf[4] = ' ';
+		sendCommand(buf);
+		writeResponse(fd, &noContentRs);
 	} else if (!strncmp(buf, "/name/", 6)) {
 		// "/name/foo" -> "/name foo"
 		// "/name/" -> "/name"
