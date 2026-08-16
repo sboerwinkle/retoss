@@ -833,6 +833,18 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		else dl_hotbar("");
 		return 1;
 	}
+	if (!strncmp(buf, "/edit_save ", 11)) {
+		dl_edit_save(buf+11);
+		return 1;
+	}
+	if (!strncmp(buf, "/edit_load ", 11)) {
+		dl_edit_load(buf+11);
+		return 1;
+	}
+	if (!strcmp(buf, "/rmgp")) { // No args allowed, they would be ignored
+		dl_rmgp();
+		return 1;
+	}
 	if (isCmd(buf, "/_cfgcam")) {
 		readLookConfigs();
 		return 1;

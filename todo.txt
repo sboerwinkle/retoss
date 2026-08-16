@@ -1,8 +1,12 @@
+- Edit improvements
+	- Make sure all existing levels work with this
+	- guide
+	- simple test commands
 . Lower TDM score limit / make configurable
 - randomize teams
 - Too many submit buttons I guess
 - "net2.cpp should ensure we don't have invalid lengths here!"
-- /kit UI ofc
+. /kit UI ofc
 - Snap position to players when dead somehow?
 . Non-obvious issues if there's no connection to server
 . Robert's mad about favicon
@@ -34,6 +38,8 @@
 . fix "LOW" / "HIGH" names + input
 . Clarify L/R column settings input
 - Rockets / grenades
+	. Rockets
+	- Grenades?
 - Custom sound collections
 - Chiqita bomb from LieroLibre
 - Bouncy grenade?

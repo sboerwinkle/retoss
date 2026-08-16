@@ -11,7 +11,8 @@
 #include "../tasks/tdmScore.h"
 #include "../tasks/killPlane.h"
 
-void lv_tdm1(gamestate *gs) {
+//#name lv_tdm1
+extern "C" void lv_tdm1(gamestate *gs) {
 	taskKillPlane_create(gs, -30000);
 	pushVarIgnore();
 	bctx.reset(gs);
@@ -135,20 +136,12 @@ void lv_tdm1(gamestate *gs) {
 		}
 	}
 	if (!data) {
-		data = taskTdm_create(gs, 2, 5);
+		data = taskTdm_create(gs, 5);
 	}
 
 	gp("spawns");
-	memcpy(
-		data->spawns[0],
-		pvar("p1", (offset const){-23177, -16393, 1000}),
-		sizeof(offset)
-	);
-	memcpy(
-		data->spawns[1],
-		pvar("p2", (offset const){21263, -16393, 1000}),
-		sizeof(offset)
-	);
+	taskTdm_addSpawn(data, pvar("p1", (offset const){-23177, -16393, 1000}));
+	taskTdm_addSpawn(data, pvar("p2", (offset const){21263, -16393, 1000}));
 
 	taskTdm_spawnAll(gs, data);
 

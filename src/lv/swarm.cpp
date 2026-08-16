@@ -32,7 +32,8 @@ static void rand_island(uint32_t seed) {
 	bctx.pop();
 }
 
-extern void lv_swarm(gamestate *gs) {
+//#name lv_swarm
+extern "C" void lv_swarm(gamestate *gs) {
 	taskKillPlane_create(gs, -64000);
 	bctx.reset(gs);
 	//bctx.resel();

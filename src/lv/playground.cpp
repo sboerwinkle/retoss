@@ -6,7 +6,8 @@
 
 static void rubblePortion();
 
-extern void lv_playground(gamestate *gs) {
+//#name lv_playground
+extern "C" void lv_playground(gamestate *gs) {
 	bctx.reset(gs);
 	bctx.scale(2000);
 	//bctx.resel();

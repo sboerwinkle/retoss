@@ -1,6 +1,7 @@
 import re
 import sys
 import subprocess
+import traceback
 
 def stdin_to_generator():
     for item in sys.stdin:
@@ -17,6 +18,11 @@ class NormalSegment(FileSegment):
 
 class AddHereSegment(FileSegment):
     pass
+
+class NameSegment(FileSegment):
+    def __init__(self, lines, name):
+        super().__init__(lines)
+        self.name = name
 
 class HotbarSegment(FileSegment):
     def __init__(self, lines, name):
@@ -42,12 +48,16 @@ def parse_src(filename):
             line = next(lines)
         except StopIteration:
             break
-        if line.strip() == '//#add_here':
+        stripped = line.strip()
+        if stripped == '//#add_here':
             segment_break()
             ret.append(AddHereSegment([line]))
-        elif line.strip().startswith('/*#'):
+        elif stripped.startswith('//#name '):
             segment_break()
-            name = line.strip()[3:]
+            ret.append(NameSegment([line, next(lines)], stripped[8:]))
+        elif stripped.startswith('/*#'):
+            segment_break()
+            name = stripped[3:]
             hotbar_lines = []
             while True:
                 hotbar_lines.append(line)
@@ -59,6 +69,13 @@ def parse_src(filename):
             normal_lines.append(line)
     segment_break()
     return ret
+
+def write_segs(segments, filename):
+    # Flatten out segment lists
+    result_lines = [l for s in segments for l in s.lines]
+
+    with open(filename, 'w') as f:
+        f.writelines(result_lines)
 
 gp_re = re.compile(r'\bgp\("([^"]*)')
 empty_gp_re = re.compile(r'\bgp\(\)')
@@ -104,11 +121,7 @@ def bake(lines, last_src_name):
                     replacements = group_replacements.get(g, {})
                 s.lines[i] = var_re.sub(replace_func, l)
 
-    # Flatten out segment lists
-    result_lines = [l for s in segments for l in s.lines]
-
-    with open(last_src_name, 'w') as f:
-        f.writelines(result_lines)
+    write_segs(segments, last_src_name)
 
 def hotbar(name, last_src_name):
     segments = parse_src(last_src_name)
@@ -129,11 +142,50 @@ def hotbar(name, last_src_name):
         print("hotbar: Didn't find the //#add_here marker")
         return
 
-    # Flatten out segment lists
-    result_lines = [l for s in segments for l in s.lines]
+    write_segs(segments, last_src_name)
 
-    with open(last_src_name, 'w') as f:
-        f.writelines(result_lines)
+def rmgp(name, last_src_name):
+
+    def replace_func(m):
+        key = m.group(2)
+        if key not in replacements:
+            return m.group(0) # No change
+        return f"{m.group(1)}, {replacements[key]})";
+
+    segments = parse_src(last_src_name)
+    for s in segments:
+        if isinstance(s, NormalSegment):
+            keeping = True
+            new_lines = []
+            for l in lines:
+                g = get_gp(l)
+                if g is not None:
+                    keeping = (g != name)
+                if keeping:
+                    new_lines.append(l)
+            s.lines = new_lines
+
+    write_segs(segments, last_src_name)
+
+def edit_load(filename):
+    segments = parse_src("src/" + filename)
+
+    for s in segments:
+        if isinstance(s, NameSegment):
+            s.lines[1] = s.lines[1].replace(s.name, "lvlUpd")
+            break
+
+    write_segs(segments, "src/dl_tmp/tmp.cpp")
+
+def edit_save(filename, last_src_name):
+    segments = parse_src(last_src_name)
+
+    for s in segments:
+        if isinstance(s, NameSegment):
+            s.lines[1] = s.lines[1].replace("lvlUpd", s.name)
+            break
+
+    write_segs(segments, "src/" + filename)
 
 def check_src(filename):
     segments = parse_src(filename)
@@ -164,10 +216,7 @@ def check_src(filename):
 
     if modified:
         print(f"Rewriting {repr(filename)}")
-        # Flatten out segment lists
-        result_lines = [l for s in segments for l in s.lines]
-        with open(filename, 'w') as f:
-            f.writelines(result_lines)
+        write_segs(segments, filename)
         # inotifywait will let us know that something was written, so compiling now would just duplicate.
     else:
         print(f"Building {repr(filename)}")
@@ -181,14 +230,27 @@ while True:
         item = next(lines)
     except StopIteration:
         break
-    if item == "/bake\n":
-        bake(lines, last_src_name)
-        continue
-    if item.startswith("/hotbar"):
-        hotbar(item.split(' ', 1)[1].strip(), last_src_name)
-        continue
-    if item.startswith("/"):
-        print(f"Unknown command {repr(item)}")
+    try:
+        if item == "/bake\n":
+            bake(lines, last_src_name)
+            continue
+        if item.startswith("/hotbar"):
+            hotbar(item.split(' ', 1)[1].strip(), last_src_name)
+            continue
+        if item.startswith("/rmgp "):
+            rmgp(item[6:], last_src_name)
+            continue
+        if item.startswith("/edit_load "):
+            edit_load(item.split(' ', 1)[1])
+            continue
+        if item.startswith("/edit_save "):
+            edit_save(item.split(' ', 1)[1], last_src_name)
+            continue
+        if item.startswith("/"):
+            print(f"Unknown command {repr(item)}")
+            continue
+    except Exception:
+        traceback.print_exc()
         continue
     # Else it's probably from inotifywait, telling us a file changed
     orig_item = item

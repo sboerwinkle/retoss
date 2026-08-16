@@ -142,8 +142,8 @@ void taskTdm_draw(void *_data, float interp) {
 }
 
 static int32_t getSpawnPts(gamestate const *gs, tskTdmData *data) {
-	int numPts = data->numSpawns;
-	if (!numPts) return 0;
+	int numPts = data->spawns.num;
+	if (numPts < 2) return 0;
 
 	uint32_t seed = gs->clock;
 	u8 s1 = splitmix32(&seed) % numPts;
@@ -241,7 +241,7 @@ static int32_t rand(uint32_t input) {
 
 static void spawn(gamestate *gs, int i, tskTdmData *data, int32_t spawnPts) {
 	player *p = &gs->players[i];
-	if (data->numSpawns < 2) return;
+	if (data->spawns.num < 2) return;
 
 	softResetPlayer(p);
 
@@ -253,9 +253,9 @@ static void spawn(gamestate *gs, int i, tskTdmData *data, int32_t spawnPts) {
 	u8 spawn;
 	// Take either first 8 bits, or next 8 bits, from `spawnPts`
 	spawn = 0xFF & (spawnPts >> (team*8));
-	memcpy(p->m.pos, data->spawns[spawn], sizeof(offset));
+	memcpy(p->m.pos, data->spawns[spawn].o, sizeof(offset));
 	// IDK if we technically need this as well, seems reasonable
-	memcpy(p->m.oldPos, data->spawns[spawn], sizeof(offset));
+	memcpy(p->m.oldPos, data->spawns[spawn].o, sizeof(offset));
 }
 
 static void beginRound(gamestate *gs, tskTdmData *data) {
@@ -336,15 +336,12 @@ static char trans(gamestate *gs, void **ptr) {
 	trans8(&data->animDest);
 	trans8(&data->timer);
 	trans8(&data->scoreLimit);
-	trans8(&data->numSpawns);
 	if (seriz_reading) {
-		// Normally we'd want a safety on the size we're allocating here
-		// (don't trust data that comes from the network),
-		// but since it's just an 8-bit counter it doesn't go that high.
-		data->spawns = (offset*)malloc(data->numSpawns*sizeof(offset));
+		data->spawns.init();
 	}
-	range(i, data->numSpawns) {
-		range(j, 3) trans64(&data->spawns[i][j]);
+	transItemCount(&data->spawns);
+	range(i, data->spawns.num) {
+		transOffset(data->spawns[i].o);
 	}
 	return 0;
 }
@@ -361,18 +358,15 @@ static void copy(void **to, void *from) {
 	tskTdmData *src = (tskTdmData*)from;
 
 	*dest = *src;
-
-	size_t sz = dest->numSpawns * sizeof(offset);
-	dest->spawns = (offset*)malloc(sz);
-	memcpy(dest->spawns, src->spawns, sz);
+	dest->spawns.init(src->spawns);
 }
 
 static void destroy(void *data) {
-	free(((tskTdmData*)data)->spawns);
+	((tskTdmData*)data)->spawns.destroy();
 	free(data);
 }
 
-tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore) {
+tskTdmData* taskTdm_create(gamestate *gs, int maxScore) {
 	if (maxScore > 24) {
 		printf("Currently, greatest allowable max score is 24! Replacing %d with 24.\n", maxScore);
 		maxScore = 24;
@@ -382,9 +376,12 @@ tskTdmData* taskTdm_create(gamestate *gs, int numSpawns, int maxScore) {
 	data->scores[0] = data->scores[1] = data->winner = data->animDest = data->timer = 0;
 	data->state = TSK_TDM_ST_PREP_START;
 	data->scoreLimit = maxScore * 10;
-	data->numSpawns = numSpawns;
-	data->spawns = (offset*)malloc(numSpawns * sizeof(offset));
+	data->spawns.init();
 	return data;
+}
+
+void taskTdm_addSpawn(tskTdmData *data, offset const s) {
+	memcpy(&data->spawns.add().o, s, sizeof(offset));
 }
 
 void taskTdm_spawnAll(gamestate *gs, void *_data) {

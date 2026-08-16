@@ -475,7 +475,7 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	mtx_lock(dl_varMtx);
 	dl_selectedGroup = findGroup(lookAtGp_winner);
 	if (!dl_selectedGroup) {
-		puts("ERROR: That's really not supposed to happen");
+		puts("ERROR: dl: That's really not supposed to happen");
 		dl_selectedGroup = &varGroups[0];
 	}
 	selectedVarFix();
@@ -523,6 +523,31 @@ void dl_bake() {
 void dl_hotbar(char const *name) {
 	if (!editEventsFifo) return;
 	fprintf(editEventsFifo, "/hotbar %s\n", name);
+	fflush(editEventsFifo);
+}
+
+void dl_edit_save(char const *path) {
+	if (!editEventsFifo) return;
+	dl_bake();
+	fprintf(editEventsFifo, "/edit_save %s\n", path);
+	fflush(editEventsFifo);
+}
+
+void dl_edit_load(char const *path) {
+	if (!editEventsFifo) return;
+	fprintf(editEventsFifo, "/edit_load %s\n", path);
+	fflush(editEventsFifo);
+}
+
+void dl_rmgp() {
+	if (!editEventsFifo) return;
+	// No need for any locking considerations here, since we're
+	// just reading data (on the game thread) and writing to a pipe!
+	if (!*dl_selectedGroup->name) {
+		puts("Removing the default group is forbidden.");
+		return;
+	}
+	fprintf(editEventsFifo, "/rmgp %s\n", dl_selectedGroup->name);
 	fflush(editEventsFifo);
 }
 

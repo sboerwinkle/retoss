@@ -10,19 +10,16 @@
 #include "../tasks/tdmScore.h"
 #include "../comp/plank.h"
 
-// Could I make this struct anon? Too scared to try rn
-struct blah { offset pos; };
-static list<blah> spawns;
+static tskTdmData *tdmData = NULL;
 
 static void addSpawn(offset const o) {
+	bctx.push();
+
 	bctx.pos(o);
 	bctx.finalizeTranslate();
-	int64_t *dest = spawns.add().pos;
-	memcpy(dest, bctx.transf.pos, sizeof(offset));
+	taskTdm_addSpawn(tdmData, bctx.transf.pos);
 
-	// Technically this makes some assumptions about how the method is called,
-	// but it's a static function so it's not as big a deal
-	bctx.peek();
+	bctx.pop();
 }
 
 static void trolleyHalf(constel *c) {
@@ -435,8 +432,8 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 	bctx.pop();
 }
 
-//extern "C" void lvlUpd(gamestate *gs) {
-extern void lv_peaks(gamestate *gs) {
+//#name lv_peaks
+extern "C" void lv_peaks(gamestate *gs) {
 	bctx.reset(gs);
 
 	/*
@@ -463,8 +460,7 @@ extern void lv_peaks(gamestate *gs) {
 	}
 	*/
 
-
-	spawns.init();
+	tdmData = taskTdm_create(gs, 7);
 	bctx.push();
 
 	// Trolley def'n, may move this to a
@@ -520,11 +516,6 @@ extern void lv_peaks(gamestate *gs) {
 		tskRails_timeHelper(railsData);
 	}
 
-	tskTdmData *tdmData = taskTdm_create(gs, spawns.num, 7);
-	rangeconst(i, spawns.num) {
-		memcpy(tdmData->spawns[i], spawns[i].pos, sizeof(offset));
-	}
-
 	/*#1
 	gp();
 	bctx.pos(pvar("pos", look(3000)));
@@ -552,7 +543,7 @@ extern void lv_peaks(gamestate *gs) {
 	bctx.peek();
 	*/
 
-	spawns.destroy();
+	tdmData = NULL;
 	// This file has a reference, but we're done with it now!
 	trolley->decr();
 	bigPlate->decr();
