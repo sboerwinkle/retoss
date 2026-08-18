@@ -153,7 +153,7 @@ extern void addTaskEnd(gamestate *gs, int taskId, void *data);
 extern void runTick(gamestate *gs);
 
 extern gamestate* dup(gamestate *orig);
-extern void prepareGamestateForLoad(gamestate *gs, char isSync);
+extern void prepareGamestateForLoad(gamestate *gs, char strictness);
 extern void init(gamestate *gs);
 extern void cleanup(gamestate *gs);
 extern void coreSetup(gamestate *gs);

@@ -29,6 +29,8 @@
 
 // DL (Dynamic Load) stuff
 
+static char const * const DUMMY_GP_NAME = "[no_gp]";
+
 static void *fileHandle = NULL;
 static void (*lvlUpdFn)(gamestate*) = NULL;
 static FILE* editEventsFifo = NULL;
@@ -222,6 +224,36 @@ void gp(char const* groupName) {
 	currentGroup = &varGroups.add();
 	currentGroup->init();
 	strcpy(currentGroup->name, groupName);
+}
+
+void dl_resetGps() {
+	mtx_lock(dl_varMtx);
+	locked = 1;
+
+	rangeconst(i, varGroups.num) varGroups[i].destroy();
+	varGroups.num = 0;
+
+	gp(DUMMY_GP_NAME);
+	// Not sure we actually need to clear this out, but it doesn't hurt
+	currentGroup = NULL;
+
+	addDummyForGroup(0);
+	dl_selectedGroup = &varGroups[0];
+	dl_selectedVar = 0;
+
+	locked = 0;
+	mtx_unlock(dl_varMtx);
+}
+
+void dl_unload() {
+	if (fileHandle) {
+		if (dlclose(fileHandle)) {
+			printDlError("`dlclose` failed");
+			// Not sure what makes more sense in this case. For now we just try to proceed anyway?
+		}
+		fileHandle = NULL;
+		lvlUpdFn = NULL;
+	}
 }
 
 void dl_selectGp(char const* groupName) {
@@ -432,14 +464,7 @@ void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 	snprintf(path, bufLen, "./src/dl_tmp/%s", filename);
 	printf("dl: %s\n", path);
 
-	if (fileHandle) {
-		if (dlclose(fileHandle)) {
-			printDlError("`dlclose` failed");
-			// Not sure what makes more sense in this case. For now we just try to proceed anyway?
-		}
-		fileHandle = NULL;
-		lvlUpdFn = NULL;
-	}
+	dl_unload();
 
 	fileHandle = dlopen(path, RTLD_NOW);
 	if (!fileHandle) {
@@ -451,8 +476,8 @@ void dl_processFile(char const *filename, gamestate *gs, int myPlayer) {
 	processUpd(gs, myPlayer, 1);
 }
 
-void dl_upd(gamestate *gs, int myPlayer) {
-	processUpd(gs, myPlayer, 0);
+void dl_upd(gamestate *gs, int myPlayer, char firstLoad) {
+	processUpd(gs, myPlayer, firstLoad);
 }
 
 void dl_lookAtGp(gamestate *gs, int myPlayer) {
@@ -528,7 +553,6 @@ void dl_hotbar(char const *name) {
 
 void dl_edit_save(char const *path) {
 	if (!editEventsFifo) return;
-	dl_bake();
 	fprintf(editEventsFifo, "/edit_save %s\n", path);
 	fflush(editEventsFifo);
 }
@@ -555,7 +579,7 @@ void dl_init() {
 	varGroups.init();
 
 	locked = 1; // This is a lie, but it is true that we're not going to have mutex contention at this time!
-	gp("");
+	gp(DUMMY_GP_NAME);
 	if (varGroups.num != 1) {
 		puts("ERROR: dl: startup assertion failed");
 		exit(1);

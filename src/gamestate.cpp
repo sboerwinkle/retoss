@@ -387,7 +387,7 @@ void runTick(gamestate *gs) {
 	}
 }
 
-void prepareGamestateForLoad(gamestate *gs, char isSync) {
+void prepareGamestateForLoad(gamestate *gs, char strictness) {
 	// Shallow copy of player data.
 	// We don't need all of it, but it's okay to be slow here.
 	list<player> tmp;
@@ -402,7 +402,7 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 
 	// Setup any data that might carry over (player count, teams, and skins)
 	setupPlayers(gs, tmp.num);
-	if (!isSync) {
+	if (strictness < 1) {
 		rangeconst(i, tmp.num) {
 			gs->players[i].team = tmp[i].team;
 
@@ -411,6 +411,10 @@ void prepareGamestateForLoad(gamestate *gs, char isSync) {
 
 			gs->players[i].loadout = tmp[i].loadout;
 			rekitPlayer(&gs->players[i]);
+
+			if (strictness < 0) {
+				memcpy(gs->players[i].m.pos, tmp[i].m.pos, sizeof(offset));
+			}
 		}
 	}
 	rangeconst(i, tmp.num) {

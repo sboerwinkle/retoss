@@ -145,19 +145,12 @@ def hotbar(name, last_src_name):
     write_segs(segments, last_src_name)
 
 def rmgp(name, last_src_name):
-
-    def replace_func(m):
-        key = m.group(2)
-        if key not in replacements:
-            return m.group(0) # No change
-        return f"{m.group(1)}, {replacements[key]})";
-
     segments = parse_src(last_src_name)
     for s in segments:
         if isinstance(s, NormalSegment):
             keeping = True
             new_lines = []
-            for l in lines:
+            for l in s.lines:
                 g = get_gp(l)
                 if g is not None:
                     keeping = (g != name)
@@ -238,13 +231,13 @@ while True:
             hotbar(item.split(' ', 1)[1].strip(), last_src_name)
             continue
         if item.startswith("/rmgp "):
-            rmgp(item[6:], last_src_name)
+            rmgp(item[6:].strip(), last_src_name)
             continue
         if item.startswith("/edit_load "):
-            edit_load(item.split(' ', 1)[1])
+            edit_load(item.split(' ', 1)[1].strip())
             continue
         if item.startswith("/edit_save "):
-            edit_save(item.split(' ', 1)[1], last_src_name)
+            edit_save(item.split(' ', 1)[1].strip(), last_src_name)
             continue
         if item.startswith("/"):
             print(f"Unknown command {repr(item)}")

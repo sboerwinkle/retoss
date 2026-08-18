@@ -834,11 +834,26 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		return 1;
 	}
 	if (!strncmp(buf, "/edit_save ", 11)) {
+		dl_bake();
 		dl_edit_save(buf+11);
 		return 1;
 	}
 	if (!strncmp(buf, "/edit_load ", 11)) {
+		dl_resetGps();
+		// The "unload" here is just to prevent any value-changing commands
+		// from causing the old `lvlUpd` to run (and repopulate groups)
+		// before dl_edit_load completes.
+		dl_unload();
 		dl_edit_load(buf+11);
+		return 1;
+	}
+	if (isCmd(buf, "/resetgps")) {
+		dl_resetGps();
+		strcpy(loopbackCommandBuffer, "/dlUpd 1");
+		return 1;
+	}
+	if (isCmd(buf, "/dl_unload")) {
+		dl_unload();
 		return 1;
 	}
 	if (!strcmp(buf, "/rmgp")) { // No args allowed, they would be ignored
@@ -880,7 +895,10 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 		return 1;
 	}
 	if (isCmd(str, "/dlUpd")) {
-		dl_upd(gs, myPlayer);
+		int firstLoad = 0;
+		char const *arg = str+6;
+		getNum(&arg, &firstLoad);
+		dl_upd(gs, myPlayer, firstLoad);
 		return 1;
 	}
 	if (isCmd(str, "/lookAtGp")) {

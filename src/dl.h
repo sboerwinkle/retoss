@@ -41,10 +41,12 @@ extern mtx_t dl_varMtx;
 extern dl_varGroup *dl_selectedGroup;
 extern int dl_selectedVar;
 
+extern void dl_resetGps();
+extern void dl_unload();
 extern void dl_selectGp(char const* groupName);
 
 extern void dl_processFile(char const *filename, gamestate *gs, int myPlayer);
-extern void dl_upd(gamestate *gs, int myPlayer);
+extern void dl_upd(gamestate *gs, int myPlayer, char firstLoad);
 extern void dl_lookAtGp(gamestate *gs, int myPlayer);
 extern void dl_bake();
 extern void dl_hotbar(char const *name);

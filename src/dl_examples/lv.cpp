@@ -21,7 +21,8 @@ extern "C" void lv_example(gamestate *gs) {
 	// cleanup?
 
 	bctx.reset(gs);
-	prepareGamestateForLoad(gs, 0);
+	char strictness = var("respawn", 1) ? 0 : -1;
+	prepareGamestateForLoad(gs, strictness);
 	coreSetup(gs);
 
 	taskKillPlane_create(gs, var("kill_depth", -30000));
@@ -31,6 +32,12 @@ extern "C" void lv_example(gamestate *gs) {
 	}
 
 	bctx.push();
+
+	gp("0");
+	bctx.pos(pvar("pos", (offset const){0, 0, -2000}));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.add(var("shape", 0), var("tex", 4), var("scale", 1000));
+	bctx.peek();
 
 	//#add_here
 
