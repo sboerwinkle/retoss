@@ -21,13 +21,13 @@ extern "C" void lv_example(gamestate *gs) {
 	// cleanup?
 
 	bctx.reset(gs);
-	char strictness = var("respawn", 1) ? 0 : -1;
+	char strictness = var("respawn", 0) ? 0 : -1;
 	prepareGamestateForLoad(gs, strictness);
 	coreSetup(gs);
 
 	taskKillPlane_create(gs, var("kill_depth", -30000));
 	tskTdmData *tdmData = NULL;
-	if (var("tdm_active", 1)) {
+	if (var("tdm_active", 0)) {
 		tdmData = taskTdm_create(gs, var("tdm_limit", 7));
 	}
 

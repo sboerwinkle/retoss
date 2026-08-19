@@ -142,6 +142,7 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 		if (varGroups.num > origNumGroups) {
 			selectedGroupIndex = origNumGroups;
 			dl_selectedVar = 0;
+			if (editMenuState >= 0) editMenuState = 0;
 		}
 		range(i, varGroups.num) {
 			if (!varGroups[i].seen) {

@@ -90,15 +90,10 @@ void validateSize(int64_t *_size) {
 	}
 }
 
-// TODO `mover` pointers are cast to other types based on T_MASK,
-//      so really we need to pass in some kind of expectations we can
-//      validate here. I'm lazy tho
-void validateType(int32_t *type) {
-	int32_t shape = *type & (~T_MASK);
-
-	if (shape < 0 || shape >= NUM_SHAPES) {
-		printf("Invalid shape %d from mover type 0x%X\n", shape, *type);
-		*type = 0;
+void validateType(int32_t *type, int32_t lower, int32_t upper) {
+	if (*type < lower || *type >= upper) {
+		printf("Type should be in range [%d, %d) but is %d\n", lower, upper, *type);
+		*type = lower;
 	}
 }
 
@@ -111,8 +106,8 @@ void validateTex(int32_t *_tex) {
 	}
 }
 
-static void moverValidate(mover *m) {
-	validateType(&m->type);
+static void moverValidate(mover *m, int32_t typeLower, int32_t typeUpper) {
+	validateType(&m->type, typeLower, typeUpper);
 }
 
 static void solidValidate(solid *s) {
@@ -178,6 +173,7 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	s->m.rot[2] = 0;
 	s->m.rot[3] = 0;
 
+	moverValidate(&s->m, 0, NUM_SHAPES);
 	solidValidate(s);
 
 	solidPutVb(s, b, 15);
@@ -414,6 +410,7 @@ void prepareGamestateForLoad(gamestate *gs, char strictness) {
 
 			if (strictness < 0) {
 				memcpy(gs->players[i].m.pos, tmp[i].m.pos, sizeof(offset));
+				memcpy(gs->players[i].vel, tmp[i].vel, sizeof(offset));
 			}
 		}
 	}
@@ -538,7 +535,7 @@ void coreSetup(gamestate *gs) {
 }
 
 // Seriz / Deser stuff
-void transMover(mover *m) {
+void transMover(mover *m, int32_t typeLower, int32_t typeUpper) {
 	trans32(&m->type);
 	transBlock(m->pos, sizeof(m->pos));
 	transBlock(m->rot, sizeof(m->rot));
@@ -549,7 +546,7 @@ void transMover(mover *m) {
 		memset(m->oldPos, 0, sizeof(m->oldPos));
 		memset(m->oldRot, 0, sizeof(m->oldRot));
 
-		moverValidate(m);
+		moverValidate(m, typeLower, typeUpper);
 
 		// Box and Solid have ptrs to each other, but only one dir gets
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
@@ -559,7 +556,7 @@ void transMover(mover *m) {
 }
 
 void transSolid(solid *s) {
-	transMover(&s->m);
+	transMover(&s->m, 0, NUM_SHAPES);
 	trans64(&s->r);
 	trans32(&s->tex);
 	if (seriz_reading) {

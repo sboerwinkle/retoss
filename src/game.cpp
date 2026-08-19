@@ -74,7 +74,7 @@ static std::atomic<float> aimAtCamTan(0.0f);
 static list<mover*> crosshairCandidates;
 static char renderStats = 0;
 
-static char editMenuState = -1;
+char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
 // TODO Really clumsy to have these `char`s that translate to commands;
 //      should just have a queue of commands we can move over while `mtx`-locked.
@@ -460,7 +460,11 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 		if (button == 0) {
 			mouseDragMode = 1;
 		} else if (button == 1) {
-			if (editMenuState == 1) editMenuState = 0;
+			if (editMenuState) {
+				editMenuState = 0;
+			} else {
+				strcpy(outboundTextQueue.add().items, "/gp ");
+			}
 		}
 		return;
 	}

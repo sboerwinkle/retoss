@@ -120,7 +120,7 @@ void constelSerizFinalize() {
 
 void validate(constelPt *pt) {
 	validateSize(&pt->r);
-	validateType(&pt->type);
+	validateType(&pt->type, 0, NUM_SHAPES);
 	validateTex(&pt->tex);
 }
 
