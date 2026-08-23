@@ -42,7 +42,7 @@ extern "C" void lv_example(gamestate *gs) {
 	//#add_here
 
 	/*#1
-	gp();
+	//#gp
 	bctx.pos(pvar("pos", look(3000)));
 	bctx.rot(rvar("rot"));
 	bctx.add(var("shape"), var("tex", 4), var("scale", 1000));
@@ -50,7 +50,7 @@ extern "C" void lv_example(gamestate *gs) {
 
 	*/
 	/*#2
-	gp();
+	//#gp s
 	addSpawn(tdmData, pvar("pos", look(3000)));
 
 	*/

@@ -78,7 +78,8 @@ def write_segs(segments, filename):
         f.writelines(result_lines)
 
 gp_re = re.compile(r'\bgp\("([^"]*)')
-empty_gp_re = re.compile(r'\bgp\(\)')
+numeric_gp_name_re = re.compile(r'(.*\.|)([0-9]+)')
+empty_gp_re = re.compile(r'//#gp\b( [^ \n]*)?')
 # This matches calls to the `var`/`pvar`/`rvar` functions,
 # assuming you don't nest `()` more than one layer deep inside.
 # If you need more, I'll have to start basically parsing C source for real lol
@@ -183,7 +184,7 @@ def edit_save(filename, last_src_name):
 def check_src(filename):
     segments = parse_src(filename)
     empty_gps = []
-    largest_gp = -1
+    largest_gps = {}
     for s in segments:
         if isinstance(s, NormalSegment):
             for i in range(len(s.lines)):
@@ -191,21 +192,34 @@ def check_src(filename):
                 if empty_gp_re.search(l):
                     empty_gps.append((s, i))
                 gp = get_gp(l)
-                if gp is not None:
-                    try:
-                        numeric = int(gp)
-                        if numeric > largest_gp:
-                            largest_gp = numeric
-                    except ValueError:
-                        # Other (non-numeric) group names are totally fine
-                        pass
+                if gp is None:
+                    continue
+                m = numeric_gp_name_re.fullmatch(gp)
+                if m is None:
+                    continue
+                k = m.group(1)
+                v = int(m.group(2))
+                if k not in largest_gps or largest_gps[k] < v:
+                    largest_gps[k] = v
+
+    def replace_func(m):
+        pfx = m.group(1)
+        if pfx is None:
+            pfx = ''
+        else:
+            # Remove leading space, add '.'
+            pfx = pfx[1:] + '.'
+        if pfx not in largest_gps:
+            largest_gps[pfx] = 0
+        largest_gps[pfx] += 1
+        name = pfx + str(largest_gps[pfx])
+        return f'gp("{name}");'
 
     modified = False
     # Maybe we'll do other modifications in the future, idk
     for (seg, line) in empty_gps:
         modified = True
-        largest_gp += 1
-        seg.lines[line] = empty_gp_re.sub(f'gp("{largest_gp}")', seg.lines[line])
+        seg.lines[line] = empty_gp_re.sub(replace_func, seg.lines[line])
 
     if modified:
         print(f"Rewriting {repr(filename)}")

@@ -7,9 +7,27 @@ if ! [ -p edit_events.fifo ]; then
 	fi;
 fi;
 
-if ! ( mount | grep dl_tmp ); then
-	echo "dl_tmp isn't a mount, are you sure you want to do this?";
-	exit;
+if ! [ -d src/dl_tmp ]; then
+	mkdir src/dl_tmp;
+	echo '`src/dl_tmp/` created.'
+fi;
+
+# If directory is empty but not currently mounted,
+# advise user to maybe mount it.
+if [ -z "$(ls -A ./src/dl_tmp)" ] && ! findmnt ./src/dl_tmp >/dev/null; then
+	echo '
+During editing, roughly 50KB will be written to disk per
+item added or removed. Optionally, you can mount a `tmpfs`
+filesystem so everything in `src/dl_tmp/` is in RAM (instead
+of on disk), avoiding this cost.
+
+If you would like to do this, exit this script (Ctrl+C), run
+`tmpmount.sh` as root, and re-run this script. The resulting
+filesystem will have a 10MB max size and will persist until
+the system reboots or you manually `umount` it.
+
+Alternatively, press Enter to skip this.';
+	read
 fi;
 
 inotifywait -m -e CLOSE_WRITE ./src/dl_tmp > edit_events.fifo &

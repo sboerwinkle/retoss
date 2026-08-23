@@ -490,7 +490,9 @@ void dl_lookAtGp(gamestate *gs, int myPlayer) {
 	// as well for our purposes.
 	lookAtGp_best = (fraction){.numer = INT64_MAX/FIXP, .denom = 1};
 	memcpy(lookAtGp_origin, gs->players[myPlayer].m.pos, sizeof(lookAtGp_origin));
-	getLookUnitvec(lookAtGp_dir);
+
+	// Todo: Surely we'll need this more often, right? Save it somewhere?
+	iquat_apply(lookAtGp_dir, gs->players[myPlayer].m.rot, ((unitvec const){0, FIXP, 0}));
 
 	bctx.solidCallback = lookAtGp_test;
 	processUpd(gs, myPlayer, 0);

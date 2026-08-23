@@ -1,14 +1,17 @@
 #!/bin/bash
 
-if ( mount | grep dl_tmp ); then
+if findmnt ./src/dl_tmp > /dev/null; then
 	echo "Looks like there's an existing mount, aborting";
 	exit;
 fi;
 
-if [ -n "$(ls -A ./src/dl_tmp)" ]; then
-	echo "dl_tmp not empty, aborting";
+if ! [ -d ./src/dl_tmp ]; then
+	echo '`src/dl_tmp` is not a directory, create it first!';
+	# We could do this ourselves, but this script is meant to
+	# be run as root, so the permissions would be all wacky.
 	exit;
 fi;
 
-doas mount -t tmpfs -o size=10m,noswap tmpfs ./src/dl_tmp
-echo "done"
+if mount -t tmpfs -o size=10m,noswap tmpfs ./src/dl_tmp; then
+	echo "tmpfs filesystem mounted."
+fi;
