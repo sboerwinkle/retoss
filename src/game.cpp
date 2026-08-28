@@ -58,7 +58,7 @@ static int getTeamShirt(char team);
 
 static char mouseGrabbed = 0;
 static char mouseDragMode = 0;
-static int mouseDragSize = 30, mouseDragSteps = 0;
+static int mouseDragSize = 60, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0;
 enum { AIM_NONE, AIM_LOW, AIM_HIGH };
@@ -78,7 +78,7 @@ char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
 // TODO Really clumsy to have these `char`s that translate to commands;
 //      should just have a queue of commands we can move over while `mtx`-locked.
-static char doLookGp = 0;
+static char doLookGp = 0, doDlCp = 0;
 // For now this is just for editing, will need to update it some if it becomes for other stuff too
 static int numberPressed = 0;
 
@@ -337,9 +337,10 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_SPACE) {
 		activeInputs.state.jump = activeInputs.state.z = action;
 		if (action) activeInputs.event.jump = 1;
-	}
-	else if (key == GLFW_KEY_C)     activeInputs.state.Z = action;
-	else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
+	} else if (key == GLFW_KEY_C) {
+		if (ctrlPressed && action) doDlCp = 1;
+		else activeInputs.state.Z = action;
+	} else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
 	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
 		shiftPressed = action;
@@ -525,10 +526,13 @@ void copyInputs() {
 		if (doLookGp) {
 			strcpy(loopbackCommandBuffer, "/lookAtGp");
 		}
+		if (doDlCp) {
+			strcpy(outboundTextQueue.add().items, "/dl_cp");
+		}
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
 	numberPressed = 0;
-	doLookGp = 0;
+	doLookGp = doDlCp = 0;
 
 	if (mouseDragSteps) {
 		if (mouseDragMode > 1) {
@@ -862,6 +866,11 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 	}
 	if (!strcmp(buf, "/rmgp")) { // No args allowed, they would be ignored
 		dl_rmgp();
+		return 1;
+	}
+	if (!strcmp(buf, "/dl_cp")) { // No args allowed, they would be ignored
+		dl_bake();
+		dl_cp();
 		return 1;
 	}
 	if (isCmd(buf, "/_cfgcam")) {

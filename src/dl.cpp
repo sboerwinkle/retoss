@@ -578,6 +578,12 @@ void dl_rmgp() {
 	fflush(editEventsFifo);
 }
 
+void dl_cp() {
+	if (!editEventsFifo) return;
+	fprintf(editEventsFifo, "/cp %s\n", dl_selectedGroup->name);
+	fflush(editEventsFifo);
+}
+
 void dl_init() {
 	varGroups.init();
 

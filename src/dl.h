@@ -53,6 +53,7 @@ extern void dl_hotbar(char const *name);
 extern void dl_edit_save(char const *path);
 extern void dl_edit_load(char const *path);
 extern void dl_rmgp();
+extern void dl_cp();
 
 extern void dl_init();
 extern void dl_destroy();

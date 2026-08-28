@@ -77,7 +77,7 @@ def write_segs(segments, filename):
     with open(filename, 'w') as f:
         f.writelines(result_lines)
 
-gp_re = re.compile(r'\bgp\("([^"]*)')
+gp_re = re.compile(r'\bgp\("([^"]*)"\);')
 numeric_gp_name_re = re.compile(r'(.*\.|)([0-9]+)')
 empty_gp_re = re.compile(r'//#gp\b( [^ \n]*)?')
 # This matches calls to the `var`/`pvar`/`rvar` functions,
@@ -161,6 +161,35 @@ def rmgp(name, last_src_name):
 
     write_segs(segments, last_src_name)
 
+def cp(name, last_src_name):
+    m = numeric_gp_name_re.fullmatch(name)
+    if m is None:
+        gp_pfx = ' ' + name
+    else:
+        gp_pfx = m.group(1)
+        if len(gp_pfx):
+            # Strip trailing '.', add space.
+            gp_pfx = ' ' + gp_pfx[:-1]
+            # Other option is empty string, which becomes #gp with *no arguments* (as opposed to 1 empty argument)
+    cp_lines = []
+    segments = parse_src(last_src_name)
+    for s in segments:
+        if isinstance(s, NormalSegment):
+            copying = False
+            for l in s.lines:
+                g = get_gp(l)
+                if g is not None:
+                    copying = (g == name)
+                    if copying:
+                        l = gp_re.sub('//#gp' + gp_pfx, l)
+                if copying:
+                    cp_lines.append(l)
+    for s in segments:
+        if isinstance(s, AddHereSegment):
+            s.lines = cp_lines + s.lines
+
+    write_segs(segments, last_src_name)
+
 def edit_load(filename):
     segments = parse_src("src/" + filename)
 
@@ -232,6 +261,7 @@ def check_src(filename):
 lines = stdin_to_generator()
 
 last_src_name = None
+baked_src_name = None
 while True:
     try:
         item = next(lines)
@@ -240,12 +270,16 @@ while True:
     try:
         if item == "/bake\n":
             bake(lines, last_src_name)
+            baked_src_name = last_src_name
             continue
         if item.startswith("/hotbar"):
             hotbar(item.split(' ', 1)[1].strip(), last_src_name)
             continue
         if item.startswith("/rmgp "):
             rmgp(item[6:].strip(), last_src_name)
+            continue
+        if item.startswith("/cp "):
+            cp(item[4:].strip(), last_src_name)
             continue
         if item.startswith("/edit_load "):
             edit_load(item.split(' ', 1)[1].strip())
@@ -271,4 +305,13 @@ while True:
         #    print(f"(debug: {repr(orig_item)})")
         continue
     last_src_name = item
+
+    # Baking always generates a notification that the file was written,
+    # but usually we don't want to bother recompiling it for that.
+    # This is just a small optimization, you can remove this check
+    # if it causes any problems.
+    if last_src_name == baked_src_name:
+        baked_src_name = None
+        continue
+
     check_src(last_src_name)
