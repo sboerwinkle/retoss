@@ -12,15 +12,7 @@
 
 static tskTdmData *tdmData = NULL;
 
-static void addSpawn(offset const o) {
-	bctx.push();
-
-	bctx.pos(o);
-	bctx.finalizeTranslate();
-	taskTdm_addSpawn(tdmData, bctx.transf.pos);
-
-	bctx.pop();
-}
+static void addSpawn(offset const o);
 
 static void trolleyHalf(constel *c) {
 	bctx.push();
@@ -434,33 +426,13 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 
 //#name lv_peaks
 extern "C" void lv_peaks(gamestate *gs) {
+	prepareGamestateForLoad(gs, var("respawn", 1) ? 0 : -1);
+	coreSetup(gs);
 	bctx.reset(gs);
 
-	/*
-	bctx.resel();
-	int existingTasks = var("tsk_num", 0);
-	if (existingTasks < gs->tasks.num) {
-		for (int i = existingTasks; i < gs->tasks.num; i++) {
-			taskInstance &task = gs->tasks[i];
-			(*task.defn->destroy)(task.data);
-		}
-		gs->tasks.num = existingTasks;
+	if (var("tdm_active", 1)) {
+		tdmData = taskTdm_create(gs, var("score", 7));
 	}
-	// TODO make this common? I'm going to need
-	//      some variant of this consistently if
-	//      I'm editing in `constelInst`s.
-	int existingCis = var("ci_num", 0);
-	if (existingCis < gs->constels.num) {
-		for (int i = existingCis; i < gs->constels.num; i++) {
-			// This breaks things if anybody is
-			// referencing that constelInst...
-			deleteConstelInst(gs->constels[i]);
-		}
-		gs->constels.num = existingCis;
-	}
-	*/
-
-	tdmData = taskTdm_create(gs, 7);
 	bctx.push();
 
 	// Trolley def'n, may move this to a
@@ -517,14 +489,14 @@ extern "C" void lv_peaks(gamestate *gs) {
 	}
 
 	/*#1
-	gp();
+	//#gp
 	bctx.pos(pvar("pos", look(3000)));
 	bctx.rot(rvar("rot"));
 	bctx.add(var("shape"), var("tex", 4), var("scale", 1000));
 	bctx.peek();
 	*/
 	/*#2
-	gp();
+	//#gp
 	bctx.pos(pvar("pos", look(3000)));
 	bctx.rot(rvar("rot"));
 	plank(
@@ -536,7 +508,7 @@ extern "C" void lv_peaks(gamestate *gs) {
 	bctx.peek();
 	*/
 	/*#3
-	gp();
+	//#gp
 	bctx.pos(pvar("pos", (offset const){26703, -12737, 5332}));
 	bctx.rot(rvar("rot", (int32_t const[]){-32110, 5690, 0}));
 	bctx.add(var("shape", 2), var("tex", 5), var("scale", 7500));
@@ -547,4 +519,18 @@ extern "C" void lv_peaks(gamestate *gs) {
 	// This file has a reference, but we're done with it now!
 	trolley->decr();
 	bigPlate->decr();
+}
+
+static void addSpawn(offset const o) {
+	bctx.push();
+
+	bctx.pos(o);
+	if (tdmData) {
+		bctx.finalizeTranslate();
+		taskTdm_addSpawn(tdmData, bctx.transf.pos);
+	} else {
+		bctx.add(0, 3, PLAYER_SHAPE_RADIUS);
+	}
+
+	bctx.pop();
 }

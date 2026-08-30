@@ -987,26 +987,18 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		}
 	} else if (isCmd(str, "/lv_tdm1")) {
 		if (isReal) {
-			prepareGamestateForLoad(gs, 0);
-			coreSetup(gs);
 			lv_tdm1(gs);
 		}
 	} else if (isCmd(str, "/lv_playground")) {
 		if (isReal) {
-			prepareGamestateForLoad(gs, 0);
-			coreSetup(gs);
 			lv_playground(gs);
 		}
 	} else if (isCmd(str, "/lv_swarm")) {
 		if (isReal) {
-			prepareGamestateForLoad(gs, 0);
-			coreSetup(gs);
 			lv_swarm(gs);
 		}
 	} else if (isCmd(str, "/lv_peaks")) {
 		if (isReal) {
-			prepareGamestateForLoad(gs, 0);
-			coreSetup(gs);
 			lv_peaks(gs);
 		}
 	} else if (isCmd(str, "/die")) {

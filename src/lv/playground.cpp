@@ -8,11 +8,16 @@ static void rubblePortion();
 
 //#name lv_playground
 extern "C" void lv_playground(gamestate *gs) {
+	prepareGamestateForLoad(gs, var("respawn", 1) ? 0 : -1);
+	coreSetup(gs);
 	bctx.reset(gs);
-	bctx.scale(2000);
-	//bctx.resel();
 
+	// This is all old stuff, and I don't feel like muliplying the
+	// 2x scale all the way through.
+	// "New" stuff goes in `rubblePortion()` anyway, which doesn't have this.
+	bctx.scale(2000);
 	bctx.push();
+
 	gp("ground");
 	bctx.pos(pvar("pos", (offset const){0, 0, -4000}));
 	bctx.add(var("shape", 1), 4, var("scale", 8000));
@@ -45,7 +50,6 @@ extern "C" void lv_playground(gamestate *gs) {
 		bctx.pop();
 		bctx.pos(pvar("shift", (offset const){-1500, 0, 0}));
 	}
-	//#add_here
 	bctx.pop();
 
 	// Other b.s.
@@ -63,12 +67,6 @@ extern "C" void lv_playground(gamestate *gs) {
 	bctx.scale(var("scale", 1000));
 	bctx.add(var("shape", 0), 4, 1000);
 	bctx.peek();
-	/*#1
-	gp();
-	bctx.peek();
-	bctx.pos(pvar("pos", look(3000)));
-	bctx.add(var("shape"), 4, var("scale", 1000));
-	 */
 
 	bctx.reset(gs);
 	rubblePortion();
@@ -150,4 +148,13 @@ static void rubblePortion() {
 	bctx.rot(rvar("rot", (int32_t const[]){23170, 16384, 0}));
 	bctx.add(var("shape", 1), 4, var("scale", 1400));
 	bctx.peek();
+	//#add_here
+
+	/*#1
+	//#gp
+	bctx.pos(pvar("pos", look(3000)));
+	bctx.rot(rvar("rot"));
+	bctx.add(var("shape", 0), var("tex", 4), var("scale", 1000));
+	bctx.peek();
+	*/
 }

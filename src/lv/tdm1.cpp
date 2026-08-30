@@ -13,9 +13,11 @@
 
 //#name lv_tdm1
 extern "C" void lv_tdm1(gamestate *gs) {
-	taskKillPlane_create(gs, -30000);
-	pushVarIgnore();
+	prepareGamestateForLoad(gs, -1);
+	coreSetup(gs);
 	bctx.reset(gs);
+
+	taskKillPlane_create(gs, -30000);
 
 	gp("base");
 	bctx.push();
@@ -124,31 +126,19 @@ extern "C" void lv_tdm1(gamestate *gs) {
 
 	//#add_here
 
+	gp("");
 	// Spawner setup.
-	tskTdmData *data = NULL;
-	// This loop will never find anything when loading the level,
-	// but for now it's here to help things run smoothly when
-	// pasting this into the dl_tmp folder for "editing".
-	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
-		if (t->defn->id == TSK_TDM) {
-			data = (tskTdmData*)t->data;
-			break;
-		}
+	tskTdmData *data = taskTdm_create(gs, var("score", 5));
+
+	taskTdm_addSpawn(data, pvar("spawn.0", (offset const){-23177, -16393, 1000}));
+	taskTdm_addSpawn(data, pvar("spawn.1", (offset const){21263, -16393, 1000}));
+
+	if (var("respawn", 1)) {
+		taskTdm_spawnAll(gs, data);
 	}
-	if (!data) {
-		data = taskTdm_create(gs, 5);
-	}
-
-	gp("spawns");
-	taskTdm_addSpawn(data, pvar("p1", (offset const){-23177, -16393, 1000}));
-	taskTdm_addSpawn(data, pvar("p2", (offset const){21263, -16393, 1000}));
-
-	taskTdm_spawnAll(gs, data);
-
-	popVarIgnore();
 
 	/*#1
-	gp();
+	//#gp
 	bctx.peek();
 	bctx.pos(pvar("pos", look(5000)));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 23170, 0}));
@@ -156,7 +146,7 @@ extern "C" void lv_tdm1(gamestate *gs) {
 
 	 */
 	/*#2
-	gp();
+	//#gp
 	bctx.peek();
 	bctx.pos(pvar("pos", (offset const){0,0,1600}));
 	bctx.rot(rvar("rot", (int32_t const[]){-23170, 23170, 0}));
@@ -164,7 +154,7 @@ extern "C" void lv_tdm1(gamestate *gs) {
 
 	 */
 	/*#3
-	gp();
+	//#gp t
 	bctx.peek();
 	bctx.pos(pvar("pos", look(4000)));
 	bctx.rot(rvar("rot"));

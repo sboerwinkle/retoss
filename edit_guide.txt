@@ -1,0 +1,155 @@
+A terrible crash course in making a Team Deathmatch level
+
+
+Chapter 1: Load up the example level
+------------------------------------
+
+
+In a separate terminal, launch ./dl_watch.sh
+	This must be before you launch the game!
+	If it looks like your first time, there will be some text explaining an optional setup step. Read it.
+Start the server if you haven't already
+Launch the game
+`/edit_load examples/lv.cpp`
+	This should do something.
+		It's okay if you fall to your death, don't worry.
+	If it doesn't do anything, look for complaints in one of:
+		`./game` terminal
+		`./dl_watch.sh` terminal
+
+
+Chapter 2: Do some stuff
+------------------------
+
+
+We're going to hit some simple "objectives" as a way to cover the controls.
+
+Show the variable list:
+	Ctrl+E
+	You should see 3 variables: "respawn", "kill_depth", and "tdm_active"
+Set "respawn" to 1:
+	Ctrl+mousewheel to scroll through variable list
+	Ctrl+click to look at details of one variable
+	Ctrl+mousewheel (in details) to modify the value
+	Ctrl+right_click (in details) to go back to list
+	Leaving "respawn" on all the time is a pain (since it resets your position whenever you do anything),
+	but it's helpful if you fall to your death. We'll also need it later for something else.
+Set "kill_depth" to 20,000:
+	Same commands as previously, plus one more:
+	Ctrl+Shift+mousewheel (in details) to change increment
+	This will kill you, ofc. Feel free to set it back where it was.
+Make a block:
+	Look off into the distance and press "1"
+	You should now see a block, a different set of variables, and the number "1" on the right-hand side of the screen
+		It's a coincidence that these are both "1", it'll make sense later.
+Primer on groups:
+	This part's boring, but you've got the potential to get lost now so we need to cover it.
+	Variables are actually organized into "groups". You only see the variables for one group at a time.
+	Groups can "mean" anything, but in practice they usually represent one block in the game.
+	The default group is named "" (empty string), and is a good place to put variables that are "global" in some sense.
+	You're looking at group "1" right now.
+Switch around between groups:
+	Ctrl+F: Selects the group corresponding to whatever block you're looking at
+	`/gp 1`: Selects the group named "1"
+	Ctrl+right_click (in list): Selects the default ("") group
+Make and edit more blocks:
+	Press "1" to make more blocks. You'll see the groups are named sequentially ("2", "3"...)
+	You can change the shape/size/texture the same way you changed "respawn" and "kill_depth" earlier.
+	We also see position and rotation variables now.
+		These have 3 values each, and Ctrl+mousewheel will only set one of them.
+		Ctrl+click+drag (in details): modify variable value (along other axes)
+	Have some fun here, get comfortable, but don't start in on your masterpiece until we've covered saving, yeah?
+Delete a box:
+	`/rmgp`
+Make spawn points:
+	Press "2"
+	These will be visible in the world when "tdm_active" is 0
+	Group names will be sequential, but prefixed with "s."
+A note about numbers
+	The "1" and "2" keys (and other numbers) are programmable shortcuts.
+	If you're editing one of the existing levels (instead of starting with `examples/lv.cpp`), "1" will probably be similar, but "2" will not.
+
+
+Chapter 3: Save/Export
+----------------------
+
+
+Save some work-in-progress:
+	`/edit_save examples/foo.cpp`
+	You can `/edit_load` this file later
+Prepare a finished product:
+	The intention is for "respawn" and "tdm_active" to both be "1" for a "finished" level.
+	This applies for all the sharing methods listed below.
+Share a level (method 1, simplest):
+	`/save my_fancy_lv`
+	Later, with friends, run `/load my_fancy_lv`
+	Don't `/load` while editing a level, use `/edit_save` and `/edit_load` instead!
+		Variables aren't saved/loaded, so you'll get weird results.
+	Pros:
+		Super simple to do
+		Friends don't have to do anything
+	Cons:
+		Players will have to re-set their teams + weapon choices, since a full load overwrites those.
+Share a level (method 2, medium):
+	Save with `/edit_save` as usual
+	Later, with friends, run `/edit_load examples/foo.cpp` followed by `/sync`
+	Make sure the variables are hidden (Ctrl+E) before you `/sync`
+		Any changes made with edit controls will de-sync you
+	Pros:
+		Pretty simple
+		Friends don't have to do anything
+		Player teams / weapons are maintained
+	Cons:
+		Not much
+Share a level (method 3, most effort):
+	`/edit_save lv/foo.cpp` (Note this is in `lv/`, not `examples/`)
+	In the file, change "lv_example" to "lv_foo" (2x)
+		This doesn't have to match the filename, but it's convention.
+	Add a line in `src/lv.h` (following existing convention)
+	Add a command to load the level in `game.cpp` (copy from e.g. "/lv_peaks")
+	Add self to "Contributors" in README.md if not there already
+	Compile, test, commit, push changes
+	Pros:
+		Everyone can play level
+		Everyone can edit level (`/edit_load lv/cool_place.cpp`)
+		You're a contributor now
+	Cons:
+		Not simple
+		Friends have to get latest version and recompile
+			If they didn't, you'll want to `/sync` after loading the level
+
+
+Chapter 4: Advanced Material
+----------------------------
+
+
+When you `/edit_load` something, it gets copied to `dl_tmp/tmp.cpp`. This section is about that file, so you may want to look at it for reference.
+
+You can edit this file, which allows you do many things. When you save it, the changes will be automatically compiled and loaded back into the world. Of course, you can also screw things up pretty bad. I'm not going to spend too much effort on this chapter yet, but it's worth covering some of the weirder things that might trip you up.
+
+Firstly and Foremostly: The game associated variables to groups based on the order that `gp()` and `var()` are called. The python helper script just reads the file top-to-bottom, and associates variables to groups based on the order it sees them. You can get clever with control flow (loops, functions, etc) so long as:
+	you make sure the game and the python script agree on what variables are in which groups, and
+	the names of groups and variables are string literals without escapes, no funky expressions.
+It's okay for `gp()` to be called multiple times with the same name (it will re-select the same group), and within a group it's okay to call `var()` multiple times with the same name (it will return the same value).
+
+Secondly: The game doesn't write back to the file every time you change a variable - it keeps track internally of the current value to use for each one. There are a couple commands to sync what's in the file with the current values:
+	`/bake` - writes current values to the file. This is also done internally by `/edit_save`.
+		For efficiency, this skips values that haven't been changed in-game since the last `/bake`,
+		which could matter if you change the value in the file instead of in-game.
+	`/resetgps` - discards current values for all variables, then re-loads them from the file.
+		If you want to do this for a single group, just change the group name in the file.
+		The game will see the old group as deleted, and discard its values.
+
+The build context (`bctx`) can do a lot more than what it's used for in `examples/lv.cpp`. It's basically a stack of transforms, but it's only used in a very boring way here:
+	Start with a `push`, which saves the initial transform on the stack.
+	Repeat these 2 steps over and over:
+		Do some moving and rotating, then make a box.
+		`peek()` (effectively a pop-push combo), to reset us to the inital transform.
+If you write a function that places blocks, it will probably start with `bctx.push()` and end with `bctx.pop()`.
+
+Lastly, you should see some interesting-looking comments:
+	//#add_here
+	/*#1 .... */
+	//#gp
+These are related to what happens when you press "1" in-game. The block comment defines the template associated with "1", the #add_here shows where to paste it, and the #gp is replaced with an incrementing group name.
+	Technically #gp is ignored inside templates - it should only be substituted *after* the template is pasted in.

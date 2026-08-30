@@ -20,7 +20,7 @@ static void island() {
 }
 
 static void rand_island(uint32_t seed) {
-	gp("setup");
+	gp("");
 	offset p;
 	range(i, 3) {
 		p[i] = ((int32_t)splitmix32(&seed) + INT32_MIN) * var("dist", 40000);
@@ -34,41 +34,30 @@ static void rand_island(uint32_t seed) {
 
 //#name lv_swarm
 extern "C" void lv_swarm(gamestate *gs) {
-	taskKillPlane_create(gs, -64000);
+	prepareGamestateForLoad(gs, -1);
+	coreSetup(gs);
 	bctx.reset(gs);
-	//bctx.resel();
+
+	taskKillPlane_create(gs, -64000);
 
 	bctx.push();
 
-	gp("setup");
-	bctx.pos(pvar("view", (offset const){67600, 0, 0}));
+	bctx.pos(pvar("island0", (offset const){67600, 0, 0}));
 	island();
-	gp("spawn");
-	bctx.pos(pvar("pos", (offset const){0, 0, 800}));
+	gp("");
+
+	bctx.pos(pvar("start", (offset const){0, 0, 800}));
 	bctx.finalizeTranslate();
-	if (var("do", 1)) {
+	if (var("respawn", 1)) {
 		rangeconst(i, gs->players.num) {
 			memcpy(gs->players[i].m.pos, bctx.transf.pos, sizeof(offset));
 			memcpy(gs->players[i].vel, (int64_t const[]){0,0,0}, sizeof(offset));
 		}
 	}
 	bctx.peek();
-	gp("setup"); // Same gp again
+
 	uint32_t seed = var("seed", 0);
 	rangeconst(i, var("count", 64)) {
 		rand_island(splitmix32(&seed));
 	}
-
-	//#add_here
-
-	/*#1
-	gp();
-	bctx.peek();
-	bctx.pos(pvar("pos", look(3000)));
-	bctx.scale(var("scale", 1000));
-	int32_t r[3] = {quatSin(var("yaw")), 0, 0};
-	bctx.rot(r);
-	bctx.add(0, 4, 1000);
-
-	 */
 }
