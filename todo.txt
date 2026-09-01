@@ -1,7 +1,19 @@
-- Edit improvements
-	- Make sure all existing levels work with this
-	- guide
-	- simple test commands
+- Vehicles
+	- Need interactibles in world
+		Teleporter, weapon select, maybe buttons are all good starts
+	- Need ability to have different bodies
+		Split out homunculus vs tombstone
+		For now, view params aren't affected
+		"head" solid, draw fn, and draw fn arg in player.
+- Heightmap levels
+- Enemies would be cool
+	No idea about specifics yet, something simple that can mob you
+. Edit improvements
+	. Make sure all existing levels work with this
+	. guide
+	! simple test commands
+		This was meant to be commands to make sure editing was set up correctly
+		Decided it wasn't worth it
 . Lower TDM score limit / make configurable
 - randomize teams
 - Too many submit buttons I guess

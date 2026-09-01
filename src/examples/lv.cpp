@@ -11,14 +11,6 @@ static void addSpawn(tskTdmData *data, offset const o);
 
 //#name lv_example
 extern "C" void lv_example(gamestate *gs) {
-	// When this is loaded as an actual level,
-	// it is always given a clean slate, so
-	// clearing it again is redundant. We have
-	// to do it here for the edit flow, however,
-	// which makes fewer assumptions about what
-	// you want cleared. Maybe the convention
-	// will change to have `lv`s do their own
-	// cleanup?
 
 	bctx.reset(gs);
 	char strictness = var("respawn", 0) ? 0 : -1;

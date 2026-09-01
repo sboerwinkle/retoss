@@ -27,10 +27,12 @@
 #include "dl_game.h"
 #include "bctx.h"
 #include "constel.h"
+#include "file.h"
 #include "http.h"
 #include "lv.h"
 #include "mypoll.h"
 #include "player.h"
+#include "serialize.h"
 #include "sound.h" // needs game_graphics
 #include "bcast.h"
 #include "task.h"
@@ -46,6 +48,9 @@
 #include "game.h"
 #include "game_callbacks.h"
 #include "main_graphics.h"
+
+// `main.cpp` has some `BIN_CMD`s, but those start at 128 and work up.
+#define BIN_CMD_HEIGHTMAP 255
 
 struct timing {
 	long minNanos, maxNanos;
@@ -890,6 +895,29 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		// Command should still be sent out
 		return 0;
 	}
+	if (isCmd(buf, "/hmap")) {
+		if (!buf[5] || !buf[6]) {
+			puts("/hmap requires a filename");
+			return 1;
+		}
+		list<char> &out = *outData;
+		// The rest of this was pretty much lifted from the code for `/load`
+		const char *file = buf + 6;
+		int initial = out.num;
+		// We'll record the size here later
+		out.setMaxUp(out.num += 4);
+
+		out.add((char)BIN_CMD_HEIGHTMAP);
+		if (readFile(file, &out)) {
+			// If reading the file failed, don't send anything out at all
+			out.num = initial;
+			return 1;
+		} else {
+			printf("Loading heightmap level from %s\n", file);
+			write32Raw(outData, initial, out.num - initial - 4);
+			return 2;
+		}
+	}
 	return 0;
 }
 
@@ -922,6 +950,12 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 }
 
 char processBinCmd(gamestate *gs, player *p, char const *data, int chars, char isMe, char isReal) {
+	if (chars && (*data == (char)BIN_CMD_HEIGHTMAP)) {
+		if (isReal) {
+			lv_heightmap(gs, data+1, chars-1);
+		}
+		return 1;
+	}
 	return 0;
 }
 
