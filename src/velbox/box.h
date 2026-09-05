@@ -103,7 +103,8 @@ extern void velbox_remove(box *o);
 extern void velbox_reclaimDead(box *b);
 extern box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r);
 extern box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results);
-extern void velbox_query_ts(box *p, list<LEAF*> *results);
+extern void velbox_query_ts(box *root, INT const pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results, TIME now);
+extern void velbox_all_leafs(box *b, list<LEAF*> *results);
 extern void velbox_insert(box *guess, box *n);
 
 // For leafs

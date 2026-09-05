@@ -1065,6 +1065,7 @@ void renderThreadSwitchOff() {
 	sound_ungrab();
 }
 
+// GGC = game-graphics communication
 static void checkGgc() {
 	list<ggc_msg> &l = *msgs_gfx;
 	rangeconst(i, l.num) {
@@ -1141,7 +1142,7 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 	// I think `bcast.cpp` has better code for this, but I'd need to account
 	// for interpolation and also make sure the lists used are threadsafe.
 	crosshairCandidates.num = 0;
-	velbox_query_ts(gs->vb_root, &crosshairCandidates);
+	velbox_all_leafs(gs->vb_root, &crosshairCandidates);
 
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
@@ -1217,8 +1218,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 
 	checkGgc();
 	player *p = &gs->players[myPlayer];
-	box *boxForCamCasting = p->prox == gs->vb_root ? NULL : p->prox;
-	setupFrame(p->m.oldPos, p->m.pos, boxForCamCasting, look);
+	setupFrame(p, gs, look);
 
 	// Draw normal solids
 	rangeconst(i, gs->solids.num) {

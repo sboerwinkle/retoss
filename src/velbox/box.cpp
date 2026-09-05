@@ -28,13 +28,13 @@ static inline void swap(list<box*> *&a, list<box*> *&b) {
 }
 
 // Things that are just touching should not count as intersecting.
-static char intersects(box *o, box *n) {
-	TIME t_o = vb_now - o->start;
-	TIME t_n = vb_now - n->start;
+static char intersects(box *o, box *n, TIME now) {
+	TIME t_o = now - o->start;
+	TIME t_n = now - n->start;
 	// I believe this method is fully symmetrical except for which box we get `end` from.
 	// Really we want whichever is smaller, but a `min` here probably isn't worth the effort.
 	// Instead, we leave it up to the caller to put whichever one is probably smaller as `n`.
-	TIME t2 = n->end - vb_now;
+	TIME t2 = n->end - now;
 	INT r = o->r + n->r;
 	range(d, DIMS) {
 		INT vel = o->vel[d] - n->vel[d];
@@ -51,6 +51,9 @@ static char intersects(box *o, box *n) {
 		if (abs(d1) >= r && abs(d2) >= r && (d2-d1 > 0) == (d2-MIN > d1-MIN)) return 0;
 	}
 	return 1;
+}
+static char intersects(box *o, box *n) {
+	return intersects(o, n, vb_now);
 }
 
 // Assumes that `p` currently contains `b` ("currently" = vb_now),
@@ -508,6 +511,9 @@ static box* findParent(box *guess, box *n) {
 
 	box *mergeBase = getMergeBase(guess, minParentR, p1);
 
+	// TODO: Pretty sure `mkParent` can be factored out of `tryLookDown` and `lookUp` and live here instead.
+	//       This is desirable partly because we'd like more power in our thread-safe query method, and
+	//       `mkParent` is one of the things we can't do...
 	box *lookDownResult = tryLookDown(mergeBase, n, minParentR, p1);
 	if (lookDownResult) return lookDownResult;
 
@@ -536,29 +542,31 @@ static void writeQueryResults(box *b, box *target, list<LEAF*> *results) {
 		}
 	}
 }
+// Variant w/ explicit `now`
+static void writeQueryResults_ts(box *b, box *target, list<LEAF*> *results, TIME now) {
+	if (!intersects(b, target, now)) return;
 
-static void writeQueryResults_ts(box *b, list<LEAF*> *results) {
 	if (isLeaf(b)) {
 		results->add(b->data);
 	} else {
 		list<box*> const &kids = b->kids;
 		rangeconst(i, kids.num) {
-			writeQueryResults_ts(kids[i], results);
+			writeQueryResults_ts(kids[i], target, results, now);
 		}
 	}
 }
 
-static void buildThing(box *thing, INT pos[DIMS], INT vel[DIMS], INT r) {
+static void buildThing(box *thing, INT const pos[DIMS], INT vel[DIMS], INT r, TIME now) {
 	thing->r = r;
-	thing->start = vb_now;
-	thing->end = vb_now+1;
+	thing->start = now;
+	thing->end = now+1;
 	memcpy(thing->pos, pos, sizeof(thing->pos));
 	memcpy(thing->vel, vel, sizeof(thing->vel));
 }
 
 box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r) {
 	box thing;
-	buildThing(&thing, pos, vel, r);
+	buildThing(&thing, pos, vel, r, vb_now);
 	// Verified that `findParent` (and downstream methods) do not need more
 	// than the fields provided above.
 	return findParent(guess, &thing);
@@ -570,7 +578,7 @@ box* velbox_findParent(box *guess, INT pos[DIMS], INT vel[DIMS], INT r) {
 // false positives).
 box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results) {
 	box thing;
-	buildThing(&thing, pos, vel, r);
+	buildThing(&thing, pos, vel, r, vb_now);
 	box *p = findParent(guess, &thing);
 	p->inUse = 1;
 	rangeconst(i, p->intersects.num) {
@@ -585,9 +593,23 @@ box* velbox_query(box *guess, INT pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *
 //
 // This function basically just lists all the leafs of everything
 // that intersects `p`.
-void velbox_query_ts(box *p, list<LEAF*> *results) {
-	rangeconst(i, p->intersects.num) {
-		writeQueryResults_ts(p->intersects[i].b, results);
+void velbox_query_ts(box *root, INT const pos[DIMS], INT vel[DIMS], INT r, list<LEAF*> *results, TIME now) {
+	box thing;
+	buildThing(&thing, pos, vel, r, now);
+	// Todo: Pretty sure this is fine, children of the root can be passed to `intersects()`, right?
+	rangeconst(i, root->kids.num) {
+		writeQueryResults_ts(root->kids[i], &thing, results, now);
+	}
+}
+
+void velbox_all_leafs(box *b, list<LEAF*> *results) {
+	if (isLeaf(b)) {
+		results->add(b->data);
+	} else {
+		list<box*> const &kids = b->kids;
+		rangeconst(i, kids.num) {
+			velbox_all_leafs(kids[i], results);
+		}
 	}
 }
 

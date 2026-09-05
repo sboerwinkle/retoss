@@ -525,9 +525,7 @@ static void checkReload() {
 	texReloadFlag.store(0, std::memory_order::release);
 }
 
-static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, box *prox, float fovInverse, int64_t hovDist) {
-	camCastCands.num = 0;
-	velbox_query_ts(prox, &camCastCands);
+static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2, gamestate *gs, float fovInverse, int64_t hovDist) {
 	unitvec dir;
 	range(i, 3) dir[i] = camHoverDir[i]*FIXP;
 	float y = GFX_Z_NEAR;
@@ -537,6 +535,15 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	// A couple units seems to be plenty.
 	x += 2;
 	z += 2;
+
+	offset v;
+	range(i, 3) v[i] = p2[i] - p1[i];
+	camCastCands.num = 0;
+	// Our search radius has to account for how far away the camera sits, plus the distance to the corners
+	// of the screen (since that's what we're really checking against).
+	float padding = sqrtf(x*x + y*y + z*z) + 1;
+	velbox_query_ts(gs->vb_root, p1, v, hovDist+padding, &camCastCands, gs->clock);
+
 	offset corners1[4];
 	offset corners2[4];
 	// This could be like a few matrix multiplications probably.
@@ -575,7 +582,7 @@ void reset3dTexScale() {
 	glUniform2f(u_main_tex_scale, 1, 1);
 }
 
-void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *lookCfg) {
+void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg) {
 	checkReload();
 	glUseProgram(main_prog);
 	glBindVertexArray(vaos[0]);
@@ -604,10 +611,10 @@ void setupFrame(int64_t const *p1, int64_t const *p2, box *prox, lookConfig *loo
 	gfx_lookDir[1] = matWorldToCam[5];
 	gfx_lookDir[2] = matWorldToCam[9];
 
-	memcpy(gfx_camPos1, p1, sizeof(offset));
-	memcpy(gfx_camPos2, p2, sizeof(offset));
-	if (prox && lookCfg->hovDist) {
-		gfx_camDist = calcCamDist(matWorldToCam, p1, p2, prox, lookCfg->fovInv, lookCfg->hovDist);
+	memcpy(gfx_camPos1, p->m.oldPos, sizeof(offset));
+	memcpy(gfx_camPos2, p->m.pos, sizeof(offset));
+	if (lookCfg->hovDist && p->alive) {
+		gfx_camDist = calcCamDist(matWorldToCam, p->m.oldPos, p->m.pos, gs, lookCfg->fovInv, lookCfg->hovDist);
 		// Previously I'd use `p1` and `p2` directly and just set
 		// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
 		// but meant our calculations for how to draw trails were
