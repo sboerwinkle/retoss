@@ -35,23 +35,40 @@ struct region {
 };
 
 static void _grow(region *r, int32_t v1, int32_t v2, char targ) {
-	int32_t nc1 = r->c1 + v1;
-	int32_t nc2 = r->c2 + v1 + v2;
-	int32_t nc3 = r->c3 + v2;
+	int32_t nc1 = r->c1;
+	int32_t nc2 = r->c2;
+	int32_t nc3 = r->c3;
 
 	while (1) {
+		nc1 += v1;
+		nc2 += v1 + v2;
+		nc3 += v2;
+		{
+			int x, y;
+			decompose(nc2, &x, &y);
+			if ((x < 0 || x >= w) && (y < 0 || y >= h)) return;
+		}
+
+		// We're growing along 2 edges, but we do add one tile to each of
+		// the *other* 2 edges each expansion. Need to check them to make
+		// sure we don't expose any flickery walls.
+		if (check(nc1) != targ && (check(nc1-v2)&0x7F) < targ) return;
+		if (check(nc3) != targ && (check(nc3-v1)&0x7F) < targ) return;
+
 		int32_t crsr = nc1;
 		char benefit = 0;
 		while (1) {
 			char c = check(crsr);
-			if (c <= 0) {
-				// sticks out of top (or flush with top and noisy)
-				if ((c & 0x7F) <= targ) return;
-				// flush with exposed wall
-				if ((check(crsr+v1) & 0x7F) < targ) return;
-			} else {
-				if (c < targ) return;
-				if (c == targ) benefit = 1;
+			// Check if it generates an exposed flickery edge
+			if (c != targ && (check(crsr+v1) & 0x7F) < targ) return;
+			// Check if it would make this tile too tall
+			if ((c & 0x7F) < targ) return;
+			if ((c & 0x7F) == targ) {
+				// Flickery top
+				if (c < 0) return;
+				// Else, we're an exact height match and this tile
+				// isn't already handled, so we've helped someone.
+				benefit = 1;
 			}
 			if (crsr == nc2) break;
 			crsr += v2;
@@ -59,14 +76,11 @@ static void _grow(region *r, int32_t v1, int32_t v2, char targ) {
 		crsr = nc3;
 		while (1) {
 			char c = check(crsr);
-			if (c <= 0) {
-				// sticks out of top (or flush with top and noisy)
-				if ((c & 0x7F) <= targ) return;
-				// flush with exposed wall
-				if ((check(crsr+v2) & 0x7F) < targ) return;
-			} else {
-				if (c < targ) return;
-				if (c == targ) benefit = 1;
+			if (c != targ && (check(crsr+v2) & 0x7F) < targ) return;
+			if ((c & 0x7F) < targ) return;
+			if ((c & 0x7F) == targ) {
+				if (c < 0) return;
+				benefit = 1;
 			}
 			if (crsr == nc2) break;
 			crsr += v1;
@@ -99,12 +113,6 @@ static void _grow(region *r, int32_t v1, int32_t v2, char targ) {
 			r->c2 = nc2;
 			r->c3 = nc3;
 		}
-		nc1 += v1;
-		nc2 += v1 + v2;
-		nc3 += v2;
-		int x, y;
-		decompose(nc2, &x, &y);
-		if ((x < 0 || x >= w) && (y < 0 || y >= h)) return;
 	}
 }
 
@@ -168,6 +176,8 @@ void lv_heightmap(gamestate *gs, char const *data, int len) {
 	if (!getNum(&cursor, &gridSize) || !getNum(&cursor, &ceilHeight)) {
 		puts("/hmap: First line must contain block size and ceiling height");
 	}
+	int floorTex = 8, wallTex = 5, ceilTex = 8;
+	getNum(&cursor, &floorTex) && getNum(&cursor, &wallTex) && getNum(&cursor, &ceilTex);
 
 	bctx.push();
 
@@ -256,12 +266,12 @@ void lv_heightmap(gamestate *gs, char const *data, int len) {
 				// numbers, may clean it up later. This is 90 degrees around one axis.
 				bctx.rot((int32_t const[]){0, 23170, 0});
 				// shape=2 (pillar), tex=5 (brick)
-				bctx.add(2, 5, size*4);
+				bctx.add(2, wallTex, size*4);
 				bctx.peek();
 			} else if (height) {
 				// Regular case, spawn a cube instead of a pillar.
 				bctx.pos(x, y, height - size/2);
-				bctx.add(0, 5, size/2);
+				bctx.add(0, wallTex, size/2);
 				bctx.peek();
 			}
 		}
@@ -272,9 +282,11 @@ void lv_heightmap(gamestate *gs, char const *data, int len) {
 	int64_t floorR = gridSize*w/2;
 	int height = floorR/8;
 	bctx.pos(floorR, -floorR, -height);
-	bctx.add(1, 8, floorR);
-	bctx.pos(0, 0, height*2 + ceilHeight);
-	bctx.add(1, 8, floorR);
+	bctx.add(1, floorTex, floorR);
+	if (ceilTex != -1) {
+		bctx.pos(0, 0, height*2 + ceilHeight);
+		bctx.add(1, ceilTex, floorR);
+	}
 
 	free(map);
 	taskTdm_spawnAll(gs, tdmData);
