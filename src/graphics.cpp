@@ -153,6 +153,14 @@ static void setTexFilterParams() {
 	//    How crisp is it? How does it look as it approaches the threshold of minification->magnification? Is there significant aliasing shimmer?
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+	// Kick it back one mipmap level.
+	// I'm doing this to deal with textures viewed at an angle.
+	// Could fix this better if I required GL 4.6 and used anisotropic filtering,
+	// or could probably do almost exactly as good if I want to get into querying for
+	// optional GL extensions.
+	// This is probably good enough for now, might just result in some aliasing.
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -1);
 }
 
 static void drawDyntex(GLuint tex, dyntex_description *_descr) {
