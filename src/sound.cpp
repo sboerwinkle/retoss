@@ -122,12 +122,14 @@ void sound_add(snd_request *r) {
 }
 
 static void housekeepSoundIds(int32_t finishedTime, int32_t recentTime) {
-	// Sounds might play at the start of the frame (e.g. guns),
-	// so the earliest request we're expecting is `finishedFrame`.
+	// The earliest request we're expecting is from right after the
+	// rootState (`finishedTime`).
 	// We keep some older frames for comparison as well.
-	int32_t firstTime = finishedTime - soundIdWindowFrames;
-	// Want to handle time wrapping correctly, so we use relative offsets
-	int32_t duration = recentTime - firstTime;
+	int32_t firstTime = finishedTime + 1 - soundIdWindowFrames;
+	// Want to handle time wrapping correctly, so we use relative offsets.
+	// Have to add one here since it's legitimate to request a sound to
+	// start on the next frame.
+	int32_t duration = recentTime - firstTime + 1;
 	range(i, soundIds.num) {
 		int32_t delta = soundIds[i].time - firstTime;
 		// `delta > duration` shouldn't usually happen,
@@ -175,7 +177,7 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp, int32_t finis
 		ALint pos[3];
 		if (s.posType == SND_POS_COORDS) {
 			range(j, 3) {
-				pos[j] = (s.pos[j] + s.vel[j]*(time-1-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
+				pos[j] = (s.pos[j] + s.vel[j]*(time-s.start) - p1[j]) + (s.vel[j] - v[j])*interp;
 			}
 		} else if (s.posType == SND_POS_PLAYER) {
 			int playerIx = s.pos[0];
@@ -187,16 +189,17 @@ void sound_frame(offset p1, offset p2, int32_t time, float interp, int32_t finis
 		}
 		// Could be 3f, fv, 3i, iv.
 		alSourceiv(s.alSrc, AL_POSITION, pos);
-		// TODO: If I want some sounds to anchor to moving things (like players),
-		//       I'll have to get clever with that somehow!
 		// Could also set AL_VELOCITY for doppler effect if I cared enough.
 
-		// Since we're interpolating between (time-1) and (time),
-		// we have to wait (worst case 1 frame?) until `time > s.start`.
-		if (state == AL_INITIAL && time > s.start) {
+		if (state == AL_INITIAL && time >= s.start) {
 			alSourcePlay(s.alSrc);
 		}
 	}
+}
+
+static void loadSound(int64_t refDist, char const *filename, int ix) {
+	loadFile(filename, alBuffers[ix]);
+	refDists[ix] = refDist;
 }
 
 // TODO should probably check for memory leaks
@@ -226,20 +229,17 @@ void sound_init() {
 		return;
 	}
 
-	loadFile("assets/sounds/sproing.mp3", alBuffers[0]);
-	refDists[0] = 700;
-	loadFile("assets/sounds/meat.mp3", alBuffers[1]);
-	refDists[1] = 700;
-	loadFile("assets/sounds/pop.mp3", alBuffers[2]);
-	refDists[2] = 6000;
-	loadFile("assets/sounds/tap.mp3", alBuffers[3]);
-	refDists[3] = 500;
-	loadFile("assets/sounds/whoosh_a.mp3", alBuffers[4]);
-	refDists[4] = 1700;
-	loadFile("assets/sounds/whoosh_b.mp3", alBuffers[5]);
-	refDists[5] = 1700;
-	loadFile("assets/sounds/whoosh_c.mp3", alBuffers[6]);
-	refDists[6] = 1700;
+	int counter = 0;
+
+	loadSound(700, "assets/sounds/sproing.mp3", counter++);
+	loadSound(4000, "assets/sounds/oof_1.mp3", counter++);
+	loadSound(4000, "assets/sounds/oof_2.mp3", counter++);
+	loadSound(4000, "assets/sounds/oof_3.mp3", counter++);
+	loadSound(6000, "assets/sounds/pop.mp3", counter++);
+	loadSound(500, "assets/sounds/tap.mp3", counter++);
+	loadSound(1700, "assets/sounds/whoosh_a.mp3", counter++);
+	loadSound(1700, "assets/sounds/whoosh_b.mp3", counter++);
+	loadSound(1700, "assets/sounds/whoosh_c.mp3", counter++);
 }
 
 void sound_destroy() {

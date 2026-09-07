@@ -6,6 +6,7 @@
 #include "game.h"
 #include "game_gamestate.h"
 #include "main.h"
+#include "random.h"
 
 #include "player.h"
 
@@ -224,7 +225,7 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 					0xFF00'0000
 					+ (p - gs->players.items) * 0x1'0000
 					+ p->jump;
-				addSound(gs->clock, dest, v, soundId, 0/*sound*/);
+				addSound(gs->clock+1, dest, v, soundId, SND_JUMP);
 			}
 			range(i, 3) p->vel[i] += jumpDir[i]*pl_jump/FIXP - contactVel[i];
 			// `dest` has already been updated to push us out of the collision plane,
@@ -282,7 +283,22 @@ void pl_postStep(gamestate *gs, player *p) {
 
 // Doesn't really sensibly account for negative hits,
 // but 0-hits are kind of meaningful.
-void player_hit(player *p, int hits) {
+void player_hit(gamestate *gs, int32_t soundTime, player *p, int hits) {
+	// Sound stuff first.
+	// For the moment `gs` is only needed for the sound, so passing it as `NULL`
+	// is treated as "no sound please"
+	if (gs) {
+		int who = p - gs->players.items;
+		p->hitsCount++;
+		uint32_t soundId =
+			0xFF00'0100
+			+ who * 0x1'0000
+			+ p->hitsCount;
+		uint32_t seed = soundId;
+		int variant = splitmix32(&seed) % 3;
+		addPlayerSound(soundTime, who, soundId, SND_OOF_A + variant);
+	}
+
 	int oldHits = p->hits;
 	p->hits += hits;
 

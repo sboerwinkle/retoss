@@ -100,20 +100,8 @@ static void decr(tskBlastBits *bb) {
 
 static char step(gamestate *gs, void *_data) {
 	tskBlastData *data = (tskBlastData*)_data;
-	return gs->clock > data->bb->time+15;
+	return gs->clock >= data->bb->time+15;
 }
-
-/*
-static void transInstructions(tskBlastInstructions *instr) {
-	transItemCount(&instr->pts);
-	rangeconst(i, instr->pts.num) {
-		tskBlastPt *p = &instr->pts[i];
-		transOffset(p->pos);
-		transIquat(p->rot);
-		trans32(&p->time);
-	}
-}
-*/
 
 static char trans(gamestate *gs, void **ptr) {
 	if (seriz_reading) {
@@ -156,7 +144,7 @@ tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t 
 	addTaskStart(gs, TSK_BLAST, data);
 
 	initBlastBits(data);
-	data->bb->time = gs->clock - 1;
+	data->bb->time = gs->clock;
 	data->bb->seed = splitmix32(&gs->seed);
 	data->bb->r = r;
 	data->bb->fireCount = fireCount;
@@ -180,10 +168,7 @@ tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t 
 void tskBlast_draw(void *data, int32_t now) {
 	tskBlastBits *bb = ((tskBlastData*)data)->bb;
 
-	// `now` is the time at the end of the frame,
-	// so `p1` (basically `oldPos`) should be one
-	// frame earlier.
-	int32_t t1 = now - bb->time - 1;
+	int32_t t1 = now - bb->time;
 
 	offset p1, p2;
 

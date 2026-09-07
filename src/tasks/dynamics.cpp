@@ -304,10 +304,12 @@ void tskDynamics_create(gamestate *gs, buildCtx *c, offset const vel, iquat cons
 	memcpy(data->rvel, rvel, sizeof(iquat));
 
 	range(i, 3) data->s.m.oldPos[i] = data->s.m.pos[i] - data->vel[i];
-	vb_now = gs->clock; // TODO oof
+
+	// TODO Need to make sure vb_now is set up before we do any sort of level loading (editing or otherwise),
+	//      then I can remove this line.
+	vb_now = gs->clock;
+
 	solidPutVb(&data->s, gs->vb_root, 1);
-	//printf("[%d, %d)", data->s.b->start, data->s.b->end);
-	//printf("^ %d\n", gs->clock);
 	// Unlike `oldPos`, this isn't used in `solidPutVb`,
 	// so we don't really care what it is yet.
 	memset(data->s.m.oldRot, 0, sizeof(iquat));

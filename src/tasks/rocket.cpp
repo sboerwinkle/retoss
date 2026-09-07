@@ -34,7 +34,7 @@ static void putVb(taskRocket *data, box *guess) {
 	velbox_insert(guess, tmp);
 }
 
-static void blowUp(taskRocket *data, box *p) {
+static void blowUp(gamestate *gs, taskRocket *data, box *p) {
 
 	offset queryV;
 	range(i, 3) queryV[i] = data->m.pos[i] - data->m.oldPos[i];
@@ -53,7 +53,7 @@ static void blowUp(taskRocket *data, box *p) {
 		int64_t mg = mag(d);
 		if (mg > BLAST_R || !mg) continue;
 		range(i, 3) blastee->vel[i] += d[i]*800/mg;
-		player_hit(blastee, 2);
+		player_hit(gs, gs->clock+1, blastee, 2);
 	}
 	blastMovers.destroy();
 }
@@ -88,7 +88,7 @@ static char step(gamestate *gs, void *_data) {
 		uint32_t soundId = data->soundId + data->ttl;
 		uint32_t seed = gs->clock*17 + data->ttl/4;
 		int variant = splitmix32(&seed) % 3;
-		addSound(gs->clock - 1, data->m.pos, data->vel, soundId, SND_WHOOSH_A + variant);
+		addSound(gs->clock, data->m.pos, data->vel, soundId, SND_WHOOSH_A + variant);
 	}
 	range(i, 3) {
 		data->m.pos[i] += data->vel[i];
@@ -174,7 +174,7 @@ static char step(gamestate *gs, void *_data) {
 			}
 			memcpy(data->vel, pl->vel, sizeof(data->vel));
 			// Direct hit kills you
-			player_hit(pl, 3);
+			player_hit(NULL, 0, pl, 3);
 		} else {
 			range(i, 3) {
 				data->m.pos[i] -= bestVec[i] * (FIXP-bestTime) / FIXP;
@@ -188,9 +188,9 @@ static char step(gamestate *gs, void *_data) {
 	if (!data->ttl) data->live = 0;
 
 	if (!data->live) {
-		blowUp(data, parent);
+		blowUp(gs, data, parent);
 		uint32_t soundId = data->soundId + 0x800 + data->ttl;
-		addSound(gs->clock, data->m.pos, data->vel, soundId, SND_POP);
+		addSound(gs->clock+1, data->m.pos, data->vel, soundId, SND_POP);
 		data->dead = 1;
 	}
 

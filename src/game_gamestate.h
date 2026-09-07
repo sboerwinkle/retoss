@@ -1,7 +1,9 @@
 
-#define SND_POP 2
-#define SND_TAP 3
-#define SND_WHOOSH_A 4
+#define SND_JUMP 0
+#define SND_OOF_A 1
+#define SND_POP 4
+#define SND_TAP 5
+#define SND_WHOOSH_A 6
 
 #define SND_ID_TOOL_RL(pl) (0xFF00'1000 + (pl)*0x1'0000)
 

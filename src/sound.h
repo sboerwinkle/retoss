@@ -1,6 +1,6 @@
 #pragma once
 
-#define NUM_SOUNDS 7
+#define NUM_SOUNDS 9
 
 struct snd_request {
 	int32_t time;

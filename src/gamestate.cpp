@@ -28,8 +28,9 @@ void resetPlayer(gamestate *gs, int ix) {
 		p.inputs[i] = 0;
 	}
 	p.team=-1;
-	p.prox=gs->vb_root;
 	p.loadout=0;
+	p.hitsCount=0;
+	p.prox=gs->vb_root;
 	p.skin=NULL;
 	// Dummy tool so state is valid
 	toolRifle_create(&p.tool);
@@ -371,7 +372,7 @@ void runTick(gamestate *gs) {
 	}
 
 	// Todo: If I cared about efficiency here, `trails` could be a `queue`.
-	while(gs->trails.num && gs->trails[0].expiry <= vb_now) {
+	while(gs->trails.num && gs->trails[0].expiry <= gs->clock) {
 		gs->trails.stableRmAt(0);
 	}
 
@@ -696,6 +697,7 @@ static void transPlayer(player *p) {
 	trans8(&p->loadout);
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
+	trans8(&p->hitsCount);
 	range(i, 4) trans32(&p->m.rot[i]);
 	transWeakRef(&p->m.b, &boxSerizPtrs);
 	if (seriz_reading) tool_destroy(p->tool);

@@ -42,23 +42,12 @@ static void shoot(gamestate *gs, player *p) {
 		time = limit;
 		result = NULL;
 	}
-	// Guns happen at the start of the step,
-	// so we have to subtract 1 from the clock
-	int32_t soundTime = gs->clock - 1;
+
 	if (result && shotRule != 1) {
 		int32_t type = result->type & T_MASK;
 		if (type == T_PLAYER) {
 			player *shootee = playerFromMover(result);
-			int who = shootee - gs->players.items;
-			// Player can only shoot so fast,
-			// if I based soundId off the shooter (not shootee)
-			// I probably wouldn't need to include the hits counter.
-			uint32_t soundId =
-				0xFF00'0100
-				+ who * 0x1'0000
-				+ shootee->hits;
-			addPlayerSound(soundTime, who, soundId, 1);
-			player_hit(shootee, 1);
+			player_hit(gs, gs->clock, shootee, 1);
 		} else if (type == T_PROJ) {
 			taskRocket *rocket = rocketFromMover(result);
 			rocket->live = 0;
@@ -71,7 +60,7 @@ static void shoot(gamestate *gs, player *p) {
 			offset v;
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
-			addSound(soundTime, impact, v, soundId, SND_TAP);
+			addSound(gs->clock, impact, v, soundId, SND_TAP);
 			tskBlast_create(gs, impact, v, 3000, 20, 40);
 
 			solid *s = solidFromMover(result);
@@ -99,13 +88,13 @@ static void shoot(gamestate *gs, player *p) {
 	uint32_t soundId =
 		0xFF00'FF00
 		+ who * 0x1'0000;
-	addPlayerSound(soundTime, who, soundId, SND_POP);
+	addPlayerSound(gs->clock, who, soundId, SND_POP);
 
 	trail &tr = gs->trails.add();
 	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
 	memcpy(tr.dir, look, sizeof(unitvec));
 	tr.len = time.numer*FIXP/time.denom;
-	tr.expiry = vb_now + TRAIL_LIFETIME;
+	tr.expiry = gs->clock + TRAIL_LIFETIME;
 }
 
 static char step(gamestate *gs, void *data) {
