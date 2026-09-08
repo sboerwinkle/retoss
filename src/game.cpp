@@ -267,6 +267,14 @@ gamestate* game_init2() {
 	return gs;
 }
 
+void game_undeadlock() {
+	// This is *not* called from the game thread, which could still be running.
+	// However, we are guaranteed that `globalRunning` is 0.
+	mtx_lock(pollMutex);
+	mtx_signal(httpCond);
+	mtx_unlock(pollMutex);
+}
+
 void game_destroy2() {}
 void game_destroy() {
 	sound_destroy();
@@ -894,6 +902,27 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		}
 		// Command should still be sent out
 		return 0;
+	}
+	if (isCmd(buf, "/http_info")) {
+		player *p = &rootState->players[myPlayer];
+		// Can't do this if there's any chance the poll thread
+		// is reading these. This is possible if you issue the
+		// command manually I guess?
+		// The check doesn't need to be in a mutex:
+		// - Writes from our own thread, we'll see
+		// - memory fences around poll_game_flag ensure that
+		//   we'll see when the other thread sets it to 0.
+		if (httpGameInfo.ready) {
+			puts("Ignored /http_info");
+		} else {
+			mtx_lock(pollMutex);
+			httpGameInfo.ready = 1;
+			httpGameInfo.team = p->team;
+			httpGameInfo.kit = p->loadout;
+			mtx_signal(httpCond);
+			mtx_unlock(pollMutex);
+		}
+		return 1;
 	}
 	if (isCmd(buf, "/hmap")) {
 		if (!buf[5] || !buf[6]) {

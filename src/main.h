@@ -16,7 +16,6 @@
 #define FASTER_NANOS 66000000
 #define PENALTY_FRAMES 90
 
-#define TEXT_BUF_LEN 200
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
 
 extern int main_typingLen;

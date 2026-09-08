@@ -13,12 +13,15 @@
 extern char **environ;
 #endif
 
+#include "list.h"
 #include "util.h"
+#include "mtx.h"
 
 #include "config.h"
-#include "json.h"
-#include "mypoll.h"
 #include "file.h"
+#include "json.h"
+#include "main.h"
+#include "mypoll.h"
 #include "net.h"
 
 #include "http.h"
@@ -30,6 +33,10 @@ int http_fd = -1;
 list<int> http_client_fds;
 static int serverPort = -1;
 
+cond_t httpCond = COND_INIT_EXPR;
+
+httpGameInfo_t httpGameInfo;
+
 static char const *FAIL_MSG = "WARN: Failed to set up HTTP server, config UI will be unavailable. Issue is:\n\t";
 static char const *OK_HEADERS = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
@@ -38,9 +45,10 @@ struct lazyRs {
 	list<char> l;
 	char const *path;
 };
-lazyRs onlyGetsRs = {.path = "assets/http/onlyGets.txt"};
-lazyRs noContentRs = {.path = "assets/http/noContent.txt"};
-lazyRs defaultHtml = {.path = "assets/http/default.html"};
+static lazyRs onlyGetsRs = {.path = "assets/http/onlyGets.txt"};
+static lazyRs noContentRs = {.path = "assets/http/noContent.txt"};
+static lazyRs serviceUnavailableRs = {.path = "assets/http/serviceUnavailable.txt"};
+static lazyRs defaultHtml = {.path = "assets/http/default.html"};
 
 static cfg_item *httpConfigs[] = {
 	&cfg_name, // Need "name" here b/c we read it, don't expect to write it though
@@ -117,6 +125,17 @@ static void sendCommand(char const *cmd) {
 	}
 }
 
+static void writeJson(jsonValue root, int fd) {
+	list<char> buffer;
+	buffer.init();
+	jsonSerialize(&buffer, &root, -1);
+	buffer.add('\n'); // Probably don't need this but oh well
+	root.destroy();
+
+	write200(fd, buffer.items, buffer.num, "application/json");
+	buffer.destroy();
+}
+
 static void writeConfigs(int fd) {
 	jsonValue root;
 	root.initObj();
@@ -127,14 +146,50 @@ static void writeConfigs(int fd) {
 		}
 	}
 
-	list<char> buffer;
-	buffer.init();
-	jsonSerialize(&buffer, &root, -1);
-	buffer.add('\n'); // Probly don't need this but oh well
-	root.destroy();
+	writeJson(root, fd);
+}
 
-	write200(fd, buffer.items, buffer.num, "application/json");
-	buffer.destroy();
+static void writeGameInfo(int fd) {
+	// We rely on an existing message here not being overwritten
+	if (poll_game_flag.load(std::memory_order::acquire)) {
+		// We're not expecting `poll_game_data` to send a lot of traffic,
+		// but it could be busy for some reason or another.
+		writeResponse(fd, &serviceUnavailableRs);
+		return;
+	}
+	httpGameInfo.ready = 0;
+	// No mutex is locked here, that's fine.
+	// The only important thing is that we don't overwrite
+	// the other thread's `ready = 1`.
+	strcpy(poll_game_data, "/http_info");
+	poll_game_flag.store(2, std::memory_order::release);
+
+	mtx_lock(pollMutex);
+	while (globalRunning && !httpGameInfo.ready) {
+		mtx_wait(httpCond, pollMutex);
+	}
+	mtx_unlock(pollMutex);
+
+	if (!globalRunning) {
+		// Any `mtx_wait`s are released during shutdown,
+		// but we can't guarantee the other threads are fully shut down yet.
+		// If this contains strings later, I don't want to worry about safety here.
+		// Just exit.
+		writeResponse(fd, &serviceUnavailableRs);
+		return;
+	}
+
+	char* team = (char*)malloc(10);
+	char* kit = (char*)malloc(10);
+	snprintf(team, 10, "%d", httpGameInfo.team);
+	snprintf(kit, 10, "%d", httpGameInfo.kit);
+
+	jsonValue root;
+	root.initObj();
+	root.set("team")->initNum(team);
+	root.set("kit")->initNum(kit);
+
+	writeJson(root, fd);
 }
 
 // Very similar to `cfg_lookup`, but only checks `httpConfigs`, and may return `NULL`.
@@ -236,6 +291,8 @@ static void read_inner(int fd) {
 		write200(fd, defaultHtml.l.items, defaultHtml.l.num, "text/html");
 	} else if (!strcmp(buf, "/config")) {
 		writeConfigs(fd);
+	} else if (!strcmp(buf, "/gameinfo")) {
+		writeGameInfo(fd);
 	} else if (!strncmp(buf, "/kit/", 5)) {
 		buf[4] = ' ';
 		sendCommand(buf);
@@ -390,6 +447,7 @@ void http_destroy() {
 	// and it's safe to `free(NULL)`.
 	onlyGetsRs.l.destroy();
 	noContentRs.l.destroy();
+	serviceUnavailableRs.l.destroy();
 	defaultHtml.l.destroy();
 
 	if (http_fd != -1) {

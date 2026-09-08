@@ -224,6 +224,22 @@ Weapon select
 	formLogic(id('predForm'), 'prediction');
 	formLogic(id('miscForm'), 'misc');
 
+	let getInfo = () => {
+		fetch('/gameinfo').then(x=>x.json()).then(x=>{
+			// TODO: Nice handling for radios like we have for text and selects
+			if (!(x.team >= 0 && x.team <= 1)) x.team = 2;
+			let items = [
+				document.querySelector('input[value="/team'+x.team+'"]'),
+				document.querySelector('input[value="/kit/'+x.kit+'"]'),
+			];
+			for (let y of items) if (y) y.checked = true;
+		});
+	}
+
+	window.addEventListener('focus', e => {getInfo();});
+	getInfo();
+	// Currently no banner for this like we have for `/config`.
+
 	fetch('/config').then(x=>x.json()).then(x=>{
 		for (let key in x) {
 			let elem = id(key);

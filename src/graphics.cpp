@@ -7,8 +7,10 @@
 #include <GLFW/glfw3.h>
 
 #include "list.h"
-#include "file.h"
+#include "mtx.h"
 #include "util.h"
+
+#include "file.h"
 #include "matrix.h"
 #include "main.h"
 #include "png.h"

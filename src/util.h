@@ -11,6 +11,8 @@
 // the macro since it flushes the stream, so it should be at the end.
 #define QUIET_LINE(x) "\033[32;2m" x "\033[0m\n"
 
+#define TEXT_BUF_LEN 200
+
 // Will need to keep an eye on this file, I think I see a spot of rust
 typedef unsigned char u8;
 

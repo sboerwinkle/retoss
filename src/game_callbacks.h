@@ -8,6 +8,7 @@
 
 extern void game_init();
 extern gamestate* game_init2();
+extern void game_undeadlock();
 extern void game_destroy2();
 extern void game_destroy();
 

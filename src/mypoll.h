@@ -8,8 +8,9 @@ extern char texReloadPath[POLL_BUF_LEN];
 extern std::atomic<char> poll_game_flag;
 extern char poll_game_data[POLL_BUF_LEN];
 
+extern mtx_t pollMutex;
+
 extern void* mypoll_threadFunc(void *arg);
 
 extern void mypoll_init();
-
 extern void mypoll_destroy();

@@ -4,6 +4,7 @@
 
 #include "util.h"
 #include "main.h"
+#include "mtx.h"
 #include "net.h"
 #include "net2.h"
 
@@ -31,6 +32,8 @@ char texReloadPath[POLL_BUF_LEN];
 
 std::atomic<char> poll_game_flag = 0;
 char poll_game_data[POLL_BUF_LEN];
+
+mtx_t pollMutex = MTX_INIT_EXPR;
 
 #ifdef _WIN32
 

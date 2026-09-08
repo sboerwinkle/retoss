@@ -1001,6 +1001,7 @@ int main(int argc, char **argv) {
 	mtx_lock(netMutex);
 	mtx_signal(netCond);
 	mtx_unlock(netMutex);
+	game_undeadlock();
 
 	printf(QUIET_LINE("Writing config file..."));
 	config_write();
