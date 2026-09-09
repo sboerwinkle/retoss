@@ -173,8 +173,9 @@ static char step(gamestate *gs, void *_data) {
 				data->m.pos[i] += d * (FIXP-bestTime) / FIXP;
 			}
 			memcpy(data->vel, pl->vel, sizeof(data->vel));
-			// Direct hit kills you
-			player_hit(NULL, 0, pl, 3);
+			// Direct hit does 1 extra damage
+			// (you should be caught in the blast, too)
+			player_hit(NULL, 0, pl, 1);
 		} else {
 			range(i, 3) {
 				data->m.pos[i] -= bestVec[i] * (FIXP-bestTime) / FIXP;

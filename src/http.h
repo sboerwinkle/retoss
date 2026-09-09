@@ -4,7 +4,7 @@ extern cond_t httpCond;
 
 struct httpGameInfo_t {
 	char ready;
-	u8 team, kit;
+	u8 team, kit, maxhp;
 };
 extern httpGameInfo_t httpGameInfo;
 

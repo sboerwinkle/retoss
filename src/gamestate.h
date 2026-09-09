@@ -54,7 +54,7 @@ struct player {
 	char jump, shoot, alive;
 	char team;
 	char loadout;
-	u8 hits, hitsCooldown, hitsCount;
+	u8 hits, hitsCooldown, hitsCount, maxHits;
 	box *prox;
 	dyntex_holder *skin;
 	toolInst *tool;

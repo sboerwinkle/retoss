@@ -32,6 +32,7 @@
 #include "lv.h"
 #include "mypoll.h"
 #include "player.h"
+#include "random.h"
 #include "serialize.h"
 #include "sound.h" // needs game_graphics
 #include "bcast.h"
@@ -919,6 +920,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 			httpGameInfo.ready = 1;
 			httpGameInfo.team = p->team;
 			httpGameInfo.kit = p->loadout;
+			httpGameInfo.maxhp = p->maxHits;
 			mtx_signal(httpCond);
 			mtx_unlock(pollMutex);
 		}
@@ -1026,8 +1028,35 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 				setSkin(p, str+6);
 			}
 		}
-	} else if (isCmd(str, "/score_limit")) {
-		char const *pos = str + 12;
+	} else if (isCmd(str, "/maxhp")) {
+		char const *pos = str + 6;
+		int h;
+		if (getNum(&pos, &h)) {
+			if (h < 1 || h > 100) {
+				if (isMe && isReal) {
+					printf("/maxhp should be in [1,100] (got %d)\n", h);
+				}
+				h = 1;
+			}
+			p->maxHits = h;
+		} else if (!isMe) {
+			// With no arg, just display for myself
+			return 1;
+		}
+		if (isReal) {
+			fputs("HPs: ", stdout);
+			rangeconst(i, gs->players.num) {
+				player &p2 = gs->players[i];
+				char team;
+				if (p2.team == 0) team = 'r';
+				else if (p2.team == 1) team = 'b';
+				else team = '?';
+				printf("%c%d ", team, p2.maxHits);
+			}
+			putchar('\n');
+		}
+	} else if (isCmd(str, "/maxscore")) {
+		char const *pos = str + 9;
 		int num;
 		tskTdmData *data = NULL;
 		for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
@@ -1040,13 +1069,27 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 			if (getNum(&pos, &num)) {
 				data->scoreLimit = 10*num;
 				if (isReal) {
-					printf("/score_limit set to %.1f\n", data->scoreLimit/10.0);
+					printf("/maxscore set to %.1f\n", data->scoreLimit/10.0);
 				}
 			} else if (isMe && isReal) {
-				printf("/score_limit: %.1f\n", data->scoreLimit/10.0);
+				printf("/maxscore: %.1f\n", data->scoreLimit/10.0);
 			}
 		} else if (isMe && isReal) {
-			puts("/score_limit: No TDM active");
+			puts("/maxscore: No TDM active");
+		}
+	} else if (isCmd(str, "/shuffle")) {
+		uint32_t count = gs->players.num;
+		uint32_t blueCount = count/2;
+		uint32_t seed = gs->clock;
+		rangeconst(i, gs->players.num) {
+			u8 team = (splitmix32(&seed) % count) < blueCount;
+			if (team) blueCount--;
+			count--;
+
+			player *p2 = &gs->players[i];
+			p2->team = team;
+			p2->m.pos[2] += PLAYER_SHAPE_RADIUS / 2;
+			redoSkin(p2);
 		}
 	} else if (isCmd(str, "/lv_tdm1")) {
 		if (isReal) {
@@ -1139,7 +1182,7 @@ static void drawPlayer(player *p, float alpha) {
 	if (!p->alive) return;
 
 	float tint_alpha = 0.5;
-	if (p->hits < 3) tint_alpha = 0.1*p->hits;
+	if (p->hits < p->maxHits) tint_alpha = 0.3 * p->hits / p->maxHits;
 	tint(1, 0, 0, tint_alpha);
 
 	int sprite;
@@ -1311,8 +1354,9 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	if (p->alive) {
 		centeredGrid2d(96);
 		selectTex2d(1, 64, 64);
-		rangeconst(i, 3 - p->hits) {
-			sprite2d(6, 7, 7, 7, -11.5+8*i, displayAreaBounds[1]-7);
+		double heartsOffset = -4*p->maxHits + 0.5;
+		rangeconst(i, p->maxHits - p->hits) {
+			sprite2d(6, 7, 7, 7, heartsOffset+8*i, displayAreaBounds[1]-7);
 		}
 	}
 

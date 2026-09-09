@@ -181,13 +181,16 @@ static void writeGameInfo(int fd) {
 
 	char* team = (char*)malloc(10);
 	char* kit = (char*)malloc(10);
+	char* maxhp = (char*)malloc(10);
 	snprintf(team, 10, "%d", httpGameInfo.team);
 	snprintf(kit, 10, "%d", httpGameInfo.kit);
+	snprintf(maxhp, 10, "%d", httpGameInfo.maxhp);
 
 	jsonValue root;
 	root.initObj();
 	root.set("team")->initNum(team);
 	root.set("kit")->initNum(kit);
+	root.set("maxhp")->initNum(maxhp);
 
 	writeJson(root, fd);
 }
@@ -295,6 +298,10 @@ static void read_inner(int fd) {
 		writeGameInfo(fd);
 	} else if (!strncmp(buf, "/kit/", 5)) {
 		buf[4] = ' ';
+		sendCommand(buf);
+		writeResponse(fd, &noContentRs);
+	} else if (!strncmp(buf, "/maxhp/", 7)) {
+		buf[6] = ' ';
 		sendCommand(buf);
 		writeResponse(fd, &noContentRs);
 	} else if (!strncmp(buf, "/name/", 6)) {

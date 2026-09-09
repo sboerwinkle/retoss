@@ -16,22 +16,23 @@ int32_t gs_gravity = 30;
 
 void resetPlayer(gamestate *gs, int ix) {
 	player &p = gs->players[ix];
-	p.m={
-		.pos={0,0,0},
-		.oldPos={-1,-1,-1},
-		.rot={FIXP,0,0,0},
-		.oldRot={0,0,0,0},
-		.type=T_PLAYER,
-		.b=NULL,
+	p.m = {
+		.pos = {0,0,0},
+		.oldPos = {-1,-1,-1},
+		.rot = {FIXP,0,0,0},
+		.oldRot = {0,0,0,0},
+		.type = T_PLAYER,
+		.b = NULL,
 	};
 	range(i, 3) {
 		p.inputs[i] = 0;
 	}
-	p.team=-1;
-	p.loadout=0;
-	p.hitsCount=0;
-	p.prox=gs->vb_root;
-	p.skin=NULL;
+	p.team = -1;
+	p.loadout = 0;
+	p.hitsCount = 0;
+	p.maxHits = 3;
+	p.prox = gs->vb_root;
+	p.skin = NULL;
 	// Dummy tool so state is valid
 	toolRifle_create(&p.tool);
 
@@ -40,11 +41,11 @@ void resetPlayer(gamestate *gs, int ix) {
 
 void softResetPlayer(player *_p) {
 	player &p = *_p;
-	p.jump=0;
-	p.shoot=0;
-	p.alive=1;
-	p.hits=0;
-	p.hitsCooldown=0;
+	p.jump = 0;
+	p.shoot = 0;
+	p.alive = 1;
+	p.hits = 0;
+	p.hitsCooldown = 0;
 	range(i, 3) {
 		p.vel[i] = 0;
 	}
@@ -402,6 +403,7 @@ void prepareGamestateForLoad(gamestate *gs, char strictness) {
 	if (strictness < 1) {
 		rangeconst(i, tmp.num) {
 			gs->players[i].team = tmp[i].team;
+			gs->players[i].maxHits = tmp[i].maxHits;
 
 			gs->players[i].skin = tmp[i].skin;
 			if (tmp[i].skin) tmp[i].skin->refs++;
@@ -698,6 +700,7 @@ static void transPlayer(player *p) {
 	trans8(&p->hits);
 	trans8(&p->hitsCooldown);
 	trans8(&p->hitsCount);
+	trans8(&p->maxHits);
 	range(i, 4) trans32(&p->m.rot[i]);
 	transWeakRef(&p->m.b, &boxSerizPtrs);
 	if (seriz_reading) tool_destroy(p->tool);

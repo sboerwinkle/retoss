@@ -69,7 +69,7 @@ void playerUpdate(gamestate *gs, player *p) {
 	if (p->hitsCooldown) {
 		p->hitsCooldown--;
 		if (!p->hitsCooldown) {
-			if (p->hits >= 3) {
+			if (p->hits >= p->maxHits) {
 				killPlayer(p);
 				// Todo: Add gibs
 			} else {
@@ -302,8 +302,8 @@ void player_hit(gamestate *gs, int32_t soundTime, player *p, int hits) {
 	int oldHits = p->hits;
 	p->hits += hits;
 
-	if (oldHits < 3) {
-		if (p->hits < 3) {
+	if (oldHits < p->maxHits) {
+		if (p->hits < p->maxHits) {
 			// 7 seconds to heal feels about right??
 			p->hitsCooldown = 15*7;
 		} else {

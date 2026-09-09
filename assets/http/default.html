@@ -8,6 +8,11 @@ details { border: 1px solid black; }
 	background: #fc8;
 	border: 1px solid black;
 }
+.tile {
+	display: inline-block;
+	margin-right: 20px;
+	vertical-align: top;
+}
 summary { cursor: pointer; }
 ul { margin: 0; }
 pre {
@@ -52,20 +57,27 @@ Name<br/>
 	<button>Submit</button>
 </form>
 <br/>
-Team select
-<br/>
-<div id="teams">
-	<label style="background: #f8f"><input type="radio" name="team" value="/team2"/><span>Unset</span></label>
-	<label style="background: #f88"><input type="radio" name="team" value="/team0"/><span>Team 0</span></label>
-	<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label>
+<div class="tile">
+	Team select
+	<br/>
+	<div id="teams">
+		<label style="background: #f8f"><input type="radio" name="team" value="/team2"/><span>Unset</span></label>
+		<label style="background: #f88"><input type="radio" name="team" value="/team0"/><span>Team 0</span></label>
+		<label style="background: #88f"><input type="radio" name="team" value="/team1"/><span>Team 1</span></label>
+	</div>
 </div>
-<br/>
-<br/>
-Weapon select
-<br/>
-<label><input type="radio" name="kit" value="/kit/0"/>Rifle</label>
-<br/>
-<label><input type="radio" name="kit" value="/kit/1"/>Rocket</label>
+<div class="tile">
+	Weapon select
+	<br/>
+	<label><input type="radio" name="kit" value="/kit/0"/>Rifle</label>
+	<br/>
+	<label><input type="radio" name="kit" value="/kit/1"/>Rocket</label>
+	</div>
+<div class="tile">
+	Max HP
+	<br/>
+	<input type="number" min="1" max="100" id="maxhp"/>
+</div>
 <br/>
 <br/>
 <details>
@@ -197,6 +209,11 @@ Weapon select
 		});
 	}
 
+	let maxhpInput = id('maxhp');
+	maxhpInput.addEventListener('change', e => {
+		fetch('/maxhp/' + maxhpInput.value);
+	});
+
 	let toParam = (e) => {
 		let value;
 		if (e.type == 'text' || e.nodeName == 'SELECT') value = e.value;
@@ -233,6 +250,7 @@ Weapon select
 				document.querySelector('input[value="/kit/'+x.kit+'"]'),
 			];
 			for (let y of items) if (y) y.checked = true;
+			id('maxhp').value = x.maxhp;
 		});
 	}
 
