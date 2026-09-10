@@ -126,6 +126,7 @@ struct gamestate {
 	box *vb_root;
 	int32_t clock;
 	uint32_t seed;
+	int64_t fogDist;
 };
 
 extern void resetPlayer(gamestate *gs, int i);

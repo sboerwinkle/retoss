@@ -448,6 +448,7 @@ gamestate* dup(gamestate *orig) {
 	ret->vb_root = velbox_dup(orig->vb_root);
 	ret->clock = orig->clock;
 	ret->seed = orig->seed;
+	ret->fogDist = orig->fogDist;
 
 	ret->solids.init(orig->solids.num);
 	ret->solids.num = orig->solids.num;
@@ -510,6 +511,7 @@ void init(gamestate *gs) {
 	gs->clock = 0;
 	vb_now = 0;
 	gs->seed = 1;
+	gs->fogDist = 100'000;
 }
 
 void cleanup(gamestate *gs) {
@@ -763,6 +765,7 @@ static void trans(gamestate *gs) {
 	transTasks(gs);
 	trans32(&gs->clock);
 	trans32(&gs->seed);
+	trans64(&gs->fogDist);
 }
 
 void serialize(gamestate *gs, list<char> *data) {

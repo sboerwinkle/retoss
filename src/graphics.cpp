@@ -88,6 +88,8 @@ static GLint u_main_tex_scale;
 static GLint u_main_tex_offset;
 static GLint u_main_tint;
 static GLint u_main_transparency;
+static GLint u_main_fog;
+static GLint u_main_fog_mult;
 
 static GLint u_spr_size;
 static GLint u_spr_scale;
@@ -354,11 +356,10 @@ void initGraphics() {
 	dyntexs.init();
 	camCastCands.init();
 
-	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "shaders/solid.vert");
-	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "shaders/sprite.vert");
-	//GLuint vertexShader2d = mkShader(GL_VERTEX_SHADER, "shaders/flat.vert");
-	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "shaders/color.frag");
-	GLuint fragShaderSprite = mkShader(GL_FRAGMENT_SHADER, "shaders/texOnly.frag");
+	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "assets/shaders/solid.vert");
+	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "assets/shaders/sprite.vert");
+	GLuint fragShader = mkShader(GL_FRAGMENT_SHADER, "assets/shaders/color.frag");
+	GLuint fragShaderSprite = mkShader(GL_FRAGMENT_SHADER, "assets/shaders/texOnly.frag");
 
 	main_prog = glCreateProgram();
 	glAttachShader(main_prog, vertexShader);
@@ -371,14 +372,6 @@ void initGraphics() {
 	glAttachShader(sprite_prog, fragShaderSprite);
 	glLinkProgram(sprite_prog);
 	cerr("Post link");
-
-	/*
-	flat_prog = glCreateProgram();
-	glAttachShader(flat_prog, vertexShader2d);
-	glAttachShader(flat_prog, fragShader);
-	glLinkProgram(flat_prog);
-	cerr("Post link");
-	*/
 
 	GLint a_pos_id = attrib(main_prog, "a_pos");
 	GLint a_norm_id = attrib(main_prog, "a_norm");
@@ -394,6 +387,8 @@ void initGraphics() {
 	u_main_tex_offset   = glGetUniformLocation(main_prog, "u_tex_offset");
 	u_main_tint         = glGetUniformLocation(main_prog, "u_tint");
 	u_main_transparency = glGetUniformLocation(main_prog, "u_transparency");
+	u_main_fog          = glGetUniformLocation(main_prog, "u_fog");
+	u_main_fog_mult     = glGetUniformLocation(main_prog, "u_fog_mult");
 	// sprite_prog uniforms
 	u_spr_size          = glGetUniformLocation(sprite_prog, "u_size");
 	u_spr_scale         = glGetUniformLocation(sprite_prog, "u_scale");
@@ -484,7 +479,7 @@ void initGraphics() {
 
 	loadAllTextures();
 
-	glClearColor(0.2, 0.2, 0.2, 1);
+	glClearColor(0.5, 0.5, 0.5, 1);
 
 	glEnable(GL_BLEND);
 	// It's possible to set the blend behavior of the alpha channel distinctly from that of the RGB channels.
@@ -600,6 +595,8 @@ void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg) {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	tint(0, 0, 0, 0);
 	reset3dTexScale();
+	glUniform3f(u_main_fog, 0.5, 0.5, 0.5);
+	glUniform1f(u_main_fog_mult, -1.0 / gs->fogDist);
 
 	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);

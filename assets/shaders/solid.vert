@@ -20,10 +20,12 @@ layout(location=0) out vec3 v_color;
 layout(location=1) out vec2 v_uv;
 layout(location=2) out vec2 v_mottle_1;
 layout(location=3) out vec2 v_mottle_2;
+out vec3 v_pos;
 
 void main()
 {
 	gl_Position = u_modelview * vec4(a_pos, 1.0);
+	v_pos = gl_Position.xyw;
 	v_uv = u_tex_offset + u_tex_scale*a_tex_st;
 	v_mottle_1 = u_noise_scale*v_uv;
 	v_mottle_2 = 1.618034*u_noise_scale*v_uv;
