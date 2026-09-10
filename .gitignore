@@ -11,6 +11,7 @@ data/
 *.swp
 
 # WIP asset stuff
+# This should match win_package.sh
 *.xcf
 *.aup3
 *_orig.mp3
