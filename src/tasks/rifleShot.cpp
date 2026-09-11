@@ -15,6 +15,11 @@
 #include "blast.h"
 #include "rocket.h"
 
+// This is a center-to-center radius,
+// but that's not a problem unless we
+// blast more than people.
+static const int BLAST_RADIUS = 2000;
+
 static void shoot(gamestate *gs, player *p) {
 	int shotRule;
 	if (gs == rootState) shotRule = 2;
@@ -61,13 +66,13 @@ static void shoot(gamestate *gs, player *p) {
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
 			addSound(gs->clock, impact, v, soundId, SND_TAP);
-			tskBlast_create(gs, impact, v, 3000, 20, 40);
+			tskBlast_create(gs, impact, v, BLAST_RADIUS, 0, 10);
 
 			solid *s = solidFromMover(result);
 			list<mover*> blastMovers;
 			blastMovers.init();
 			// Currently the blast radius is 3k units, need to write this down somewhere
-			velbox_query(s->m.b, impact, v, 3000, &blastMovers);
+			velbox_query(s->m.b, impact, v, BLAST_RADIUS, &blastMovers);
 			rangeconst(iter, blastMovers.num) {
 				mover *m = blastMovers[iter];
 				if (!(m->type & T_PLAYER)) continue;
@@ -77,8 +82,8 @@ static void shoot(gamestate *gs, player *p) {
 				// This should almost always be small enough to safely square,
 				// but for relativistic players maybe not.
 				int64_t mg = mag(d);
-				if (mg > 3000 || !mg) continue;
-				range(i, 3) blastee->vel[i] += d[i]*600/mg;
+				if (mg > BLAST_RADIUS || !mg) continue;
+				range(i, 3) blastee->vel[i] += d[i]*200/mg;
 			}
 			blastMovers.destroy();
 		}

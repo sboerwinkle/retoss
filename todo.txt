@@ -11,6 +11,7 @@
 		Split out homunculus vs tombstone
 		For now, view params aren't affected
 		"head" solid, draw fn, and draw fn arg in player.
+- Get rid of `selection`
 . Heightmap levels
 - Enemies would be cool
 	No idea about specifics yet, something simple that can mob you
@@ -33,7 +34,7 @@
 . climbing route issue in peaks
 - sounds
 	- taunt
-	- Change damaged noise
+	. Change damaged noise
 	- (loud) Death noise
 	. Kinda there!
 	- volume control (at least mute)
