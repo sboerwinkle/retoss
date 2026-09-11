@@ -13,6 +13,7 @@
 #include "tools/rl.h"
 
 int32_t gs_gravity = 30;
+list<solid*> solidSerizPtrs;
 
 void resetPlayer(gamestate *gs, int ix) {
 	player &p = gs->players[ix];
@@ -162,7 +163,8 @@ void cpSolid(solid *t, solid *s) {
 
 solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
 	solid *s = new solid();
-	gs->solids.add(s);
+	gs->staticSolids.add(s);
+	gs->dumbSolids.add(s);
 	s->m.oldPos[0] = s->m.pos[0] = x;
 	s->m.oldPos[1] = s->m.pos[1] = y;
 	s->m.oldPos[2] = s->m.pos[2] = z;
@@ -182,10 +184,10 @@ solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t 
 	return s;
 }
 
-// Would be slightly more efficient if we had an index (hypothetical `rmSolidAt`),
-// but I'm not sure if that's ever something we'll have.
+// Todo: I think I want to get rid of `selection` at some point, which would obsolete this.
 void rmSolid(gamestate *gs, solid *s) {
-	gs->solids.stableRm(s);
+	gs->staticSolids.stableRm(s);
+	gs->dumbSolids.stableRm(s);
 	// May not exist in selection, need to check first.
 	int ix;
 	if (-1 != (ix = gs->selection.find(s))) gs->selection.stableRmAt(ix);
@@ -345,8 +347,8 @@ void runTick(gamestate *gs) {
 	velbox_refresh(gs->vb_root);
 	taskInstance *toDelete = NULL;
 
-	rangeconst(i, gs->solids.num) {
-		solidUpdate(gs, gs->solids[i]);
+	rangeconst(i, gs->staticSolids.num) {
+		solidUpdate(gs, gs->staticSolids[i]);
 	}
 
 	// TODO: Currently I'm leaning towards making all `constelUpdate`s a task (that we just always have).
@@ -450,11 +452,11 @@ gamestate* dup(gamestate *orig) {
 	ret->seed = orig->seed;
 	ret->fogDist = orig->fogDist;
 
-	ret->solids.init(orig->solids.num);
-	ret->solids.num = orig->solids.num;
-	rangeconst(i, ret->solids.num) {
-		ret->solids[i] = new solid();
-		cpSolid(ret->solids[i], orig->solids[i]);
+	ret->dumbSolids.init(orig->dumbSolids.num);
+	ret->dumbSolids.num = orig->dumbSolids.num;
+	rangeconst(i, ret->dumbSolids.num) {
+		ret->dumbSolids[i] = new solid();
+		cpSolid(ret->dumbSolids[i], orig->dumbSolids[i]);
 	}
 
 	ret->constels.init(orig->constels.num);
@@ -473,22 +475,28 @@ gamestate* dup(gamestate *orig) {
 	// Nothing special in the trail data, we can just copy it all
 	ret->trails.init(orig->trails);
 
-	// Copy tasks.
-	// TODO I have having to do all these allocs,
+	// Copy tasks. These are done backwards for the same reason as `transTasks`.
+	// TODO I keep having to do all these allocs,
 	//      can I put them in a block somehow?
 	//      Or is it even actually a problem?
 	ret->tasks.data = ret->tasks.defn = NULL;
 	taskInstance *s = &ret->tasks;
-	for (taskInstance *t = orig->tasks.next; t != &orig->tasks; t = t->next) {
+	for (taskInstance *t = orig->tasks.prev; t != &orig->tasks; t = t->prev) {
 		taskInstance *old = s;
 		s = new taskInstance;
-		old->next = s;
-		s->prev = old;
+		old->prev = s;
+		s->next = old;
 		s->defn = t->defn;
 		(*t->defn->copy)(&s->data, t->data);
 	}
-	s->next = &ret->tasks;
-	ret->tasks.prev = s;
+	s->prev = &ret->tasks;
+	ret->tasks.next = s;
+
+	ret->staticSolids.init(orig->staticSolids.num);
+	ret->staticSolids.num = orig->staticSolids.num;
+	rangeconst(i, ret->staticSolids.num) {
+		ret->staticSolids[i] = (solid*)orig->staticSolids[i]->clone.ptr;
+	}
 
 	rangeconst(i, ret->players.num) {
 		player *p = &ret->players[i];
@@ -501,7 +509,8 @@ gamestate* dup(gamestate *orig) {
 void init(gamestate *gs) {
 	gs->players.init();
 	gs->selection.init();
-	gs->solids.init();
+	gs->staticSolids.init();
+	gs->dumbSolids.init();
 	gs->trails.init();
 	gs->tasks.data = gs->tasks.defn = NULL;
 	gs->tasks.next = gs->tasks.prev = &gs->tasks;
@@ -526,10 +535,11 @@ void cleanup(gamestate *gs) {
 		delete t;
 	}
 	gs->trails.destroy();
-	rangeconst(i, gs->solids.num) {
-		delete gs->solids[i];
+	rangeconst(i, gs->dumbSolids.num) {
+		delete gs->dumbSolids[i];
 	}
-	gs->solids.destroy();
+	gs->staticSolids.destroy();
+	gs->dumbSolids.destroy();
 	gs->selection.destroy();
 	rangeconst(i, gs->players.num) playerDestroy(&gs->players[i]);
 	gs->players.destroy();
@@ -561,6 +571,7 @@ void transMover(mover *m, int32_t typeLower, int32_t typeUpper) {
 }
 
 void transSolid(solid *s) {
+	transStrongRef(s, &solidSerizPtrs);
 	transMover(&s->m, 0, NUM_SHAPES);
 	trans64(&s->r);
 	trans32(&s->tex);
@@ -571,14 +582,18 @@ void transSolid(solid *s) {
 	}
 }
 
-static void transAllSolids(gamestate *gs) {
-	transItemCount(&gs->solids);
-	rangeconst(i, gs->solids.num) {
-		if (seriz_reading) gs->solids[i] = new solid();
-		transSolid(gs->solids[i]);
+static void transDumbSolids(gamestate *gs) {
+	transItemCount(&gs->dumbSolids);
+	rangeconst(i, gs->dumbSolids.num) {
+		if (seriz_reading) gs->dumbSolids[i] = new solid();
+		transSolid(gs->dumbSolids[i]);
+	}
+}
 
-		// Unused, so untested
-		if (!seriz_reading) gs->solids[i]->clone.idx = i;
+static void transStaticSolids(gamestate *gs) {
+	transItemCount(&gs->staticSolids);
+	rangeconst(i, gs->staticSolids.num) {
+		transWeakRef(&gs->staticSolids[i], &solidSerizPtrs);
 	}
 }
 
@@ -652,6 +667,11 @@ static void transTrails(gamestate *gs) {
 }
 
 static void transTasks(gamestate *gs) {
+	// We do these backwards because if Task A manipulates Task B somehow,
+	// probably it wants Task B to be serialized first so it can reference
+	// it more easily.
+	// The big example of this is "physics" vs "logic" - the logic owns
+	// the solid, but the physics runs first to position it.
 	if (seriz_reading) {
 		while (int32_t taskId = read32()) {
 			taskInstance *t = new taskInstance;
@@ -667,13 +687,13 @@ static void transTasks(gamestate *gs) {
 				delete t;
 				return;
 			}
-			t->prev = gs->tasks.prev;
-			t->prev->next = t;
-			t->next = &gs->tasks;
-			gs->tasks.prev = t;
+			t->next = gs->tasks.next;
+			t->next->prev = t;
+			t->prev = &gs->tasks;
+			gs->tasks.next = t;
 		}
 	} else {
-		for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
+		for (taskInstance *t = gs->tasks.prev; t != &gs->tasks; t = t->prev) {
 			write32(t->defn->id + 1);
 			(*t->defn->trans)(gs, &t->data);
 		}
@@ -757,12 +777,14 @@ static void readStr(const list<const char> *data, int *ix, char *dest, int limit
 */
 
 static void trans(gamestate *gs) {
+	solidSerizPtrs.num = 0;
 	velbox_trans(gs->vb_root);
-	transAllSolids(gs);
+	transDumbSolids(gs);
 	transAllConstelInsts(gs);
 	// We don't bother with the selection for now
 	transTrails(gs);
 	transTasks(gs);
+	transStaticSolids(gs);
 	trans32(&gs->clock);
 	trans32(&gs->seed);
 	trans64(&gs->fogDist);
@@ -809,7 +831,9 @@ void dyntex_holder::decr() {
 }
 
 void gamestate_init() {
+	solidSerizPtrs.init();
 }
 
 void gamestate_destroy() {
+	solidSerizPtrs.destroy();
 }

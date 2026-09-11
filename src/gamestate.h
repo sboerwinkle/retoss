@@ -21,9 +21,6 @@ struct mover; // "box" and "gamestate" reference each other's types
 #define T_PROJ 64
 #define T_MASK (15*32)
 
-extern int32_t gs_gravity;
-extern double const shapeDiagonalMultipliers[NUM_SHAPES];
-
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];
@@ -119,7 +116,8 @@ struct trail {
 struct gamestate {
 	list<player> players;
 	list<constelInst*> constels;
-	list<solid*> solids;
+	list<solid*> staticSolids;
+	list<solid*> dumbSolids;
 	list<solid*> selection;
 	list<trail> trails;
 	taskInstance tasks;
@@ -128,6 +126,12 @@ struct gamestate {
 	uint32_t seed;
 	int64_t fogDist;
 };
+
+
+extern int32_t gs_gravity;
+extern list<solid*> solidSerizPtrs;
+extern double const shapeDiagonalMultipliers[NUM_SHAPES];
+
 
 extern void resetPlayer(gamestate *gs, int i);
 extern void softResetPlayer(player *p);

@@ -963,7 +963,7 @@ char customLoopbackCommand(gamestate *gs, char const * str) {
 	}
 	if (isCmd(str, "/selall")) {
 		gs->selection.num = 0;
-		gs->selection.addAll(&gs->solids);
+		gs->selection.addAll(&gs->dumbSolids);
 		return 1;
 	}
 	if (isCmd(str, "/dlUpd")) {
@@ -1293,8 +1293,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	setupFrame(p, gs, look);
 
 	// Draw normal solids
-	rangeconst(i, gs->solids.num) {
-		drawSolid(gs->solids[i]);
+	rangeconst(i, gs->dumbSolids.num) {
+		drawSolid(gs->dumbSolids[i]);
 	}
 	// Draw solids in constels
 	rangeconst(i, gs->constels.num) {
