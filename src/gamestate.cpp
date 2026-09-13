@@ -44,6 +44,7 @@ void softResetPlayer(player *_p) {
 	player &p = *_p;
 	p.jump = 0;
 	p.shoot = 0;
+	p.interact = 0;
 	p.alive = 1;
 	p.hits = 0;
 	p.hitsCooldown = 0;
@@ -93,13 +94,6 @@ void validateSize(int64_t *_size) {
 	}
 }
 
-void validateType(int32_t *type, int32_t lower, int32_t upper) {
-	if (*type < lower || *type >= upper) {
-		printf("Type should be in range [%d, %d) but is %d\n", lower, upper, *type);
-		*type = lower;
-	}
-}
-
 void validateTex(int32_t *_tex) {
 	// `s->tex & 31` is used in drawing code in main.cpp
 	int tex = *_tex & 31;
@@ -109,11 +103,7 @@ void validateTex(int32_t *_tex) {
 	}
 }
 
-static void moverValidate(mover *m, int32_t typeLower, int32_t typeUpper) {
-	validateType(&m->type, typeLower, typeUpper);
-}
-
-static void solidValidate(solid *s) {
+void solidValidate(solid *s) {
 	validateSize(&s->r);
 	validateTex(&s->tex);
 }
@@ -128,7 +118,7 @@ void solidPutVb(solid *s, box *guess, int duration) {
 	s->m.b = tmp;
 	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
 	range(i, 3) tmp->vel[i] = s->m.pos[i] - s->m.oldPos[i];
-	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type];
+	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type & SHAPE_MASK];
 	tmp->end = tmp->start + duration;
 	tmp->data = &s->m;
 	velbox_insert(guess, tmp);
@@ -161,27 +151,23 @@ void cpSolid(solid *t, solid *s) {
 	t->m.b->data = &t->m;
 }
 
-solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex) {
+solid* dumbSolid(gamestate *gs, box *b, int64_t r, int32_t shape, int32_t tex) {
 	solid *s = new solid();
-	gs->staticSolids.add(s);
 	gs->dumbSolids.add(s);
-	s->m.oldPos[0] = s->m.pos[0] = x;
-	s->m.oldPos[1] = s->m.pos[1] = y;
-	s->m.oldPos[2] = s->m.pos[2] = z;
-	s->m.type = shape;
-	//s->vel[0] = s->vel[1] = s->vel[2] = 0;
+	s->m.type = shape % NUM_SHAPES;
 	s->r = r;
 	s->tex = tex;
-	s->m.rot[0] = FIXP;
-	s->m.rot[1] = 0;
-	s->m.rot[2] = 0;
-	s->m.rot[3] = 0;
 
-	moverValidate(&s->m, 0, NUM_SHAPES);
 	solidValidate(s);
-
-	solidPutVb(s, b, 15);
 	return s;
+}
+
+box* staticPosition(gamestate *gs, solid *s, box *b) {
+	gs->staticSolids.add(s);
+	// The idea is to spread out which frame various solids need to refresh on.
+	// But I'm probably making that branch less predictable, is it worth it?
+	solidPutVb(s, b, gs->staticSolids.num % 15 + 1);
+	return s->m.b;
 }
 
 // Todo: I think I want to get rid of `selection` at some point, which would obsolete this.
@@ -550,8 +536,18 @@ void coreSetup(gamestate *gs) {
 }
 
 // Seriz / Deser stuff
-void transMover(mover *m, int32_t typeLower, int32_t typeUpper) {
-	trans32(&m->type);
+void transMover(mover *m, int32_t typeFlags) {
+	if (seriz_reading) {
+		m->type = typeFlags + (SHAPE_MASK & read8()) % NUM_SHAPES;
+	} else {
+		u8 shape = SHAPE_MASK & m->type;
+#ifndef NODEBUG
+		if (m->type != typeFlags + shape) {
+			printf("Claims to have type 0x%X but is 0x%X\n", typeFlags+shape, m->type);
+		}
+#endif
+		write8(shape);
+	}
 	transBlock(m->pos, sizeof(m->pos));
 	transBlock(m->rot, sizeof(m->rot));
 	transWeakRef(&m->b, &boxSerizPtrs);
@@ -561,8 +557,6 @@ void transMover(mover *m, int32_t typeLower, int32_t typeUpper) {
 		memset(m->oldPos, 0, sizeof(m->oldPos));
 		memset(m->oldRot, 0, sizeof(m->oldRot));
 
-		moverValidate(m, typeLower, typeUpper);
-
 		// Box and Solid have ptrs to each other, but only one dir gets
 		// explicitly serialized. Other has to be handled by hand during de-seriz.
 		m->b->data = m;
@@ -570,9 +564,9 @@ void transMover(mover *m, int32_t typeLower, int32_t typeUpper) {
 
 }
 
-void transSolid(solid *s) {
+void transSolid(solid *s, int32_t typeFlags) {
 	transStrongRef(s, &solidSerizPtrs);
-	transMover(&s->m, 0, NUM_SHAPES);
+	transMover(&s->m, typeFlags);
 	trans64(&s->r);
 	trans32(&s->tex);
 	if (seriz_reading) {
@@ -586,7 +580,7 @@ static void transDumbSolids(gamestate *gs) {
 	transItemCount(&gs->dumbSolids);
 	rangeconst(i, gs->dumbSolids.num) {
 		if (seriz_reading) gs->dumbSolids[i] = new solid();
-		transSolid(gs->dumbSolids[i]);
+		transSolid(gs->dumbSolids[i], 0);
 	}
 }
 
@@ -618,7 +612,7 @@ static void transConstelInst(constelInst *ci) {
 	// Only downside is we'd have to do the velbox placement over again,
 	// but that's probably well worth it. Maybe this is a smaller Todo.
 	transItemCount(&ci->solids);
-	rangeconst(i, ci->solids.num) transSolid(&ci->solids[i]);
+	rangeconst(i, ci->solids.num) transSolid(&ci->solids[i], 0);
 	// We have no way to serialize a reference to a constelInst's solid right now,
 	// which is related to not setting clone.idx here (wouldn't be helpful).
 }
@@ -716,6 +710,7 @@ static void transPlayer(player *p) {
 	range(i, 3) trans32(&p->inputs[i]);
 	trans8(&p->jump);
 	trans8(&p->shoot);
+	trans8(&p->interact);
 	trans8(&p->alive);
 	trans8(&p->team);
 	trans8(&p->loadout);

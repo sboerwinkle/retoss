@@ -211,7 +211,7 @@ static char trans(gamestate *gs, void **ptr) {
 			puts("Rocket velbox not live, was it initialized improperly?");
 		}
 	}
-	transMover(&data->m, T_PROJ, T_PROJ+1);
+	transMover(&data->m, T_PROJ);
 	transOffset(data->vel);
 	transOffset(data->accel);
 	trans8(&data->dead);

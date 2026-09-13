@@ -40,6 +40,7 @@ extern void transIquat(iquat r);
 
 extern void transBlock(void *mem, int len);
 extern void transStr(char *buf, u8 bufSize);
+extern void transAllocedStr(char **_buf);
 
 extern void seriz_writeHeader();
 extern int seriz_verifyHeader();

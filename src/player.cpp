@@ -2,6 +2,7 @@
 
 #include "gamestate.h"
 
+#include "bcast.h"
 #include "collision.h"
 #include "game.h"
 #include "game_gamestate.h"
@@ -18,6 +19,8 @@ static int64_t pl_jump = 400;
 static int64_t pl_gummy = 80;
 
 static list<mover*> queryResults;
+
+static void doInteract(gamestate *gs, player *p);
 
 static char playerPhysLe(mover* const &a, mover* const &b) {
 	// Simple for now.
@@ -65,6 +68,10 @@ void playerUpdate(gamestate *gs, player *p) {
 	}
 
 	memcpy(p->m.pos, dest, sizeof(dest));
+
+	// If we want interactables that bounce off players (weapons, maybe?),
+	// this will have to be moved to some separate task (like rifleShot is today).
+	if (p->interact) doInteract(gs, p);
 
 	if (p->hitsCooldown) {
 		p->hitsCooldown--;
@@ -272,8 +279,34 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 	range(i, 3) dest[i] += latChange[i];
 }
 
+static void doInteract(gamestate *gs, player *p) {
+	// Todo: Surely we'll need this more often, right? Save it somewhere?
+	unitvec look;
+	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
+
+	fraction const limit = {.numer = PLAYER_SHAPE_RADIUS*5/2, .denom = FIXP};
+	// Todo: I think this may be a bit sloppy at the moment, since a box that's a suitable
+	//       parent for something that large will necessarily be bigger than we need.
+	//       Might be able to improve this with a small velbox tweak involving `minParentR`.
+	box *queryArea = velbox_findParent(p->prox, p->m.oldPos, p->vel, limit.numer);
+	bcast_start(queryArea, look, p->m.oldPos);
+	fraction time;
+	mover *result;
+	do {
+		result = bcast(&time, look, p->m.oldPos);
+	} while (result == &p->m);
+	if (!result || limit.lt(time) || !(result->type & FLAG_INTERACT)) {
+		return;
+	}
+	p->interact = 0;
+
+	interactable *button = (interactable*)result;
+	(*button->info->action)(gs, button, &p->m);
+}
+
 void pl_postStep(gamestate *gs, player *p) {
 	p->jump &= ~2; // Clear 'jump this frame' bit, as this frame has passed.
+	p->interact &= ~2;
 	char shootInput = p->shoot;
 	p->shoot &= 1;
 

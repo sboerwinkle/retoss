@@ -42,6 +42,7 @@ struct buildCtx {
 	void scale(int32_t scale);
 
 	void resel();
+	void populate(solid *s);
 	void add(int32_t shape, int32_t tex, int64_t size);
 	constelInst* add(constel *c, int32_t duration);
 	void addPt(constel *c, int32_t shape, int32_t tex, int64_t size);

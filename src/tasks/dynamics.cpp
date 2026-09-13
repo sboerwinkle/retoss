@@ -263,7 +263,7 @@ static char trans(gamestate *gs, void **ptr) {
 	}
 	tskDynamicsData *data = (tskDynamicsData*)*ptr;
 
-	transSolid(&data->s);
+	transSolid(&data->s, 0);
 
 	transOffset(data->vel);
 	transIquat(data->rvel);

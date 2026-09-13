@@ -93,13 +93,13 @@ char shotPredictionRules[2];
 struct {
 	struct {
 		char u, d, l, r, z, Z;
-		char jump, shoot;
+		char jump, shoot, interact;
 	} state;
 	struct {
-		char jump, shoot;
+		char jump, shoot, interact;
 	} event;
 } activeInputs = {}, sharedInputs = {};
-static char sentJumpState = 0, sentShootState = 0;
+static char sentJumpState = 0, sentShootState = 0, sentInteractState = 0;
 
 //// Config parsing stuff ////
 
@@ -351,6 +351,15 @@ void handleKey(int key, int action) {
 	else if (key == GLFW_KEY_SPACE) {
 		activeInputs.state.jump = activeInputs.state.z = action;
 		if (action) activeInputs.event.jump = 1;
+	} else if (key == GLFW_KEY_E) {
+		activeInputs.state.interact = action;
+		if (action) {
+			if (ctrlPressed) {
+				editMenuState = ~editMenuState;
+			} else {
+				activeInputs.event.interact = 1;
+			}
+		}
 	} else if (key == GLFW_KEY_C) {
 		if (ctrlPressed && action) doDlCp = 1;
 		else activeInputs.state.Z = action;
@@ -361,10 +370,6 @@ void handleKey(int key, int action) {
 	} else if (action) {
 		if (key == GLFW_KEY_F3) {
 			renderStats ^= 1;
-		} else if (key == GLFW_KEY_E) {
-			if (ctrlPressed) {
-				editMenuState = ~editMenuState;
-			}
 		} else if (key == GLFW_KEY_F) {
 			if (ctrlPressed) {
 				doLookGp = 1;
@@ -522,6 +527,7 @@ void copyInputs() {
 	sharedInputs.state = activeInputs.state;
 	copyEvent(&sharedInputs.event.jump, &activeInputs.event.jump);
 	copyEvent(&sharedInputs.event.shoot, &activeInputs.event.shoot);
+	copyEvent(&sharedInputs.event.interact, &activeInputs.event.interact);
 
 	if (editMenuState >= 0) {
 		char const *cmd;
@@ -643,6 +649,7 @@ void serializeInputs(char * dest) {
 	// jump stuff.
 	serializeEvent(&sharedInputs.event.jump, sharedInputs.state.jump, &sentJumpState, "/_J", "/_j");
 	serializeEvent(&sharedInputs.event.shoot, sharedInputs.state.shoot, &sentShootState, "/_S", "/_s");
+	serializeEvent(&sharedInputs.event.interact, sharedInputs.state.interact, &sentInteractState, "/_I", "/_i");
 
 	char x;
 	if ((x = poll_game_flag.load(std::memory_order::acquire))) {
@@ -1000,6 +1007,10 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		p->shoot = 3;
 	} else if (isCmd(str, "/_s")) {
 		p->shoot &= 2;
+	} else if (isCmd(str, "/_I")) {
+		p->interact |= 3;
+	} else if (isCmd(str, "/_i")) {
+		p->interact &= ~1;
 	} else if (isCmd(str, "/team")) {
 		char const *pos = str + 5;
 		int team;
@@ -1276,7 +1287,7 @@ static void drawCrosshair(gamestate *gs, player *self) {
 static void drawSolid(solid *s) {
 	// `s->tex & 31` is validated in gamestate.cpp
 	// Todo: This is weird and old, can just use (and validate) the whole int
-	drawCube(&s->m, s->r, s->tex & 31, s->m.type, 1.0f);
+	drawCube(&s->m, s->r, s->tex & 31, s->m.type & SHAPE_MASK, 1.0f);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
@@ -1309,7 +1320,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	//      a dispatch table or whatever. But there's also
 	//      3D vs 2D rendering to consider, idk yet.
 	for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
-		if (t->defn->id == TSK_DYNAMICS) {
+		if (t->defn->id == TSK_DYNAMICS || t->defn->id == TSK_SIGN) {
 			// TODO I'm being lazy and goofy here
 			drawSolid((solid*)t->data);
 		} else if (t->defn->id == TSK_BLAST) {

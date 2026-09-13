@@ -99,7 +99,7 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	imat_applySm(v1, rot1, v1raw);
 	imat_applySm(v2, rot2, v2raw);
 
-	shapeSpec &sh = shapeSpecs[s->m.type & (~T_MASK)];
+	shapeSpec &sh = shapeSpecs[s->m.type & SHAPE_MASK];
 	int winner1 = 0;
 	int64_t best = INT64_MIN;
 	//int64_t winnerDepth = 0;
@@ -372,7 +372,7 @@ static char raycast_inner(fraction *best, mover const *m, offset const vWorld, i
 		*best = tmp;
 		return 1;
 	} else {
-		shape = m->type;
+		shape = m->type & SHAPE_MASK;
 		solid *s = solidFromMover(m);
 		r = s->r;
 	}

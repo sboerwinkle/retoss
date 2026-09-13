@@ -17,15 +17,18 @@ struct mover; // "box" and "gamestate" reference each other's types
 #define TEX_TEAM_SHIRT 10
 
 #define NUM_SHAPES 3
+#define SHAPE_MASK 15
+// 16 unused?
 #define T_PLAYER 32
 #define T_PROJ 64
-#define T_MASK (15*32)
+#define T_MASK (15*16)
+#define FLAG_INTERACT (1<<8)
 
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];
 	int64_t oldPos[3];
 	iquat rot, oldRot;
-	int type;
+	int32_t type;
 	box *b;
 };
 
@@ -48,7 +51,7 @@ struct player {
 	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
-	char jump, shoot, alive;
+	char jump, shoot, interact, alive;
 	char team;
 	char loadout;
 	u8 hits, hitsCooldown, hitsCount, maxHits;
@@ -66,6 +69,16 @@ struct solid {
 
 	// Currently this is only being used for `gs->selection`.
 	clone_t clone;
+};
+
+struct interactable;
+struct interactInfo {
+	void (*action)(gamestate *gs, interactable *s, mover *src);
+	// Something for rendering?
+	// Something for describing what kinds of actions it accepts?
+};
+struct interactable : solid {
+	interactInfo *info;
 };
 
 // Constellations.
@@ -140,12 +153,13 @@ extern void setupPlayers(gamestate *gs, int numPlayers);
 extern void killPlayer(player *p);
 
 extern void validateSize(int64_t *_size);
-extern void validateType(int32_t *type, int32_t lower, int32_t upper);
 extern void validateTex(int32_t *_tex);
+extern void solidValidate(solid *s);
 
 extern void solidPutVb(solid *s, box *guess, int duration);
 extern void cpSolid(solid *t, solid *s);
-extern solid* addSolid(gamestate *gs, box *b, int64_t x, int64_t y, int64_t z, int64_t r, int32_t shape, int32_t tex);
+extern solid* dumbSolid(gamestate *gs, box *b, int64_t r, int32_t shape, int32_t tex);
+extern box* staticPosition(gamestate *gs, solid *s, box *b);
 extern void rmSolid(gamestate *gs, solid *s);
 
 extern constelInst* mkConstelInst(constel *c, int32_t duration);
@@ -164,8 +178,8 @@ extern void cleanup(gamestate *gs);
 extern void coreSetup(gamestate *gs);
 
 extern void write32(list<char> *data, int32_t v);
-extern void transMover(mover *m, int32_t typeLower, int32_t typeUpper);
-extern void transSolid(solid *s);
+extern void transMover(mover *m, int32_t typeFlags);
+extern void transSolid(solid *s, int32_t typeFlags);
 extern void serialize(gamestate *gs, list<char> *data);
 extern void deserialize(gamestate *gs, list<char> *data, char fullState);
 

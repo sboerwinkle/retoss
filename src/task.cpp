@@ -12,6 +12,7 @@
 #include "tasks/rails.h"
 #include "tasks/rifleShot.h"
 #include "tasks/rocket.h"
+#include "tasks/sign.h"
 #include "tasks/tdmScore.h"
 
 static list<taskDefn> taskDefns;
@@ -46,6 +47,7 @@ void task_init() {
 	add(TSK_RAILS, &defineTask_rails);
 	add(TSK_RIFLE_SHOT, &taskRifleShot_define);
 	add(TSK_ROCKET, &taskRocket_define);
+	add(TSK_SIGN, &taskSign_define);
 	add(TSK_TDM, &defineTask_tdmScore);
 }
 

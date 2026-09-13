@@ -7,6 +7,7 @@
 
 #include "../tasks/killPlane.h"
 #include "../tasks/rails.h"
+#include "../tasks/sign.h"
 #include "../tasks/tdmScore.h"
 #include "../comp/plank.h"
 
@@ -289,6 +290,17 @@ static void mountain(gamestate *gs, constel *trolley, constel *bigPlate, int32_t
 	bctx.pos(pvar("pos", (offset const){57246, -11240, 21925}));
 	bctx.rot(rvar("rot", (int32_t const[]){25822, 22763, 0}));
 	bctx.add(var("shape", 1), var("tex", 4), var("scale", 1000));
+	bctx.peek();
+	gp("sign");
+	bctx.pos(pvar("pos", (offset const){39178, -7533, 27359}));
+	bctx.rot(rvar("rot", (int32_t const[]){23170, 23170, 0}));
+	taskSign_create(
+		&bctx,
+		"To do: Blow up other base",
+		var("size", 700),
+		var("shape", 1),
+		var("tex", 4)
+	);
 	bctx.peek();
 	//#add_here
 

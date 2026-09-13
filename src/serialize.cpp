@@ -169,6 +169,31 @@ void transStr(char *buf, u8 bufSize) {
 	}
 }
 
+void transAllocedStr(char **_buf) {
+	char *buf;
+	if (seriz_reading) {
+		u8 len = read8();
+		if (len >= TEXT_BUF_LEN) {
+			if (seriz_error()) {
+				printf("Allocated string length is %d, max is %d\n", len, TEXT_BUF_LEN-1);
+			}
+			len = TEXT_BUF_LEN-1;
+		}
+		*_buf = buf = (char*)malloc(len+1);
+		readBlock(buf, len);
+		buf[len] = '\0';
+	} else {
+		buf = *_buf;
+		int len = strlen(buf);
+		if (len >= TEXT_BUF_LEN) {
+			printf("String is too long, will only be partially serialized: %s\n", buf);
+			len = TEXT_BUF_LEN-1;
+		}
+		write8((u8)len);
+		writeBlock(buf, len);
+	}
+}
+
 void seriz_writeHeader() {
 	seriz_data->setMaxUp(seriz_data->num + 4);
 	memcpy(&(*seriz_data)[seriz_data->num], seriz_versionString, 4);

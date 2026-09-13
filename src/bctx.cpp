@@ -165,14 +165,22 @@ void buildCtx::resel() {
 	selecting = 1;
 }
 
-void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
+void buildCtx::populate(solid *s) {
 	finalizeTranslate();
-	size = size*transf.scale/1000;
-	solid *s = addSolid(gs, prevBox, transf.pos[0], transf.pos[1], transf.pos[2], size, shape, tex);
 	memcpy(s->m.rot, transf.rot, sizeof(transf.rot));
-	if (selecting) gs->selection.add(s);
-	prevBox = s->m.b;
+	memcpy(s->m.pos, transf.pos, sizeof(offset));
+	memcpy(s->m.oldPos, transf.pos, sizeof(offset));
 	if (solidCallback) (*solidCallback)(s);
+}
+
+void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
+	size = size*transf.scale/1000;
+
+	solid *s = dumbSolid(gs, prevBox, size, shape, tex);
+	populate(s);
+	prevBox = staticPosition(gs, s, prevBox);
+
+	if (selecting) gs->selection.add(s);
 }
 
 constelInst* buildCtx::add(constel *c, int32_t duration) {
