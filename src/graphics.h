@@ -20,6 +20,7 @@ extern float scaleX, scaleY;
 extern float displayAreaBounds[2];
 extern offset gfx_camPos1;
 extern offset gfx_camPos2;
+extern list<mover*> gfx_nearMovers;
 
 extern void newDyntexHolder(dyntex_holder *h);
 extern void oldDyntexHolder(dyntex_holder *h);

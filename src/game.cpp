@@ -1210,14 +1210,11 @@ static void drawPlayer(player *p, float alpha) {
 	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mode, alpha);
 }
 
-static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction *best) {
+static mover* castCam(gamestate *gs, player *self, offset p1, offset p2, unitvec dir, fraction *best) {
 	// This used to be the same as RIFLE_RANGE before the framework was set up
 	// for multiple tools
 	best->numer=100'000;
 	best->denom=FIXP;
-
-	unitvec dir;
-	range(i, 3) dir[i] = gfx_lookDir[i] * FIXP;
 
 	// Todo:
 	// This is horribly inefficient, but we're only doing it once per frame,
@@ -1227,15 +1224,39 @@ static void castCam(gamestate *gs, player *self, offset p1, offset p2, fraction 
 	crosshairCandidates.num = 0;
 	velbox_all_leafs(gs->vb_root, &crosshairCandidates);
 
+	mover *winner = NULL;
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
 		if (m == &self->m) continue;
-		raycast_interp(best, m, p1, p2, dir, gfx_interpRatio);
+		if (raycast_interp(best, m, p1, p2, dir, gfx_interpRatio)) {
+			winner = m;
+		}
 	}
+	return winner;
+}
+
+static mover* castInteract(player *self, unitvec dir, fraction *best) {
+	best->numer = PLAYER_INTERACT_RANGE;
+	best->denom = FIXP;
+
+	mover *winner = NULL;
+	rangeconst(i, gfx_nearMovers.num) {
+		mover *m = gfx_nearMovers[i];
+		if (m == &self->m) continue;
+		if (raycast_interp(best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio)) {
+			winner = m;
+		}
+	}
+	return winner;
 }
 
 static void drawCrosshair(gamestate *gs, player *self) {
 	float y;
+	fraction subjectDist;
+	mover *subject;
+
+	unitvec camDir;
+	range(i, 3) camDir[i] = gfx_lookDir[i] * FIXP;
 
 	if (look->aimType == AIM_HIGH) {
 		y = 0;
@@ -1253,34 +1274,58 @@ static void drawCrosshair(gamestate *gs, player *self) {
 			p1[i] += start * gfx_lookDir[i];
 			p2[i] += start * gfx_lookDir[i];
 		}
-		castCam(gs, self, p1, p2, &best);
+		castCam(gs, self, p1, p2, camDir, &best);
 
-		float dist = (float)best.numer*FIXP/best.denom - (gfx_camDist*look->hovCos - start);
+		float dist = (float)best.numer*FIXP/best.denom;
 		float vert = gfx_camDist * look->hovSin;
 		aimAtCamTan.store(vert/dist, std::memory_order::relaxed);
-	} else if (look->aimType == AIM_LOW) {
-		fraction best;
-		castCam(gs, self, self->m.oldPos, self->m.pos, &best);
 
-		float dist = gfx_camDist * look->hovCos + (float)best.numer*FIXP/best.denom;
+		offset o;
+		range(i, 3) {
+			o[i] = p1[i] + camDir[i]*best.numer/best.denom - self->m.oldPos[i];
+		}
+		double d = sqrt((double)o[0]*o[0] + (double)o[1]*o[1] + (double)o[2]*o[2]) / FIXP;
+		if (!d) d = 1; // Don't care what happens here, just don't want a crash
+		unitvec playerAimDir;
+		range(i, 3) playerAimDir[i] = o[i]/d;
+		subject = castInteract(self, playerAimDir, &subjectDist);
+	} else if (look->aimType == AIM_LOW) {
+		subject = castCam(gs, self, self->m.oldPos, self->m.pos, camDir, &subjectDist);
+		if (subjectDist.numer*FIXP > PLAYER_INTERACT_RANGE*subjectDist.denom) {
+			// We found something to draw the crosshair on,
+			// but it's too far away to be interactable.
+			subject = NULL;
+		}
+		// We don't need to `castInteract` in this case, it would be
+		// checking the same vector as `castCam`.
+
+		float dist = gfx_camDist * look->hovCos + (float)subjectDist.numer*FIXP/subjectDist.denom;
 		float vert = gfx_camDist * look->hovSin;
 
 		if (!dist) y = 0;
 		else y = look->fovInv * vert / dist;
 	} else { // AIM_NONE
+		subject = castInteract(self, camDir, &subjectDist);
 		y = 0;
 	}
 
 	if (self->alive) {
 		toolInst *tool = self->tool;
 		(*tool->defn->draw)(gs, self, y, tool);
+		if (subject && (subject->type & FLAG_INTERACT)) {
+			selectTex2d(1, 64, 64);
+			centeredGrid2d(128);
+			spriteColorMult(1, 1, 1, 0.5);
+			sprite2d(45, 29, 6, 1, -3, 40);
+			float dist = (float)subjectDist.numer*FIXP/subjectDist.denom/PLAYER_INTERACT_RANGE;
+			sprite2d(45, 29, 6, 8, -3, 51 - dist*10);
+			spriteColorMult(1, 1, 1, 1);
+		}
 	} else {
-		// Double the true resolution b/c we need the center to be
-		// in the middle of a pixel
-		selectTex2d(1, 128, 128);
-		centeredGrid2d(256);
+		selectTex2d(1, 64, 64);
+		centeredGrid2d(128);
 		y *= displayAreaBounds[1];
-		sprite2d(28, 10, 10, 10, -5, y-5);
+		sprite2d(14, 5, 5, 5, -2.5, y-2.5);
 	}
 }
 

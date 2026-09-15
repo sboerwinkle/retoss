@@ -20,6 +20,7 @@
 #include "main_graphics.h"
 #include "collision.h" // For raycasting, for camera position
 #include "mypoll.h"
+#include "player.h"
 
 #include "graphics.h"
 #include "graphics_callbacks.h"
@@ -36,7 +37,7 @@ static list<dyntex_texture> dyntexs;
 #define TEX_FONT 1
 #define TEX_TRAIL 6
 char const * const texSrcFiles[NUM_TEXS] = {
-	"",
+	NULL,
 	"font.png",
 	NULL,
 	"guy.3.png",
@@ -71,6 +72,7 @@ float scaleX, scaleY;
 float displayAreaBounds[2];
 offset gfx_camPos1;
 offset gfx_camPos2;
+list<mover*> gfx_nearMovers;
 
 static char startupFailed = 0;
 static GLuint main_prog;
@@ -109,7 +111,6 @@ static int vtxIdx_pane = -1;
 
 static float matWorldToScreen[16];
 static float camHoverDir[3];
-static list<mover*> camCastCands;
 static float ifovX, ifovY;
 
 static char glMsgBuf[3000]; // Is allocating all of this statically a bad idea? IDK
@@ -354,7 +355,7 @@ static void loadAllTextures() {
 
 void initGraphics() {
 	dyntexs.init();
-	camCastCands.init();
+	gfx_nearMovers.init();
 
 	GLuint vertexShader = mkShader(GL_VERTEX_SHADER, "assets/shaders/solid.vert");
 	GLuint spriteShader = mkShader(GL_VERTEX_SHADER, "assets/shaders/sprite.vert");
@@ -494,7 +495,7 @@ void initGraphics() {
 }
 
 void gfx_destroy() {
-	camCastCands.destroy();
+	gfx_nearMovers.destroy();
 
 	// At this poing the gfx thread is already killed, so
 	// probably no point in trying to tell GL we're done
@@ -518,7 +519,7 @@ static void checkReload() {
 
 	// Skip mottle tex, it isn't read from file
 	for (int i = 1; i < NUM_TEXS; i++) {
-		if (!strcmp(texReloadPath, texSrcFiles[i])) {
+		if (texSrcFiles[i] && !strcmp(texReloadPath, texSrcFiles[i])) {
 			loadTexture(i);
 			goto success;
 		}
@@ -543,11 +544,12 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 
 	offset v;
 	range(i, 3) v[i] = p2[i] - p1[i];
-	camCastCands.num = 0;
+	gfx_nearMovers.num = 0;
 	// Our search radius has to account for how far away the camera sits, plus the distance to the corners
 	// of the screen (since that's what we're really checking against).
-	float padding = sqrtf(x*x + y*y + z*z) + 1;
-	velbox_query_ts(gs->vb_root, p1, v, hovDist+padding, &camCastCands, gs->clock);
+	int64_t padding = sqrtf(x*x + y*y + z*z) + 1;
+	int64_t radius = std::max((int64_t)PLAYER_INTERACT_RANGE, hovDist + padding);
+	velbox_query_ts(gs->vb_root, p1, v, radius, &gfx_nearMovers, gs->clock);
 
 	offset corners1[4];
 	offset corners2[4];
@@ -571,8 +573,8 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 		corners2[3][i] = p2[i] + d;
 	}
 	fraction best = {.numer=hovDist, .denom=FIXP};
-	rangeconst(i, camCastCands.num) {
-		mover *m = camCastCands[i];
+	rangeconst(i, gfx_nearMovers.num) {
+		mover *m = gfx_nearMovers[i];
 		// Treat players and projectiles as transparent for these purposes
 		if ((m->type & T_MASK) != 0) continue;
 		range(j, 4) {
@@ -659,14 +661,6 @@ void tint(float r, float g, float b, float a) {
 	GLfloat _b = b*a;
 	GLfloat _a = 1-a;
 	glUniform4f(u_main_tint, _r, _g, _b, _a);
-}
-
-void sprite_color_mult(float r, float g, float b, float a) {
-	glUniform4f(u_spr_color_mult, r, g, b, a);
-}
-
-void sprite_color_add(float r, float g, float b, float a) {
-	glUniform4f(u_spr_color_add, r, g, b, a);
 }
 
 void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
