@@ -9,6 +9,7 @@
 #include "constel.h"
 #include "player.h"
 
+#include "tools/badger.h"
 #include "tools/rifle.h"
 #include "tools/rl.h"
 
@@ -58,7 +59,9 @@ void softResetPlayer(player *_p) {
 void rekitPlayer(player *_p) {
 	player &p = *_p;
 	tool_destroy(p.tool);
-	if (p.loadout) {
+	if (p.loadout == 2) {
+		toolBadger_create(&p.tool);
+	} else if (p.loadout) {
 		toolRl_create(&p.tool);
 	} else {
 		toolRifle_create(&p.tool);
@@ -324,6 +327,26 @@ void addTaskEnd(gamestate *gs, int taskId, void *data) {
 	t->next->prev = t;
 	t->prev = p;
 	p->next = t;
+}
+
+void** singletonTaskEnd(gamestate *gs, int taskId) {
+	taskInstance *p = gs->tasks.prev;
+	while (p != &gs->tasks && p->defn->id > taskId) {
+		p = p->prev;
+	}
+	if (p == &gs->tasks || p->defn->id < taskId) {
+		// Didn't find any such task, create one
+		taskInstance *t = new taskInstance;
+		t->defn = taskLookup(taskId);
+		t->data = NULL;
+
+		t->next = p->next;
+		t->next->prev = t;
+		t->prev = p;
+		p->next = t;
+		p = t;
+	}
+	return &p->data;
 }
 
 void runTick(gamestate *gs) {

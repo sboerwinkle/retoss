@@ -43,6 +43,7 @@
 #include "collision.h" // For raycasting
 
 #include "tasks/blast.h"
+#include "tasks/grenades.h"
 #include "tasks/rocket.h"
 #include "tasks/tdmScore.h"
 
@@ -1227,7 +1228,7 @@ static mover* castCam(gamestate *gs, player *self, offset p1, offset p2, unitvec
 	mover *winner = NULL;
 	rangeconst(i, crosshairCandidates.num) {
 		mover *m = crosshairCandidates[i];
-		if (m == &self->m) continue;
+		if (m == &self->m || (m->type & T_PROJ)) continue;
 		if (raycast_interp(best, m, p1, p2, dir, gfx_interpRatio)) {
 			winner = m;
 		}
@@ -1242,7 +1243,7 @@ static mover* castInteract(player *self, unitvec dir, fraction *best) {
 	mover *winner = NULL;
 	rangeconst(i, gfx_nearMovers.num) {
 		mover *m = gfx_nearMovers[i];
-		if (m == &self->m) continue;
+		if (m == &self->m || (m->type & T_PROJ)) continue;
 		if (raycast_interp(best, m, self->m.oldPos, self->m.pos, dir, gfx_interpRatio)) {
 			winner = m;
 		}
@@ -1370,6 +1371,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 			drawSolid((solid*)t->data);
 		} else if (t->defn->id == TSK_BLAST) {
 			tskBlast_draw(t->data, now);
+		} else if (t->defn->id == TSK_GRENADES) {
+			taskGrenades_draw(t->data);
 		} else if (t->defn->id == TSK_ROCKET) {
 			taskRocket_draw(t->data);
 		}

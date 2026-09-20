@@ -40,7 +40,9 @@ static void shoot(gamestate *gs, player *p) {
 	mover *result;
 	do {
 		result = bcast(&time, look, p->m.oldPos);
-	} while (result == &p->m);
+		// For now, grenades and rockets can't be told apart and have different structures,
+		// so we can't really shoot them even if we wanted to.
+	} while (result == &p->m || (result && (result->type & T_PROJ)));
 	if (!result) {
 		time = limit;
 	} else if (limit.lt(time)) {
@@ -53,9 +55,6 @@ static void shoot(gamestate *gs, player *p) {
 		if (type == T_PLAYER) {
 			player *shootee = playerFromMover(result);
 			player_hit(gs, gs->clock, shootee, 1);
-		} else if (type == T_PROJ) {
-			taskRocket *rocket = rocketFromMover(result);
-			rocket->live = 0;
 		} else {
 			uint32_t soundId =
 				0xFF00'FF01

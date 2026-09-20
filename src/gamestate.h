@@ -32,6 +32,11 @@ struct mover { // This is kind of just a grouping of fields; we use it for e.g. 
 	box *b;
 };
 
+// TODO collision.cpp for T_PROJ uses the box radius, maybe just do that??? IDK
+struct disc : mover {
+	int64_t r;
+};
+
 #define DYNTEX_BUF_LEN 8
 struct dyntex_description {
 	int32_t baseTex;
@@ -168,6 +173,7 @@ extern void deleteConstelInst(constelInst *ci);
 
 extern void addTaskStart(gamestate *gs, int taskId, void *data);
 extern void addTaskEnd(gamestate *gs, int taskId, void *data);
+extern void** singletonTaskEnd(gamestate *gs, int taskId);
 
 extern void runTick(gamestate *gs);
 

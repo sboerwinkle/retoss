@@ -22,6 +22,7 @@ static list<mover*> queryResults;
 
 static void doInteract(gamestate *gs, player *p);
 
+// Currently duplicated by grenades
 static char playerPhysLe(mover* const &a, mover* const &b) {
 	// Simple for now.
 	// We check higher objects first,
@@ -294,7 +295,7 @@ static void doInteract(gamestate *gs, player *p) {
 	mover *result;
 	do {
 		result = bcast(&time, look, p->m.oldPos);
-	} while (result == &p->m);
+	} while (result == &p->m || (result && (result->type & T_PROJ)));
 	if (!result || limit.lt(time) || !(result->type & FLAG_INTERACT)) {
 		return;
 	}

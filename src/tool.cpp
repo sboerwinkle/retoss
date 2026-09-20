@@ -6,6 +6,7 @@
 
 #include "tool.h"
 
+#include "tools/badger.h"
 #include "tools/rifle.h"
 #include "tools/rl.h"
 
@@ -59,6 +60,7 @@ static void add(int id, void (*f)(toolDefn*)) {
 void tool_init() {
 	toolDefns.init();
 
+	add(TOOL_BADGER, &toolBadger_define);
 	add(TOOL_RIFLE, &toolRifle_define);
 	add(TOOL_RL, &toolRl_define);
 }

@@ -115,7 +115,9 @@ static char step(gamestate *gs, void *_data) {
 		int32_t time;
 		if (type == T_PROJ) {
 			// Need to figure out where the radius comes from -
-			// mover should probably have either a radius or the box ptr
+			// mover should probably have either a radius or the box ptr.
+			// For now this is just rockets and grenades, and grenades happen later,
+			// so we can assume it's another rocket.
 			char hit = collide_sphere(data->m.oldPos, data->m.pos, RADIUS*2, other, &time);
 			if (hit && time < bestTime) {
 				best = other;
@@ -248,16 +250,12 @@ static void destroy(void *_data) {
 
 void taskRocket_draw(void *_data) {
 	taskRocket *data = (taskRocket*)_data;
-	// TODO Is radius correct? Off by a factor of 2 in some direction?
 	// TODO Should pulse / waver
 	int64_t r = RADIUS;
 	drawBillboard(data->m.oldPos, data->m.pos, 1, 42.0/64, 0, 6.0/64, r);
 
 	reset3dTexScale();
 }
-
-// TODO Review anything that might be looking at T_PROJ.
-//      Eventually the rifle tool, but maybe not yet???
 
 void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent, uint32_t soundId) {
 	taskRocket *data = (taskRocket*)malloc(sizeof(taskRocket));
