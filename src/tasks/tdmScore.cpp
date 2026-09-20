@@ -14,15 +14,19 @@ static void drawPrepStartText() {
 	drawTextCentered("SHOOT SOMEONE WHEN READY", 7);
 }
 
+static void teamTextColor(u8 team) {
+	// Match text colors with the colors on the snake spritesheet
+	if (team == 0) {
+		spriteColorMult(0.84, 0.2, 0.2, 1);
+	} else {
+		spriteColorMult(0.24, 0.24, 1.0, 1);
+	}
+}
+
 // Whole space avail
 static void drawSmallScores(u8 const scores[2]) {
 	range(i, 2) {
-		// Match text colors with the colors on the snake spritesheet
-		if (i == 0) {
-			spriteColorMult(0.84, 0.2, 0.2, 1);
-		} else {
-			spriteColorMult(0.24, 0.24, 1.0, 1);
-		}
+		teamTextColor(i);
 		// I don't know offhand how printf handles rounding vs truncating,
 		// so a bit of math to make sure truncate/round both look correct.
 		float displayScore = (3.0f * scores[i] + 1)/30;
@@ -91,6 +95,7 @@ static void drawRoundWinner(char winner) {
 // Leave space for `drawSnakes`
 static void drawGameWinner(u8 winnerTeam) {
 	char text[18];
+	teamTextColor(winnerTeam);
 	snprintf(text, 18, "%s TEAM WINS!!!", winnerTeam ? "BLUE" : "RED");
 	drawTextCentered(text, 21);
 }

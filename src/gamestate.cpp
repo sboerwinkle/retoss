@@ -32,7 +32,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	p.team = -1;
 	p.loadout = 0;
 	p.hitsCount = 0;
-	p.maxHits = 3;
+	p.maxHits = 4;
 	p.prox = gs->vb_root;
 	p.skin = NULL;
 	// Dummy tool so state is valid

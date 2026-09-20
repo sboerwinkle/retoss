@@ -1,16 +1,19 @@
 - any-shape boxes
 - multiselect in editor?
-- Crosshair can pull from outside tex in edge cases
-- Rockets shouldn't be shootable
-	- Should not aim at rockets
-	- Try out burst-fire with longer cooldown
+. Crosshair can pull from outside tex in edge cases
+. Rockets shouldn't be shootable
+	. Should not aim at rockets
+- Try out burst-fire with longer cooldown
 	- Remove smoke
 - Prox fuse grenade launcher
+	- Fix noise
+	- Add launch noise?
+	- Add blast particles
+	- grenades can die (e.g. edge, lvl reset)
 - /deactivate for absent/port-scan players
 	/syncme is done by new clients, so that can also re-activate
-- More obvious "game over" text
-- 4hp default
-	- RL still 1-hit kill?
+. More obvious "game over" text
+. 4hp default
 - Vehicles
 	- Need interactibles in world
 		Teleporter, weapon select, maybe buttons are all good starts
