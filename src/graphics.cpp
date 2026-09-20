@@ -722,6 +722,9 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 }
 
 void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int64_t r) {
+	x += 1.0f / (1<<8);
+	y += 1.0f / (1<<8);
+	w -= 1.0f / (1<<7);
 	glBindTexture(GL_TEXTURE_2D, textures[tex]);
 	glUniform1f(u_main_noise_scale, 1);
 	glUniform2f(u_main_tex_offset, x, y);
@@ -841,8 +844,14 @@ void selectTex2d(int tex, int texW, int texH) {
 }
 
 void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float y) {
-	glUniform2f(u_spr_tex_offset, spr_off_x, spr_off_y);
-	glUniform2f(u_spr_size, spr_w, spr_h);
+	// Our convention is a little weird for how we do w/h here,
+	// and as a result we actually *subtract* our small delta from Y
+	float s_x = spr_off_x + (1.0f / (1<<8));
+	float s_y = spr_off_y - (1.0f / (1<<8));
+	float s_w = spr_w - (1.0f / (1<<7));
+	float s_h = spr_h - (1.0f / (1<<7));
+	glUniform2f(u_spr_tex_offset, s_x, s_y);
+	glUniform2f(u_spr_size, s_w, s_h);
 	// I had some coordinate systems flipped, and had to get that straightened out.
 	// Really I should go through and flip all the callers of this method
 	// so everything finally agrees, but for now I'm just changing this to `-y`.
