@@ -9,6 +9,7 @@
 #include "list.h"
 
 #include "game.h"
+#include "game_gamestate.h"
 
 #include "sound.h"
 
@@ -16,6 +17,7 @@
 
 struct source {
 	int32_t start;
+	int sound;
 	offset pos;
 	offset vel;
 	int posType;
@@ -80,6 +82,25 @@ static void loadFile(char const *filename, ALuint alBuf) {
 	// care enough. Would need to use `sf_error_number`.
 }
 
+static char popLimit(snd_request *r) {
+	int64_t *p1 = r->pos;
+	int count = 0;
+	rangeconst(i, activeSources.num) {
+		source *s = &activeSources[i];
+		if (s->sound != SND_POP) continue;
+		int64_t *p2 = s->pos;
+		int64_t x =
+			labs(p1[0]-p2[0]) +
+			labs(p1[1]-p2[1]) +
+			labs(p1[2]-p2[2]);
+		if (x < 3'000) {
+			count++;
+			if (count >= 2) return 1;
+		}
+	}
+	return 0;
+}
+
 void sound_add(snd_request *r) {
 	rangeconst(i, soundIds.num) {
 		soundId &s = soundIds[i];
@@ -97,14 +118,21 @@ void sound_add(snd_request *r) {
 		s.time = r->time;
 	}
 
+	int sound = r->sound;
+	// With grenades, you can have a LOT at once,
+	// and that's just unpleasant.
+	// For now it's a special case.
+	// (Also, we assume SND_POP is always POS_TYPE_COORDS)
+	if (sound == SND_POP && popLimit(r)) return;
+
 	source &s = activeSources.add();
 	s.start = r->time;
+	s.sound = sound;
 	memcpy(s.pos, r->pos, sizeof(offset));
 	memcpy(s.vel, r->vel, sizeof(offset));
 	s.posType = r->posType;
 	alGenSources(1, &s.alSrc);
 
-	int sound = r->sound;
 	if (sound < 0 || sound >= NUM_SOUNDS) {
 		printf("WARN: Invalid sound # %d\n", sound);
 		sound = 0;

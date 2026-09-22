@@ -192,6 +192,8 @@ static char step(gamestate *gs, void *_data) {
 
 	if (!data->live) {
 		blowUp(gs, data, parent);
+		// TODO Sound will have different ID if impact happens a frame late.
+		//      Need some other way to distinguish neighborly rockets...
 		uint32_t soundId = data->soundId + 0x800 + data->ttl;
 		addSound(gs->clock+1, data->m.pos, data->vel, soundId, SND_POP);
 		data->dead = 1;

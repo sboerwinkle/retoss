@@ -1005,9 +1005,9 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	} else if (isCmd(str, "/_j")) {
 		p->jump &= ~1; // Clear 'jump continuing' bit
 	} else if (isCmd(str, "/_S")) {
-		p->shoot = 3;
+		p->shoot |= 3;
 	} else if (isCmd(str, "/_s")) {
-		p->shoot &= 2;
+		p->shoot &= ~1;
 	} else if (isCmd(str, "/_I")) {
 		p->interact |= 3;
 	} else if (isCmd(str, "/_i")) {

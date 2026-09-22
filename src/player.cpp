@@ -308,8 +308,9 @@ static void doInteract(gamestate *gs, player *p) {
 void pl_postStep(gamestate *gs, player *p) {
 	p->jump &= ~2; // Clear 'jump this frame' bit, as this frame has passed.
 	p->interact &= ~2;
-	char shootInput = p->shoot;
-	p->shoot &= 1;
+	char shootInput = p->shoot & 3;
+	p->shoot &= ~2;
+	p->hitsCount |= 1;
 
 	toolInst *tool = p->tool;
 	(*tool->defn->use)(gs, p, shootInput, tool);
@@ -322,15 +323,19 @@ void player_hit(gamestate *gs, int32_t soundTime, player *p, int hits) {
 	// For the moment `gs` is only needed for the sound, so passing it as `NULL`
 	// is treated as "no sound please"
 	if (gs) {
-		int who = p - gs->players.items;
-		p->hitsCount++;
-		uint32_t soundId =
-			0xFF00'0100
-			+ who * 0x1'0000
-			+ p->hitsCount;
-		uint32_t seed = soundId;
-		int variant = splitmix32(&seed) % 3;
-		addPlayerSound(soundTime, who, soundId, SND_OOF_A + variant);
+		// Secondly, to avoid multiple "hit"s playing in the same frame,
+		// we abuse the low bit.
+		if (p->hitsCount % 2) {
+			int who = p - gs->players.items;
+			p->hitsCount++;
+			uint32_t soundId =
+				0xFF00'0100
+				+ who * 0x1'0000
+				+ p->hitsCount;
+			uint32_t seed = soundId;
+			int variant = splitmix32(&seed) % 3;
+			addPlayerSound(soundTime, who, soundId, SND_OOF_A + variant);
+		}
 	}
 
 	int oldHits = p->hits;

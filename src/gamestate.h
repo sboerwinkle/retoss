@@ -56,6 +56,8 @@ struct player {
 	mover m;
 	int64_t vel[3];
 	int32_t inputs[3];
+	// `jump` and `shoot` use the higher bits to count actions (jumps and shots),
+	// which helps distinguish what should be distinct sounds.
 	char jump, shoot, interact, alive;
 	char team;
 	char loadout;

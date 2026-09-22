@@ -18,6 +18,7 @@ struct tskBlastData {
 };
 
 extern tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t r, int32_t fireCount, int32_t smokeCount);
+void tskBlast_later(tskBlastData *data);
 extern void tskBlast_draw(void *data, int32_t now);
 
 extern void defineTask_blast(taskDefn *d);

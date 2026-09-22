@@ -156,6 +156,13 @@ tskBlastData* tskBlast_create(gamestate *gs, offset oldPos, offset vel, int64_t 
 	return data;
 }
 
+// This is only to be called on fresh instances,
+// since it modifies shared data. Doing it later
+// could cause desync.
+void tskBlast_later(tskBlastData *data) {
+	data->bb->time++;
+}
+
 // TODO None of these calculations depend on interpRatio,
 //      which means I'm wasting a lot of math.
 //      Really I should put the calculated positions in
@@ -169,6 +176,7 @@ void tskBlast_draw(void *data, int32_t now) {
 	tskBlastBits *bb = ((tskBlastData*)data)->bb;
 
 	int32_t t1 = now - bb->time;
+	if (t1 < 0) return;
 
 	offset p1, p2;
 

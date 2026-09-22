@@ -6,6 +6,8 @@
 #include "../graphics.h"
 #include "../serialize.h"
 
+#include "grenades.h"
+
 #include "tdmScore.h"
 
 // Whole space avail
@@ -271,6 +273,12 @@ static void beginRound(gamestate *gs, tskTdmData *data) {
 
 	data->state = TSK_TDM_ST_PLAY;
 	data->timer = 0;
+
+	for (taskInstance *tsk = gs->tasks.next; tsk != &gs->tasks; tsk = tsk->next) {
+		if (tsk->defn->id == TSK_GRENADES) {
+			taskGrenades_clear(tsk->data);
+		}
+	}
 }
 
 static void handlePrepAgain(gamestate *gs, tskTdmData *data) {

@@ -54,7 +54,8 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 			vel[i] = p->m.pos[i] - p->m.oldPos[i] + 800*look[i]/FIXP;
 		}
 
-		uint32_t soundId = 0; // TODO!! SND_ID_TOOL_RL(p - gs->players.items);
+		p->shoot += 4;
+		u16 soundId = 0x0100 * (p - gs->players.items) + (p->shoot >> 2);
 		taskGrenades_add(gs, p1, vel, p->prox, p->team, soundId);
 	}
 }

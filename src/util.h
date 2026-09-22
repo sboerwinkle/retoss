@@ -15,6 +15,7 @@
 
 // Will need to keep an eye on this file, I think I see a spot of rust
 typedef unsigned char u8;
+typedef uint16_t u16;
 
 extern char getNum(const char **c, int32_t *out);
 

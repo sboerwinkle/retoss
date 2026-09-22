@@ -38,8 +38,7 @@ static void blowUp(gamestate *gs, taskGrenadeExplosion *boom) {
 	offset queryV;
 	range(i, 3) queryV[i] = boom->p2[i] - boom->p1[i];
 
-	// TODO I'll have to figure this out, probably a huge pain lol
-	uint32_t soundId = 0x800;
+	uint32_t soundId = SND_ID_GRENADE + boom->soundId;
 	addSound(gs->clock+1, boom->p2, queryV, soundId, SND_POP);
 
 	list<mover*> blastMovers;
@@ -61,6 +60,15 @@ static void blowUp(gamestate *gs, taskGrenadeExplosion *boom) {
 	blastMovers.destroy();
 }
 
+static void addSmoke(gamestate *gs, taskGrenadeExplosion *boom) {
+	// todo: recalculated vs blowUp
+	offset v;
+	range(i, 3) v[i] = boom->p2[i] - boom->p1[i];
+
+	tskBlastData *blast = tskBlast_create(gs, boom->p2, v, BLAST_R, 40, 80);
+	tskBlast_later(blast);
+}
+
 static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCheck);
 
 static char step(gamestate *gs, void *_data) {
@@ -76,6 +84,7 @@ static char step(gamestate *gs, void *_data) {
 		if (grenadePhysics(gs, nade, &toCheck)) {
 			taskGrenadeExplosion &boom = booms.add();
 			boom.parent = nade->b;
+			boom.soundId = nade->soundId;
 			memcpy(boom.p1, nade->oldPos, sizeof(offset));
 			memcpy(boom.p2, nade->pos, sizeof(offset));
 
@@ -100,6 +109,7 @@ static char step(gamestate *gs, void *_data) {
 	range(i, booms.num) {
 		taskGrenadeExplosion &boom = booms[i];
 		blowUp(gs, &boom);
+		addSmoke(gs, &boom);
 	}
 	booms.destroy();
 
@@ -224,6 +234,7 @@ static char trans(gamestate *gs, void **ptr) {
 		transOffset(nade->vel);
 		trans8(&nade->bounces);
 		trans8(&nade->team);
+		trans16(&nade->soundId);
 	}
 
 	return 0;
@@ -258,6 +269,20 @@ static void destroy(void *_data) {
 	delete data;
 }
 
+// This assumes it is called before the task executes.
+// Mostly this assumption is because I currently need it for
+// the TDM scoring task, which runs before!
+// If you need to clear them out after, they're already
+// marked in the velbox tree, and it's a little different.
+void taskGrenades_clear(void *_data) {
+	taskGrenadesData *data = (taskGrenadesData*)_data;
+	list<taskGrenade> &l = data->l;
+	range(i, l.num) {
+		velbox_reclaimDead(l[i].b);
+	}
+	l.num = 0;
+}
+
 void taskGrenades_draw(void *_data) {
 	taskGrenadesData *data = (taskGrenadesData*)_data;
 	int64_t r = RADIUS;
@@ -269,7 +294,7 @@ void taskGrenades_draw(void *_data) {
 	reset3dTexScale();
 }
 
-void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, char team, uint32_t soundId) {
+void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, char team, u16 soundId) {
 	void **tmp = singletonTaskEnd(gs, TSK_GRENADES);
 	taskGrenadesData *tsk;
 	if (*tmp == NULL) {
@@ -300,7 +325,7 @@ void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, char te
 	nade->type = T_PROJ;
 	nade->bounces = 2;
 	nade->team = team;
-	//nade->soundId = soundId;
+	nade->soundId = soundId;
 
 	// a dead box with the right parent
 	nade->b = velbox_alloc();
