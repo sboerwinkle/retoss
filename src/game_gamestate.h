@@ -14,8 +14,13 @@
 #define SND_TAP 5
 #define SND_WHOOSH_A 6
 
-#define SND_ID_TOOL_RL(pl) (0xFE80'0000 + (pl)*0x0100)
-#define SND_ID_GRENADE      0xFE81'0000
+// The first byte currently can be: 0xFF - player sounds; 0xFE - projectile sounds
+// For projectiles, I'm currently using:
+// 0x00FF'0000 - projectile type (but rockets have all of 80-8F, they make a lot of sounds each)
+// 0x0000'FF00 - originating player
+// 0x0000'003F - shoot count (wraps at 64, high 2 bits unused)
+#define SND_ID_ROCKET  0xFE80'0000
+#define SND_ID_GRENADE 0xFE90'0000
 
 extern void addSound(int32_t time, offset pos, offset vel, uint32_t id, int sound);
 extern void addPlayerSound(int32_t time, int who, uint32_t id, int sound);

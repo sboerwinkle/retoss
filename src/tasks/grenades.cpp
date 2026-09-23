@@ -54,7 +54,7 @@ static void blowUp(gamestate *gs, taskGrenadeExplosion *boom) {
 		// but for relativistic players maybe not.
 		int64_t mg = mag(d);
 		if (mg > BLAST_R || !mg) continue;
-		range(i, 3) blastee->vel[i] += d[i]*800/mg;
+		range(i, 3) blastee->vel[i] += d[i]*600/mg;
 		player_hit(gs, gs->clock+1, blastee, 1);
 	}
 	blastMovers.destroy();
@@ -116,8 +116,11 @@ static char step(gamestate *gs, void *_data) {
 	return !l.num;
 }
 
-// Duplicated from player physics
-static char playerPhysLe(mover* const &a, mover* const &b) {
+// Originally based on player physics
+static char physLe(mover* const &a, mover* const &b) {
+	int32_t aPl = a->type & T_PLAYER;
+	int32_t bPl = b->type & T_PLAYER;
+	if (aPl != bPl) return !!aPl;
 	return a->pos[2] >= b->pos[2];
 }
 
@@ -147,7 +150,7 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 	// - the trigger radius
 	// The trigger radius is probably bigger.
 	nade->b = velbox_query(parent, nade->oldPos, nade->vel, TRIGGER_R, &toCheck);
-	toCheck.qsort(playerPhysLe);
+	toCheck.qsort(physLe);
 	rangeconst(iter, toCheck.num) {
 		mover *other = toCheck[iter];
 		int32_t type = other->type & T_MASK;

@@ -82,19 +82,18 @@ static char step(gamestate *gs, void *_data) {
 		data->vel[i] += data->accel[i];
 	}
 
-	offset smokeV;
 	if (!(data->ttl % 4)) {
 		// Our "whoosh" sounds are about 4 frames long (plus 0.09 seconds of fade in/out)
-		uint32_t soundId = data->soundId + data->ttl;
+		// Rocket sound IDs have the 0x000F'0000 bits to play with.
+		// We populate them based on the TTL.
+		uint32_t soundId = SND_ID_ROCKET + data->soundId + ((data->ttl*0x4000)&0xF'0000);
 		uint32_t seed = gs->clock*17 + data->ttl/4;
 		int variant = splitmix32(&seed) % 3;
 		addSound(gs->clock, data->m.pos, data->vel, soundId, SND_WHOOSH_A + variant);
 	}
 	range(i, 3) {
 		data->m.pos[i] += data->vel[i];
-		smokeV[i] = data->vel[i] - 4*data->accel[i];
 	}
-	tskBlast_create(gs, data->m.oldPos, smokeV, 2000, 0, 1);
 
 	// Todo: Can I do better than re-allocating every time? Is it worth it?
 	list<mover*> toCheck;
@@ -192,9 +191,11 @@ static char step(gamestate *gs, void *_data) {
 
 	if (!data->live) {
 		blowUp(gs, data, parent);
-		// TODO Sound will have different ID if impact happens a frame late.
-		//      Need some other way to distinguish neighborly rockets...
-		uint32_t soundId = data->soundId + 0x800 + data->ttl;
+		// The low byte is for shot count, but it wraps at 64.
+		// This means the high 2 bits are free, and we use one here for this
+		// rocket's "explode" sound (as distinct from the "whoosh" sounds it
+		// usually makes)
+		uint32_t soundId = SND_ID_ROCKET + data->soundId + 0x80;
 		addSound(gs->clock+1, data->m.pos, data->vel, soundId, SND_POP);
 		data->dead = 1;
 	}
@@ -221,7 +222,7 @@ static char trans(gamestate *gs, void **ptr) {
 	trans8(&data->dead);
 	trans8(&data->live);
 	trans16(&data->ttl);
-	trans32(&data->soundId);
+	trans16(&data->soundId);
 	return 0;
 }
 
@@ -259,7 +260,7 @@ void taskRocket_draw(void *_data) {
 	reset3dTexScale();
 }
 
-void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent, uint32_t soundId) {
+void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent, u16 soundId) {
 	taskRocket *data = (taskRocket*)malloc(sizeof(taskRocket));
 	addTaskEnd(gs, TSK_ROCKET, data);
 
