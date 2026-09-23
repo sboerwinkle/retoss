@@ -3,13 +3,13 @@
 . Crosshair can pull from outside tex in edge cases
 . Rockets shouldn't be shootable
 	. Should not aim at rockets
-- Try out burst-fire with longer cooldown
-	- Remove smoke
-- Prox fuse grenade launcher
-	- Fix noise
-	- Add launch noise?
-	- Add blast particles
-	- grenades can die (e.g. edge, lvl reset)
+. Try out burst-fire with longer cooldown
+	. Remove smoke
+. Prox fuse grenade launcher
+	. Fix noise
+	. Add blast particles
+	! grenades can die (e.g. edge, lvl reset)
+		Did this for lvl reset, but not the abyss
 - /deactivate for absent/port-scan players
 	/syncme is done by new clients, so that can also re-activate
 . More obvious "game over" text
@@ -51,6 +51,7 @@
 . climbing route issue in peaks
 - sounds
 	- taunt
+	- grenade launcher 'launch' sound (foomp)
 	. Change damaged noise
 	- (loud) Death noise
 	. Kinda there!
@@ -73,12 +74,12 @@
 			Killing is its own reward, but better classes are the reward for territory
 . fix "LOW" / "HIGH" names + input
 . Clarify L/R column settings input
-- Rockets / grenades
+. Rockets / grenades
 	. Rockets
-	- Grenades?
+	. Grenades?
 - Custom sound collections
 - Chiqita bomb from LieroLibre
-- Bouncy grenade?
+. Bouncy grenade?
 - physics I guess, fml
 	. Basic dynamic cube works!
 	- Optimizations (start w/ TODOs in tasks/dynamics.cpp)
@@ -156,7 +157,7 @@ Possible things to do next:
 
 . Oh gods collision will need to be re-done :(
 
-- vb_now should be directly on gamestate, not gamestate->vb_root->end
+. vb_now should be directly on gamestate, not gamestate->vb_root->end
 - /rda (round all)
 ! Segfault loading save file. Maybe just an outdated file?? idk.
 . Bug where mottling disappears below scale 1000
@@ -177,9 +178,10 @@ jump intent via mouse (shelved for now)
 	Doesn't need to be perfect,
 		but I do want to consider a "round away from zero" mode for rotation applications,
 		which I think will be helpful for this.
-- Parameterized arch
-- editing still feels rough
-	- I miss my "copy", even if it's just for one obj
+! Parameterized arch
+. editing still feels rough
+	Marking this as done, other slated changes (like any-size boxes) will help
+	. I miss my "copy", even if it's just for one obj
 	I also keep looking to see if things touch, which feels horrible and bad.
 Map design still too open?
 	Being fair, I'd hesitate to call anything I've done so far "map design".
