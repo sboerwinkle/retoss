@@ -21,9 +21,9 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 	selectTex2d(1, 128, 128);
 	centeredGrid2d(256);
 	y *= displayAreaBounds[1];
-	if (data.cooldown) {
+	if (data.cool1 && data.cool1 <= 45-12+1) {
 		// Split crosshair
-		float distance = (data.cooldown - gfx_interpRatio)/2;
+		float distance = (data.cool1 - gfx_interpRatio)/2;
 		// src coords, size, dest coords
 		sprite2d(0, 10, 5, 10, -5-distance, y-5);
 		sprite2d(5, 10, 5, 10,    distance, y-5);
@@ -37,9 +37,12 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 
 static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 	toolRl &data = *(toolRl*)_data;
-	if (data.cooldown) data.cooldown--;
-	if (input && !data.cooldown) {
-		data.cooldown = 10;
+	if (data.cool1) data.cool1--;
+	if (data.cool2) data.cool2--;
+	if (input && !data.cool2) {
+		if (!data.cool1) data.cool1 = 45;
+		if (data.cool1 <= 45-12) return;
+		data.cool2 = 3;
 
 		// Todo: Surely we'll need this more often, right? Save it somewhere?
 		unitvec look;
@@ -58,7 +61,8 @@ static char trans(toolInst **_data) {
 		*_data = (toolRl*)malloc(sizeof(toolRl));
 	}
 	toolRl &data = *(toolRl*)*_data;
-	trans32(&data.cooldown);
+	trans16(&data.cool1);
+	trans16(&data.cool2);
 	return 0;
 }
 
@@ -66,7 +70,8 @@ static void copy(toolInst **_to, toolInst *_from) {
 	*_to = (toolRl*)malloc(sizeof(toolRl));
 	toolRl &to = *(toolRl*)*_to;
 	toolRl &from = *(toolRl*)_from;
-	to.cooldown = from.cooldown;
+	to.cool1 = from.cool1;
+	to.cool2 = from.cool2;
 }
 
 static void destroy(toolInst *data) {
@@ -77,7 +82,8 @@ void toolRl_create(toolInst **_data) {
 	*_data = (toolRl*)malloc(sizeof(toolRl));
 	toolRl &data = *(toolRl*)*_data;
 	data.defn = toolLookup(TOOL_RL);
-	data.cooldown = 0;
+	data.cool1 = 10;
+	data.cool2 = 0;
 }
 
 void toolRl_define(toolDefn *defn) {

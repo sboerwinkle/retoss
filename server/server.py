@@ -8,7 +8,7 @@ import time
 import traceback
 import asyncio
 
-MAGIC_FIRST_BYTE = 0x98
+MAGIC_FIRST_BYTE = 0x99
 FRAME_ID_MAX = 1<<29
 
 # This should match the client's MAX_AHEAD.
