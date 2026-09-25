@@ -56,7 +56,7 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 
 		p->shoot += 4;
 		u16 soundId = 0x0100 * (p - gs->players.items) + (p->shoot >> 2);
-		taskGrenades_add(gs, p1, vel, p->prox, p->team, soundId);
+		taskGrenades_add(gs, p1, vel, p->prox, soundId);
 	}
 }
 

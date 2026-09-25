@@ -1372,7 +1372,7 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		} else if (t->defn->id == TSK_BLAST) {
 			tskBlast_draw(t->data, now);
 		} else if (t->defn->id == TSK_GRENADES) {
-			taskGrenades_draw(t->data);
+			taskGrenades_draw(t->data, now);
 		} else if (t->defn->id == TSK_ROCKET) {
 			taskRocket_draw(t->data);
 		}

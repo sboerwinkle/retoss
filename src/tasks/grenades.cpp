@@ -211,16 +211,15 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 		mover *other = toCheck[iter];
 		int32_t type = other->type & T_MASK;
 		if (type != T_PLAYER) continue;
-		player *p = playerFromMover(other);
-		if (p->team == nade->team) continue;
 		offset delta;
 		range(i, 3) delta[i] = nade->oldPos[i] - other->oldPos[i];
 		int64_t mg = mag(delta);
 		if (mg <= TRIGGER_R) {
-			return 1;
+			return nade->armed;
 		}
 	}
 
+	nade->armed = 1;
 	return 0;
 }
 
@@ -236,7 +235,7 @@ static char trans(gamestate *gs, void **ptr) {
 		transMover(nade, T_PROJ);
 		transOffset(nade->vel);
 		trans8(&nade->bounces);
-		trans8(&nade->team);
+		trans8(&nade->armed);
 		trans16(&nade->soundId);
 	}
 
@@ -286,18 +285,28 @@ void taskGrenades_clear(void *_data) {
 	l.num = 0;
 }
 
-void taskGrenades_draw(void *_data) {
+void taskGrenades_draw(void *_data, int32_t now) {
 	taskGrenadesData *data = (taskGrenadesData*)_data;
 	int64_t r = RADIUS;
 	range(i, data->l.num) {
 		taskGrenade *nade = &data->l[i];
-		drawBillboard(nade->oldPos, nade->pos, 1, 42.0/64, 0, 6.0/64, r);
+		if (nade->armed) {
+			if ((63 & (now - nade->soundId)) < 5) {
+				tint(1, 1, 1, 0.25);
+			} else {
+				tint(0, 0, 0, 0);
+			}
+		} else {
+			tint(0, 0, 0, 0.5);
+		}
+		drawBillboard(nade->oldPos, nade->pos, 1, 49.0/64, 0, 5.0/64, r);
 	}
 
 	reset3dTexScale();
+	tint(0, 0, 0, 0);
 }
 
-void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, char team, u16 soundId) {
+void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 soundId) {
 	void **tmp = singletonTaskEnd(gs, TSK_GRENADES);
 	taskGrenadesData *tsk;
 	if (*tmp == NULL) {
@@ -327,7 +336,7 @@ void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, char te
 
 	nade->type = T_PROJ;
 	nade->bounces = 2;
-	nade->team = team;
+	nade->armed = 0;
 	nade->soundId = soundId;
 
 	// a dead box with the right parent
