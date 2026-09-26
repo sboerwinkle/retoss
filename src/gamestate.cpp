@@ -29,7 +29,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	range(i, 3) {
 		p.inputs[i] = 0;
 	}
-	p.team = -1;
+	p.team = 2;
 	p.loadout = 0;
 	p.hitsCount = 0;
 	p.maxHits = 4;

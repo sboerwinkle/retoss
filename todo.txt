@@ -1,7 +1,7 @@
 - Gaps in player model corners
 . Colored grenades?
 	Not as originally intended, but it is done!
-- "no team" should match default vs web
+. "no team" should match default vs web
 - Server killed should be more graceful
 	write() to socket failed, errno is 9
 - any-shape boxes
