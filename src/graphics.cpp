@@ -53,6 +53,7 @@ char const * const texSrcFiles[NUM_TEXS] = {
 };
 GLuint textures[NUM_TEXS];
 
+static void _sprite2d(float s_x, float s_y, float s_w, float s_h, float x, float y);
 static void setupTextDrawingInner();
 static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
@@ -198,7 +199,7 @@ static void drawDyntex(GLuint tex, dyntex_description *_descr) {
 	// so I'm just going to draw the texture onto the texture.
 	glUniform2f(u_spr_scale, 1, 1);
 	selectTex2d(descr.baseTex, 2, 2);
-	sprite2d(0, 2, 2, 2, -1, -1); // Ugh y is still flipped here I hate everything
+	_sprite2d(0, 2, 2, 2, -1, 1);
 
 	// This affects the font size, since this is the only way
 	// it knows the "resolution" of the target texture.
@@ -843,6 +844,15 @@ void selectTex2d(int tex, int texW, int texH) {
 	glUniform2f(u_spr_tex_scale, 1.0/texW, 1.0/texH);
 }
 
+// Inner version that doesn't mess with bounds
+static void _sprite2d(float s_x, float s_y, float s_w, float s_h, float x, float y) {
+	glUniform2f(u_spr_tex_offset, s_x, s_y);
+	glUniform2f(u_spr_size, s_w, s_h);
+	glUniform2f(u_spr_screen_offset, x, y);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+}
+
 void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float y) {
 	// Our convention is a little weird for how we do w/h here,
 	// and as a result we actually *subtract* our small delta from Y
@@ -850,14 +860,10 @@ void sprite2d(int spr_off_x, int spr_off_y, int spr_w, int spr_h, float x, float
 	float s_y = spr_off_y - (1.0f / (1<<8));
 	float s_w = spr_w - (1.0f / (1<<7));
 	float s_h = spr_h - (1.0f / (1<<7));
-	glUniform2f(u_spr_tex_offset, s_x, s_y);
-	glUniform2f(u_spr_size, s_w, s_h);
 	// I had some coordinate systems flipped, and had to get that straightened out.
 	// Really I should go through and flip all the callers of this method
 	// so everything finally agrees, but for now I'm just changing this to `-y`.
-	glUniform2f(u_spr_screen_offset, x, -y);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vtx = 2 tri = 1 square
+	_sprite2d(s_x, s_y, s_w, s_h, x, -y);
 }
 
 static void setupTextDrawingInner() {

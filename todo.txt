@@ -1,4 +1,4 @@
-- Gaps in player model corners
+. Gaps in player model corners
 . Colored grenades?
 	Not as originally intended, but it is done!
 . "no team" should match default vs web
