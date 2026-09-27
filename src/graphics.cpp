@@ -56,7 +56,7 @@ GLuint textures[NUM_TEXS];
 static void _sprite2d(float s_x, float s_y, float s_w, float s_h, float x, float y);
 static void setupTextDrawingInner();
 static void populatePaneVertexData(list<GLfloat> *data);
-static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z);
+static void populateCubeVertexData(list<GLfloat> *data);
 static void populateCubeVertexData2(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
@@ -86,7 +86,7 @@ static GLuint vaos[2];
 
 static GLint u_main_modelview;
 static GLint u_main_rot;
-static GLint u_main_noise_scale;
+static GLint u_main_object_scale;
 static GLint u_main_tex_scale;
 static GLint u_main_tex_offset;
 static GLint u_main_tint;
@@ -105,8 +105,6 @@ static GLint u_spr_color_add;
 // Where vertexes for a given shape start in our big buffer of vertex data.
 // There's probably a more standard way of doing this!
 static int vtxIdx_cubeOneFace = -1;
-static int vtxIdx_slabOneFace = -1;
-static int vtxIdx_poleOneFace = -1;
 static int vtxIdx_cubeSixFace = -1;
 static int vtxIdx_pane = -1;
 
@@ -377,14 +375,14 @@ void initGraphics() {
 
 	GLint a_pos_id = attrib(main_prog, "a_pos");
 	GLint a_norm_id = attrib(main_prog, "a_norm");
-	GLint a_tex_st_id = attrib(main_prog, "a_tex_st");
+	GLint a_tex_id_0 = attrib(main_prog, "a_tex");
 	// sprite_prog attribs
 	GLint a_spr_loc = attrib(sprite_prog, "a_loc");
 
 	// Uniforms
 	u_main_modelview    = glGetUniformLocation(main_prog, "u_modelview");
 	u_main_rot          = glGetUniformLocation(main_prog, "u_rot");
-	u_main_noise_scale  = glGetUniformLocation(main_prog, "u_noise_scale");
+	u_main_object_scale = glGetUniformLocation(main_prog, "u_object_scale");
 	u_main_tex_scale    = glGetUniformLocation(main_prog, "u_tex_scale");
 	u_main_tex_offset   = glGetUniformLocation(main_prog, "u_tex_offset");
 	u_main_tint         = glGetUniformLocation(main_prog, "u_tint");
@@ -416,24 +414,23 @@ void initGraphics() {
 	glGenVertexArrays(2, vaos);
 	glGenTextures(NUM_TEXS, textures);
 
+#define STRIDE 12
 	list<GLfloat> vtxData;
 	vtxData.init();
 	vtxIdx_cubeOneFace = 0;
-	populateCubeVertexData(&vtxData, 1, 1, 1);
-	vtxIdx_slabOneFace = vtxData.num / 8; // 8 is our "stride", I think it's called
-	populateCubeVertexData(&vtxData, 1, 1, 1.0/8);
-	vtxIdx_poleOneFace = vtxData.num / 8;
-	populateCubeVertexData(&vtxData, 1.0/8, 1, 1.0/8);
-	vtxIdx_cubeSixFace = vtxData.num / 8;
+	populateCubeVertexData(&vtxData);
+	vtxIdx_cubeSixFace = vtxData.num / STRIDE;
 	populateCubeVertexData2(&vtxData);
-	vtxIdx_pane = vtxData.num / 8;
+	vtxIdx_pane = vtxData.num / STRIDE;
 	populatePaneVertexData(&vtxData);
 
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
 	glEnableVertexAttribArray(a_pos_id);
 	glEnableVertexAttribArray(a_norm_id);
-	glEnableVertexAttribArray(a_tex_st_id);
+	glEnableVertexAttribArray(a_tex_id_0);
+	glEnableVertexAttribArray(a_tex_id_0+1);
+	glEnableVertexAttribArray(a_tex_id_0+2);
 
 	// I swear I had this written down somewhere... Anyway,
 	// I'm pretty sure the bound buffer isn't part of VAO state, but it is recorded when
@@ -445,12 +442,15 @@ void initGraphics() {
 	vtxData.destroy();
 
 	// Position data is first
-	glVertexAttribPointer(a_pos_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) 0);
+	glVertexAttribPointer(a_pos_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * STRIDE, (void*) 0);
 	// Followed by normal data
-	glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 3));
-	// Followed by tex coord data
-	glVertexAttribPointer(a_tex_st_id, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8, (void*) (sizeof(GLfloat) * 6));
+	glVertexAttribPointer(a_norm_id, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * STRIDE, (void*) (sizeof(GLfloat) * 3));
+	// Followed by tex matrix data
+	glVertexAttribPointer(a_tex_id_0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * STRIDE, (void*) (sizeof(GLfloat) * 6));
+	glVertexAttribPointer(a_tex_id_0+1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * STRIDE, (void*) (sizeof(GLfloat) * 8));
+	glVertexAttribPointer(a_tex_id_0+2, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * STRIDE, (void*) (sizeof(GLfloat) * 10));
 	cerr("End of vao 0 prep");
+#undef STRIDE
 
 	// vaos[1]
 	glBindVertexArray(vaos[1]);
@@ -684,8 +684,14 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 	range(i, 9) rot_data[i] += gfx_interpRatio*(rot_data2[i] - rot_data[i]);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
+	// Todo: This will be different once we get `dimens` on the solids themselves
+	float dimens[3] = {(float)scale, (float)scale, (float)scale};
+	if (mode == 1 || mode == 2) {
+		dimens[2] = scale/8;
+		if (mode == 2) dimens[0] = scale/8;
+	}
 	// Add in scaling / translation...
-	range(i, 9) rot_data[i] *= scale;
+	range(i, 9) rot_data[i] *= dimens[i/3];
 	float matWorld[16];
 	float translate[3];
 	range(i, 3) {
@@ -703,16 +709,17 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 
 	// Set texture and tex-related uniforms
 	glBindTexture(GL_TEXTURE_2D, tex); // Is this okay to be doing so often? Hope so!
-	glUniform1f(u_main_noise_scale, scale/1000.0);
 	glUniform1f(u_main_transparency, alpha);
 
+	if (mode >= 0 && mode <= 2) {
+		glUniform3f(u_main_object_scale, dimens[0]/2'000.0, dimens[1]/2'000.0, dimens[2]/2'000.0);
+	} else {
+		glUniform3f(u_main_object_scale, 1, 1, 1);
+	}
+
 	int32_t vertexIndex;
-	if (mode == 0) {
+	if (mode >= 0 && mode <= 2) {
 		vertexIndex = vtxIdx_cubeOneFace;
-	} else if (mode == 1) {
-		vertexIndex = vtxIdx_slabOneFace;
-	} else if (mode == 2) {
-		vertexIndex = vtxIdx_poleOneFace;
 	} else {
 		vertexIndex = vtxIdx_cubeSixFace;
 	}
@@ -727,7 +734,7 @@ void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int
 	y += 1.0f / (1<<8);
 	w -= 1.0f / (1<<7);
 	glBindTexture(GL_TEXTURE_2D, textures[tex]);
-	glUniform1f(u_main_noise_scale, 1);
+	glUniform3f(u_main_object_scale, 1, 1, 1);
 	glUniform2f(u_main_tex_offset, x, y);
 	glUniform2f(u_main_tex_scale, w, w);
 	glUniform1f(u_main_transparency, 1.0);
@@ -755,7 +762,7 @@ void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int
 void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
 	glDepthMask(0);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
-	glUniform1f(u_main_noise_scale, 1);
+	glUniform3f(u_main_object_scale, 1, 1, 1);
 	glUniform2f(u_main_tex_scale, 1, 0);
 	glUniform1f(u_main_transparency, 1.0-age_interp);
 	// We skip `u_main_rot` - it's just for lighting,
@@ -943,16 +950,22 @@ void drawHudRect(double x, double y, double w, double h, float *color) {
 }
 */
 
-#define vtx(x, y, z, nx, ny, nz, s, t) \
+#define vtx(x, y, z, nx, ny, nz, s0, t0, s1, t1, s2, t2) \
         data->add(x); \
         data->add(y); \
         data->add(z); \
         data->add(nx); \
         data->add(ny); \
         data->add(nz); \
-        data->add(s); \
-        data->add(t); \
+        data->add(s0); \
+        data->add(t0); \
+        data->add(s1); \
+        data->add(t1); \
+        data->add(s2); \
+        data->add(t2); \
 // END vtx
+#define vtx2(x, y, z, nx, ny, nz, s, t) \
+	vtx(x, y, z, nx, ny, nz, s==1, t==1, s==2, t==2, s==3, t==3)
 
 static void populatePaneVertexData(list<GLfloat> *data) {
 	// Hm. This may change later, but for now I'm not going to put normal data
@@ -960,62 +973,64 @@ static void populatePaneVertexData(list<GLfloat> *data) {
 	// using this shape for bullet trails (which shouldn't be lit)
 	GLfloat L = -1, R = 1;
 	GLfloat D = -1, U = 1;
-	vtx(L, 0, U, 0, 0, 0, 0, 1);
-	vtx(L, 0, D, 0, 0, 0, 0, 0);
-	vtx(R, 0, U, 0, 0, 0, 1, 1);
-	vtx(R, 0, D, 0, 0, 0, 1, 0);
-	vtx(R, 0, U, 0, 0, 0, 1, 1);
-	vtx(L, 0, D, 0, 0, 0, 0, 0);
+	// We don't support non-uniformly scaled textures on panes,
+	// can mess with the a_tex values here if we want that later.
+	vtx2(L, 0, U, 0, 0, 0, 0, 2);
+	vtx2(L, 0, D, 0, 0, 0, 0, 0);
+	vtx2(R, 0, U, 0, 0, 0, 1, 2);
+	vtx2(R, 0, D, 0, 0, 0, 1, 0);
+	vtx2(R, 0, U, 0, 0, 0, 1, 2);
+	vtx2(L, 0, D, 0, 0, 0, 0, 0);
 }
 
 // This handles the single-textured "cube" and "slab" meshes,
 // and will probably handle a "rod"/"pillar" at some point as well
-static void populateCubeVertexData(list<GLfloat> *data, float x, float y, float z) {
-	GLfloat L = -x, R = x;
-	GLfloat F = -y, B = y;
-	GLfloat D = -z, U = z;
+static void populateCubeVertexData(list<GLfloat> *data) {
+	GLfloat L = -1, R = 1;
+	GLfloat F = -1, B = 1;
+	GLfloat D = -1, U = 1;
 	// up
-	vtx(L, B, U, 0, 0, 1, 0, y);
-	vtx(L, F, U, 0, 0, 1, 0, 0);
-	vtx(R, B, U, 0, 0, 1, x, y);
-	vtx(R, F, U, 0, 0, 1, x, 0);
-	vtx(R, B, U, 0, 0, 1, x, y);
-	vtx(L, F, U, 0, 0, 1, 0, 0);
+	vtx2(L, B, U, 0, 0, 1, 0, 2);
+	vtx2(L, F, U, 0, 0, 1, 0, 0);
+	vtx2(R, B, U, 0, 0, 1, 1, 2);
+	vtx2(R, F, U, 0, 0, 1, 1, 0);
+	vtx2(R, B, U, 0, 0, 1, 1, 2);
+	vtx2(L, F, U, 0, 0, 1, 0, 0);
 	// front
-	vtx(L, F, U, 0, -1, 0, 0, z);
-	vtx(L, F, D, 0, -1, 0, 0, 0);
-	vtx(R, F, U, 0, -1, 0, x, z);
-	vtx(R, F, D, 0, -1, 0, x, 0);
-	vtx(R, F, U, 0, -1, 0, x, z);
-	vtx(L, F, D, 0, -1, 0, 0, 0);
+	vtx2(L, F, U, 0, -1, 0, 0, 3);
+	vtx2(L, F, D, 0, -1, 0, 0, 0);
+	vtx2(R, F, U, 0, -1, 0, 1, 3);
+	vtx2(R, F, D, 0, -1, 0, 1, 0);
+	vtx2(R, F, U, 0, -1, 0, 1, 3);
+	vtx2(L, F, D, 0, -1, 0, 0, 0);
 	// right
-	vtx(R, F, U, 1, 0, 0, 0, z);
-	vtx(R, F, D, 1, 0, 0, 0, 0);
-	vtx(R, B, U, 1, 0, 0, y, z);
-	vtx(R, B, D, 1, 0, 0, y, 0);
-	vtx(R, B, U, 1, 0, 0, y, z);
-	vtx(R, F, D, 1, 0, 0, 0, 0);
+	vtx2(R, F, U, 1, 0, 0, 0, 3);
+	vtx2(R, F, D, 1, 0, 0, 0, 0);
+	vtx2(R, B, U, 1, 0, 0, 2, 3);
+	vtx2(R, B, D, 1, 0, 0, 2, 0);
+	vtx2(R, B, U, 1, 0, 0, 2, 3);
+	vtx2(R, F, D, 1, 0, 0, 0, 0);
 	// left
-	vtx(L, B, U, -1, 0, 0, 0, z);
-	vtx(L, B, D, -1, 0, 0, 0, 0);
-	vtx(L, F, U, -1, 0, 0, y, z);
-	vtx(L, F, D, -1, 0, 0, y, 0);
-	vtx(L, F, U, -1, 0, 0, y, z);
-	vtx(L, B, D, -1, 0, 0, 0, 0);
+	vtx2(L, B, U, -1, 0, 0, 0, 3);
+	vtx2(L, B, D, -1, 0, 0, 0, 0);
+	vtx2(L, F, U, -1, 0, 0, 2, 3);
+	vtx2(L, F, D, -1, 0, 0, 2, 0);
+	vtx2(L, F, U, -1, 0, 0, 2, 3);
+	vtx2(L, B, D, -1, 0, 0, 0, 0);
 	// back
-	vtx(R, B, U, 0, 1, 0, 0, z);
-	vtx(R, B, D, 0, 1, 0, 0, 0);
-	vtx(L, B, U, 0, 1, 0, x, z);
-	vtx(L, B, D, 0, 1, 0, x, 0);
-	vtx(L, B, U, 0, 1, 0, x, z);
-	vtx(R, B, D, 0, 1, 0, 0, 0);
+	vtx2(R, B, U, 0, 1, 0, 0, 3);
+	vtx2(R, B, D, 0, 1, 0, 0, 0);
+	vtx2(L, B, U, 0, 1, 0, 1, 3);
+	vtx2(L, B, D, 0, 1, 0, 1, 0);
+	vtx2(L, B, U, 0, 1, 0, 1, 3);
+	vtx2(R, B, D, 0, 1, 0, 0, 0);
 	// down
-	vtx(L, F, D, 0, 0, -1, 0, y);
-	vtx(L, B, D, 0, 0, -1, 0, 0);
-	vtx(R, F, D, 0, 0, -1, x, y);
-	vtx(R, B, D, 0, 0, -1, x, 0);
-	vtx(R, F, D, 0, 0, -1, x, y);
-	vtx(L, B, D, 0, 0, -1, 0, 0);
+	vtx2(L, F, D, 0, 0, -1, 0, 2);
+	vtx2(L, B, D, 0, 0, -1, 0, 0);
+	vtx2(R, F, D, 0, 0, -1, 1, 2);
+	vtx2(R, B, D, 0, 0, -1, 1, 0);
+	vtx2(R, F, D, 0, 0, -1, 1, 2);
+	vtx2(L, B, D, 0, 0, -1, 0, 0);
 }
 
 static void populateCubeVertexData2(list<GLfloat> *data) {
@@ -1033,50 +1048,54 @@ static void populateCubeVertexData2(list<GLfloat> *data) {
 	GLfloat y1 =   0.0/128;
 	GLfloat y2 =  42.0/128;
 
+	// UGH obviously you can't scale something that's a net independently along each axis.
+	// We'll just lie for now, this is a headache.
+
 	// up
-	vtx(L, B, U, 0, 0, U, p2, p4);
-	vtx(L, F, U, 0, 0, U, p2, p3);
-	vtx(R, B, U, 0, 0, U, p3, p4);
-	vtx(R, F, U, 0, 0, U, p3, p3);
-	vtx(R, B, U, 0, 0, U, p3, p4);
-	vtx(L, F, U, 0, 0, U, p2, p3);
+	vtx(L, B, U, 0, 0, U, p2, p4, 0,0,0,0);
+	vtx(L, F, U, 0, 0, U, p2, p3, 0,0,0,0);
+	vtx(R, B, U, 0, 0, U, p3, p4, 0,0,0,0);
+	vtx(R, F, U, 0, 0, U, p3, p3, 0,0,0,0);
+	vtx(R, B, U, 0, 0, U, p3, p4, 0,0,0,0);
+	vtx(L, F, U, 0, 0, U, p2, p3, 0,0,0,0);
 	// front
-	vtx(L, F, U, 0, F, 0, p2, p3);
-	vtx(L, F, D, 0, F, 0, p2, p2);
-	vtx(R, F, U, 0, F, 0, p3, p3);
-	vtx(R, F, D, 0, F, 0, p3, p2);
-	vtx(R, F, U, 0, F, 0, p3, p3);
-	vtx(L, F, D, 0, F, 0, p2, p2);
+	vtx(L, F, U, 0, F, 0, p2, p3, 0,0,0,0);
+	vtx(L, F, D, 0, F, 0, p2, p2, 0,0,0,0);
+	vtx(R, F, U, 0, F, 0, p3, p3, 0,0,0,0);
+	vtx(R, F, D, 0, F, 0, p3, p2, 0,0,0,0);
+	vtx(R, F, U, 0, F, 0, p3, p3, 0,0,0,0);
+	vtx(L, F, D, 0, F, 0, p2, p2, 0,0,0,0);
 	// right
-	vtx(R, F, U, R, 0, 0, p3, p3);
-	vtx(R, F, D, R, 0, 0, p3, p2);
-	vtx(R, B, U, R, 0, 0, p4, p3);
-	vtx(R, B, D, R, 0, 0, p4, p2);
-	vtx(R, B, U, R, 0, 0, p4, p3);
-	vtx(R, F, D, R, 0, 0, p3, p2);
+	vtx(R, F, U, R, 0, 0, p3, p3, 0,0,0,0);
+	vtx(R, F, D, R, 0, 0, p3, p2, 0,0,0,0);
+	vtx(R, B, U, R, 0, 0, p4, p3, 0,0,0,0);
+	vtx(R, B, D, R, 0, 0, p4, p2, 0,0,0,0);
+	vtx(R, B, U, R, 0, 0, p4, p3, 0,0,0,0);
+	vtx(R, F, D, R, 0, 0, p3, p2, 0,0,0,0);
 	// left
-	vtx(L, B, U, L, 0, 0, p1, p3);
-	vtx(L, B, D, L, 0, 0, p1, p2);
-	vtx(L, F, U, L, 0, 0, p2, p3);
-	vtx(L, F, D, L, 0, 0, p2, p2);
-	vtx(L, F, U, L, 0, 0, p2, p3);
-	vtx(L, B, D, L, 0, 0, p1, p2);
+	vtx(L, B, U, L, 0, 0, p1, p3, 0,0,0,0);
+	vtx(L, B, D, L, 0, 0, p1, p2, 0,0,0,0);
+	vtx(L, F, U, L, 0, 0, p2, p3, 0,0,0,0);
+	vtx(L, F, D, L, 0, 0, p2, p2, 0,0,0,0);
+	vtx(L, F, U, L, 0, 0, p2, p3, 0,0,0,0);
+	vtx(L, B, D, L, 0, 0, p1, p2, 0,0,0,0);
 	// back
-	vtx(R, B, U, 0, B, 0, x1, y2);
-	vtx(R, B, D, 0, B, 0, x1, y1);
-	vtx(L, B, U, 0, B, 0, x2, y2);
-	vtx(L, B, D, 0, B, 0, x2, y1);
-	vtx(L, B, U, 0, B, 0, x2, y2);
-	vtx(R, B, D, 0, B, 0, x1, y1);
+	vtx(R, B, U, 0, B, 0, x1, y2, 0,0,0,0);
+	vtx(R, B, D, 0, B, 0, x1, y1, 0,0,0,0);
+	vtx(L, B, U, 0, B, 0, x2, y2, 0,0,0,0);
+	vtx(L, B, D, 0, B, 0, x2, y1, 0,0,0,0);
+	vtx(L, B, U, 0, B, 0, x2, y2, 0,0,0,0);
+	vtx(R, B, D, 0, B, 0, x1, y1, 0,0,0,0);
 	// down
-	vtx(L, F, D, 0, 0, D, p2, p2);
-	vtx(L, B, D, 0, 0, D, p2, p1);
-	vtx(R, F, D, 0, 0, D, p3, p2);
-	vtx(R, B, D, 0, 0, D, p3, p1);
-	vtx(R, F, D, 0, 0, D, p3, p2);
-	vtx(L, B, D, 0, 0, D, p2, p1);
+	vtx(L, F, D, 0, 0, D, p2, p2, 0,0,0,0);
+	vtx(L, B, D, 0, 0, D, p2, p1, 0,0,0,0);
+	vtx(R, F, D, 0, 0, D, p3, p2, 0,0,0,0);
+	vtx(R, B, D, 0, 0, D, p3, p1, 0,0,0,0);
+	vtx(R, F, D, 0, 0, D, p3, p2, 0,0,0,0);
+	vtx(L, B, D, 0, 0, D, p2, p1, 0,0,0,0);
 }
 
+#undef vtx2
 #undef vtx
 
 static void populateSpriteVertexData() {
