@@ -16,8 +16,6 @@ struct mover; // "box" and "gamestate" reference each other's types
 #define TEX_SNAKE 12
 #define TEX_TEAM_SHIRT 10
 
-#define NUM_SHAPES 3
-#define SHAPE_MASK 15
 // 16 unused?
 #define T_PLAYER 32
 #define T_PROJ 64
@@ -71,7 +69,7 @@ struct player {
 struct solid {
 	mover m;
 	//int64_t vel[3];
-	int64_t r;
+	offset dimens;
 	int32_t tex;
 
 	// Currently this is only being used for `gs->selection`.
@@ -96,8 +94,7 @@ struct interactable : solid {
 struct constelPt {
 	offset o;
 	iquat rot;
-	int64_t r;
-	int32_t type;
+	offset dimens;
 	int32_t tex;
 };
 
@@ -150,7 +147,6 @@ struct gamestate {
 
 extern int32_t gs_gravity;
 extern list<solid*> solidSerizPtrs;
-extern double const shapeDiagonalMultipliers[NUM_SHAPES];
 
 
 extern void resetPlayer(gamestate *gs, int i);
@@ -159,13 +155,13 @@ extern void rekitPlayer(player *p);
 extern void setupPlayers(gamestate *gs, int numPlayers);
 extern void killPlayer(player *p);
 
-extern void validateSize(int64_t *_size);
+extern void validateDimens(offset dimens);
 extern void validateTex(int32_t *_tex);
 extern void solidValidate(solid *s);
 
 extern void solidPutVb(solid *s, box *guess, int duration);
 extern void cpSolid(solid *t, solid *s);
-extern solid* dumbSolid(gamestate *gs, box *b, int64_t r, int32_t shape, int32_t tex);
+extern solid* dumbSolid(gamestate *gs, box *b, offset dimens, int32_t tex);
 extern box* staticPosition(gamestate *gs, solid *s, box *b);
 extern void rmSolid(gamestate *gs, solid *s);
 

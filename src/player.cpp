@@ -107,8 +107,8 @@ void playerAddBox(gamestate *gs, player *_p) {
 	box *b = p.m.b = velbox_alloc();
 	memcpy(b->pos, p.m.oldPos, sizeof(b->pos));
 	range(j, 3) b->vel[j] = p.m.pos[j] - p.m.oldPos[j];
-	// TODO define for SHAPE_CUBE (=0)
-	b->r = PLAYER_SHAPE_RADIUS*shapeDiagonalMultipliers[0];
+	// sqrt(3) < 1.75
+	b->r = PLAYER_SHAPE_RADIUS*7/4;
 	b->end = b->start + 1;
 	b->data = &p.m;
 	velbox_insert(p.prox, b);

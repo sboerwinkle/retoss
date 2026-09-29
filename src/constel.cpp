@@ -24,14 +24,7 @@ void constel::decr() {
 void constel::estimateRadius() {
 	rangeconst(i, points.num) {
 		constelPt &pt = points[i];
-		int64_t ptRadius;
-		if (pt.type < 0 || pt.type >= NUM_SHAPES) {
-			printf("ERROR: constel: bad constelPt.type: %d\n", pt.type);
-			ptRadius = pt.r;
-		} else {
-			ptRadius = pt.r * shapeDiagonalMultipliers[pt.type];
-		}
-		ptRadius += mag(pt.o);
+		int64_t ptRadius = magUpper(pt.dimens) + magUpper(pt.o);
 		if (ptRadius > r) r = ptRadius;
 	}
 
@@ -93,8 +86,7 @@ static void transConstelPts(constel *c) {
 		constelPt &pt = c->points[i];
 		range(j, 3) trans64(&pt.o[j]);
 		range(j, 4) trans32(&pt.rot[j]);
-		trans64(&pt.r);
-		trans32(&pt.type);
+		transOffset(pt.dimens);
 		trans32(&pt.tex);
 		validate(&pt);
 	}
@@ -119,8 +111,7 @@ void constelSerizFinalize() {
 }
 
 void validate(constelPt *pt) {
-	validateSize(&pt->r);
-	pt->type = pt->type % NUM_SHAPES;
+	validateDimens(pt->dimens);
 	validateTex(&pt->tex);
 }
 

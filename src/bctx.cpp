@@ -175,8 +175,13 @@ void buildCtx::populate(solid *s) {
 
 void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
 	size = size*transf.scale/1000;
+	offset dimens = {size, size, size};
+	if (shape > 0) {
+		dimens[2] /= 8;
+		if (shape > 1) dimens[0] /= 8;
+	}
 
-	solid *s = dumbSolid(gs, prevBox, size, shape, tex);
+	solid *s = dumbSolid(gs, prevBox, dimens, tex);
 	populate(s);
 	prevBox = staticPosition(gs, s, prevBox);
 
@@ -199,8 +204,13 @@ void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
 	constelPt &pt = c->points.add();
 	memcpy(pt.o, transf.pos, sizeof(offset));
 	memcpy(pt.rot, transf.rot, sizeof(iquat));
-	pt.r = size*transf.scale/1000;
-	pt.type = shape;
+
+	size = size*transf.scale/1000;
+	pt.dimens[0] = pt.dimens[1] = pt.dimens[2] = size;
+	if (shape > 0) {
+		pt.dimens[2] /= 8;
+		if (shape > 1) pt.dimens[0] /= 8;
+	}
 	pt.tex = tex;
 
 	// Usually validation is in whatever method adds the thing to the gamestate,

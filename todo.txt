@@ -1,3 +1,4 @@
+- Benchmark separate `u_rot` uniform, vs transform and normalize normals
 . Gaps in player model corners
 . Colored grenades?
 	Not as originally intended, but it is done!
@@ -16,6 +17,7 @@
 	. Add blast particles
 	! grenades can die (e.g. edge, lvl reset)
 		Did this for lvl reset, but not the abyss
+- Grenades over the edge should die?
 - /deactivate for absent/port-scan players
 	/syncme is done by new clients, so that can also re-activate
 . More obvious "game over" text

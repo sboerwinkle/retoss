@@ -79,6 +79,7 @@ extern void cross(float output[3], float const a[3], float const b[3]);
 extern void cross64(offset output, offset const a, unitvec const b);
 // This may underestimate it a small bit, but that should be fine?
 extern int64_t mag(offset const v);
+extern int64_t magUpper(offset const v);
 // `bound` should fit in (I believe) 25 bits?
 extern void bound64(offset v, int32_t bound);
 // Input vector magnitude should fit in 26 bits.

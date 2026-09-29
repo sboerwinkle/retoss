@@ -167,7 +167,7 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 			//      but should go away once we give
 			//      players a full-fledged solid.
 			tmp.m = *other;
-			tmp.r = PLAYER_SHAPE_RADIUS;
+			tmp.dimens[0] = tmp.dimens[1] = tmp.dimens[2] = PLAYER_SHAPE_RADIUS;
 			// `tex`, `b`, and `clone` don't matter
 			s = &tmp;
 		} else {

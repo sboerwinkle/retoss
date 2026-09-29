@@ -1198,7 +1198,7 @@ static void drawPlayer(player *p, float alpha) {
 	tint(1, 0, 0, tint_alpha);
 
 	int sprite;
-	int mode = 3;
+	int mode = 1;
 
 	if (p->skin) {
 		sprite = p->skin->tex;
@@ -1208,7 +1208,8 @@ static void drawPlayer(player *p, float alpha) {
 		sprite = getTeamShirt(p->team);
 	}
 
-	drawCube(&p->m, PLAYER_SHAPE_RADIUS, sprite, mode, alpha);
+	offset const dimens = {PLAYER_SHAPE_RADIUS, PLAYER_SHAPE_RADIUS, PLAYER_SHAPE_RADIUS};
+	drawCube(&p->m, dimens, sprite, mode, alpha);
 }
 
 static mover* castCam(gamestate *gs, player *self, offset p1, offset p2, unitvec dir, fraction *best) {
@@ -1333,7 +1334,7 @@ static void drawCrosshair(gamestate *gs, player *self) {
 static void drawSolid(solid *s) {
 	// `s->tex & 31` is validated in gamestate.cpp
 	// Todo: This is weird and old, can just use (and validate) the whole int
-	drawCube(&s->m, s->r, s->tex & 31, s->m.type & SHAPE_MASK, 1.0f);
+	drawCube(&s->m, s->dimens, s->tex & 31, 0, 1.0f);
 }
 
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),

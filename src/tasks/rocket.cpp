@@ -133,7 +133,7 @@ static char step(gamestate *gs, void *_data) {
 			// TODO players should contain a full-fledged solid,
 			//      but making it on the fly works for now.
 			tmp.m = *other;
-			tmp.r = PLAYER_SHAPE_RADIUS;
+			tmp.dimens[0] = tmp.dimens[1] = tmp.dimens[2] = PLAYER_SHAPE_RADIUS;
 			// `tex`, `b`, and `clone` don't matter
 			s = &tmp;
 		} else {

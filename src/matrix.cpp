@@ -396,6 +396,21 @@ int64_t mag(offset const v) {
 	range(i, 3) square += (v[i]/divisor) * (v[i]/divisor);
 	return divisor * (int64_t)sqrt(square);
 }
+// Like `mag`, but designed to overestimate instead
+// TODO This one probably needs UTs even more
+int64_t magUpper(offset const v) {
+	int64_t magEst = labs(v[0]) + labs(v[1]) + labs(v[2]);
+	// double has 53 significant bits (52 stored),
+	// so anything that fits in 26 bits we can accurately store the square of.
+	// I assume all hardware agrees on the sqrt (after truncation) of any such double.
+	int64_t divisor = (magEst / ((1<<26)-2)) + 1;
+	int64_t square = 0;
+	range(i, 3) {
+		int64_t amt = (labs(v[i])+divisor-1)/divisor;
+		square += amt*amt;
+	}
+	return divisor * ((int64_t)sqrt(square) + 1);
+}
 
 // `bound` should fit in (I believe) 25 bits?
 // If you need a bigger bound, use a different function (presumably that pre-scales stuff?).

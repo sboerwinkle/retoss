@@ -5,73 +5,19 @@
 
 #include "collision.h"
 
-#include "main.h" // Just for `debug` computation, need to know if we're in the rootState
+//#include "main.h" // Just for `debug` computation, need to know if we're in the rootState
 
-struct shapeSpec {
-	int const numFaces;
-	unitvec const *facings;
-	int32_t const *distances;
-};
-
-shapeSpec shapeSpecs[3] = {
-	{
-		.numFaces = 6,
-		.facings = (unitvec const []){
-			{ FIXP,     0,     0},
-			{-FIXP,     0,     0},
-			{    0,  FIXP,     0},
-			{    0, -FIXP,     0},
-			{    0,     0,  FIXP},
-			{    0,     0, -FIXP},
-		},
-		.distances = (int32_t const []){
-			FIXP,
-			FIXP,
-			FIXP,
-			FIXP,
-			FIXP,
-			FIXP,
-		}
-	},
-	{
-		.numFaces = 6,
-		.facings = (unitvec const []){
-			{ FIXP,     0,     0},
-			{-FIXP,     0,     0},
-			{    0,  FIXP,     0},
-			{    0, -FIXP,     0},
-			{    0,     0,  FIXP},
-			{    0,     0, -FIXP}
-		},
-		.distances = (int32_t const []){
-			FIXP,
-			FIXP,
-			FIXP,
-			FIXP,
-			FIXP/8,
-			FIXP/8,
-		}
-	},
-	{
-		.numFaces = 6,
-		.facings = (unitvec const []){
-			{ FIXP,     0,     0},
-			{-FIXP,     0,     0},
-			{    0,  FIXP,     0},
-			{    0, -FIXP,     0},
-			{    0,     0,  FIXP},
-			{    0,     0, -FIXP}
-		},
-		.distances = (int32_t const []){
-			FIXP/8,
-			FIXP/8,
-			FIXP,
-			FIXP,
-			FIXP/8,
-			FIXP/8,
-		}
-	},
-};
+// In case I ever need to go back to full dot products,
+// I'm still expressing them as such.
+// In reality it's a lot simpler when you're taking a
+// dot product with a basis vector!
+// This function will probably be inlined.
+static int64_t dot(offset v, int dim, int sign) {
+	return sign*v[dim];
+}
+static int32_t dot(unitvec v, int dim, int sign) {
+	return sign*v[dim];
+}
 
 // Todo `radius` should be int64_t
 int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, solid *s, unitvec forceDir_out, offset contactVel_out, int32_t *time_out) {
@@ -99,7 +45,6 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	imat_applySm(v1, rot1, v1raw);
 	imat_applySm(v2, rot2, v2raw);
 
-	shapeSpec &sh = shapeSpecs[s->m.type & SHAPE_MASK];
 	int winner1 = 0;
 	int64_t best = INT64_MIN;
 	//int64_t winnerDepth = 0;
@@ -138,12 +83,16 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	//   There could be situations where we're already beyond that "height" - in that case, no hit.
 
 	// Phase 1: First face and early-exit check.
-	range(i, sh.numFaces) {
-		int32_t const *norm = sh.facings[i];
-		int32_t limit = s->r*sh.distances[i]/FIXP;
-
-		int64_t d1 = dot(v1, norm) - limit;
-		int64_t d2 = dot(v2, norm) - limit;
+	range(i, 6) {
+		// Okay, previously this was a dot product,
+		// but we can way simplify that now that our
+		// normal vectors (`facings`) are always
+		// basis vectors (i.e. x,y,z).
+		int dim = i/2;
+		int sign = (i%2) ? -1 : 1;
+		int64_t limit = s->dimens[dim];
+		int64_t d1 = dot(v1, dim, sign) - limit;
+		int64_t d2 = dot(v2, dim, sign) - limit;
 
 		if (d1 >= radius && d2 >= radius) {
 			// No hit, this is our "early exit"
@@ -162,8 +111,10 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	// beginning of this step.
 	offset magicPt;
 	{
-		int32_t const *norm = sh.facings[winner1];
-		range(i, 3) magicPt[i] = v1[i] - best*norm[i]/FIXP;
+		int dim = winner1/2;
+		int sign = (winner1%2) ? -1 : 1;
+		range(i, 3) magicPt[i] = v1[i];
+		magicPt[dim] -= sign*best;
 	}
 
 	// Phase 2: Check for a second positive face, which would mean an edge.
@@ -172,12 +123,12 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	//       displacement we might have some leftover distance left to cover (that we don't care about!)
 	best = 1;
 	int winner2;
-	range(i, sh.numFaces) {
-		int32_t const *norm = sh.facings[i];
-		// TODO: we're recalculating this each time, maybe put it somewhere handy
-		int32_t limit = s->r*sh.distances[i]/FIXP;
+	range(i, 6) {
+		int dim = i/2;
+		int sign = (i%2) ? -1 : 1;
+		int64_t limit = s->dimens[dim];
 
-		int64_t d1 = dot(magicPt, norm) - limit;
+		int64_t d1 = dot(magicPt, dim, sign) - limit;
 
 		if (d1 > best) {
 			best = d1;
@@ -189,28 +140,39 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	if (best == 1) {
 		// Only one face required adjusting, so we don't need to do any math to get the
 		// sample vector; we can just use that face's normal.
-		memcpy(sampleNorm, sh.facings[winner1], sizeof(unitvec));
+		sampleNorm[0] = sampleNorm[1] = sampleNorm[2] = 0;
+		int dim = winner1/2;
+		int sign = (winner1%2) ? -1 : 1;
+		sampleNorm[dim] = sign*FIXP;
 		// We can also skip the 3rd face check
 		goto foundSampleNorm;
 	}
 	// Adjustment of `magicPt` won't be so straightforward this time...
 	// Direction will be `winner2 - winner1*dot(w1,w2)`
 	{
+		/*
+		Lol. I'm keeping this logic (again, if I ever need it...),
+		but when our winners are basis vectors, their dot is zero.
 		int32_t const *norm1 = sh.facings[winner1];
 		int32_t const *norm2 = sh.facings[winner2];
 		int32_t cosine = dot(norm1, norm2);
 		int32_t scale = FIXP-cosine*cosine/FIXP;
 		range(i, 3) magicPt[i] -= best*(norm2[i]-norm1[i]*cosine/FIXP)/scale;
+		*/
+		int dim = winner2/2;
+		int sign = (winner2%2) ? -1 : 1;
+		magicPt[dim] -= sign*best;
 	}
 
 	// Phase 3: One more go-round, to find corners. It's rough, but too bad!
 	best = 1;
 	int winner3;
-	range(i, sh.numFaces) {
-		int32_t const *norm = sh.facings[i];
-		int32_t limit = s->r*sh.distances[i]/FIXP;
+	range(i, 6) {
+		int dim = i/2;
+		int sign = (i%2) ? -1 : 1;
+		int64_t limit = s->dimens[dim];
 
-		int64_t d1 = dot(magicPt, norm) - limit;
+		int64_t d1 = dot(magicPt, dim, sign) - limit;
 
 		if (d1 > best) {
 			best = d1;
@@ -219,20 +181,23 @@ int64_t collide_check(offset const oldPos, offset const dest, int32_t radius, so
 	}
 
 	if (best != 1) {
+		/* Again, leftover logic that's more than we need.
 		// Oh boy, the most fun.
 		unitvec v3;
 		cross(v3, sh.facings[winner1], sh.facings[winner2]);
 		int32_t dot_prod = dot(v3, sh.facings[winner3]);
 		// This one seems way too simple, but I think it's correct??
 		range(i, 3) magicPt[i] -= best*v3[i]/dot_prod;
+		*/
+		int dim = winner3/2;
+		int sign = (winner3%2) ? -1 : 1;
+		magicPt[dim] -= sign*best;
 	}
 
 	// Then we've got to actually to do the scaling to get our test point.
 	{
 		offset o;
 		range(i, 3) o[i] = v1[i] - magicPt[i];
-		//if (debug) printf("%ld, %ld, %ld ?\n", magicPt[0], magicPt[1], magicPt[2]);
-		//if (debug) printf("%ld, %ld, %ld :(\n", o[0], o[1], o[2]);
 		int64_t magEst = labs(o[0]) + labs(o[1]) + labs(o[2]);
 		range(i, 3) o[i] = o[i]*FIXP/magEst;
 		// Haha actually, I am a little worried about the consistency of large sqrts haha
@@ -251,15 +216,17 @@ foundSampleNorm:;
 	// Alright, we've picked a particular point on the surface of our sphere (sampleNorm)
 	// and adjusted v1 and v2 accordingly. Now we have to determine if we have a hit.
 	int32_t lower = 0, upper = FIXP;
-	range(i, sh.numFaces) {
-		int32_t const *norm = sh.facings[i];
+	range(i, 6) {
+		int dim = i/2;
+		int sign = (i%2) ? -1 : 1;
 		// We pad this out a couple units.
 		// This makes it easier to catch on edges when you shouldn't,
 		// but hopefully fixes weird jitter going over edges.
-		int32_t limit = s->r*sh.distances[i]/FIXP + 2;
+		// Todo: See if we can skip this now that we're doing less fixed-point math
+		int64_t limit = s->dimens[dim] + 2;
 
-		int64_t d1 = dot(v1, norm) - limit;
-		int64_t d2 = dot(v2, norm) - limit;
+		int64_t d1 = dot(v1, dim, sign) - limit;
+		int64_t d2 = dot(v2, dim, sign) - limit;
 
 		// Previously `== 0` was in the first (`lower`) branch; now it's in the second branch.
 		// Goal is to help with edge weirdness.
@@ -306,8 +273,8 @@ foundSampleNorm:;
 	// changes the contact velocity.
 	imat_applySm(v1, rot1, magicPt);
 	imat_applySm(v2, rot2, magicPt);
-	// For now the other thing is a player (a sphere that doesn't spin),
-	// so its contact point doesn't matter.
+	// We don't know the geometry of the caller, so they're responsible for
+	// accounting for their own velocity and spin.
 	range(i, 3) contactVel_out[i] = s->m.oldPos[i] - s->m.pos[i] + v1[i] - v2[i];
 
 	return dist;
@@ -358,12 +325,10 @@ int64_t raycast_sphere(offset const pos, unitvec const dir, int64_t radius) {
 // Maybe a related problem, do we keep this network around? Or do we add things to it as we go???
 
 static char raycast_inner(fraction *best, mover const *m, offset const vWorld, imat const rot, unitvec const dir) {
-	int shape;
-	int64_t r;
+	int64_t const *dimens;
 	int32_t type = m->type & T_MASK;
 	if (type == T_PLAYER) {
-		shape = 0;
-		r = PLAYER_SHAPE_RADIUS;
+		dimens = (int64_t const[]){PLAYER_SHAPE_RADIUS, PLAYER_SHAPE_RADIUS, PLAYER_SHAPE_RADIUS};
 	} else if (type == T_PROJ) {
 		fraction tmp = { .denom = FIXP };
 		tmp.numer = raycast_sphere(vWorld, dir, m->b->r);
@@ -372,9 +337,8 @@ static char raycast_inner(fraction *best, mover const *m, offset const vWorld, i
 		*best = tmp;
 		return 1;
 	} else {
-		shape = m->type & SHAPE_MASK;
 		solid *s = solidFromMover(m);
-		r = s->r;
+		dimens = s->dimens;
 	}
 
 	offset vSolid;
@@ -384,13 +348,12 @@ static char raycast_inner(fraction *best, mover const *m, offset const vWorld, i
 
 	fraction lower = {.numer = 0, .denom = 1};
 	fraction upper = *best;
-	shapeSpec &sh = shapeSpecs[shape];
-	range(i, sh.numFaces) {
-		int32_t const *norm = sh.facings[i];
+	range(i, 6) {
+		int dim = i/2;
+		int sign = (i%2) ? -1 : 1;
 		fraction frac = {
-			// Todo both addends contain a `/FIXP`, could probably factor that out if I care?
-			.numer = dot(vSolid, norm) + r*sh.distances[i]/FIXP,
-			.denom = dot(dirSolid, norm)
+			.numer = dot(vSolid, dim, sign) + dimens[dim],
+			.denom = dot(dirSolid, dim, sign)
 		};
 		if (frac.denom < 0) {
 			frac.denom *= -1;

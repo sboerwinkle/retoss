@@ -92,8 +92,13 @@ void taskSign_create(buildCtx *b, char const *msg, int64_t r, int32_t shape, int
 	// TODO This stuff should probably be moved to bctx state,
 	// it's going to be common for everything that's a solid
 	// and passing it around here is a pain.
-	s->m.type = shape%NUM_SHAPES + FLAG_INTERACT;
-	s->r = r;
+	// Todo Also I'm not scaling `r` properly
+	s->m.type = FLAG_INTERACT;
+	s->dimens[0] = s->dimens[1] = s->dimens[2] = r;
+	if (shape > 0) {
+		s->dimens[2] /= 8;
+		if (shape > 1) s->dimens[0] /= 8;
+	}
 	s->tex = tex;
 	solidValidate(s);
 

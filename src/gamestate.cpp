@@ -78,22 +78,21 @@ void killPlayer(player *p) {
 	p->alive = 0;
 }
 
-void validateSize(int64_t *_size) {
-	int64_t &size = *_size;
-	if (size <= 0) {
-		printf("Invalid size %ld!\n", size);
-		size = 1'000;
-	}
-	if (size >= (int64_t)1<<47) {
-		// Limit here is based on needing to multiply by shapeDiagonalMultipliers
-		// and still have the result be exactly representable by a double.
-		// Doubles can represent any integer under 1<<53, and the biggest numerator
-		// in shapeDiagonalMultipliers is 33 (just over 1<<5, treat as 1<<6),
-		// so we take 53-6=47 as our limit.
-		// I think this is a few bits less than the other limit, which is that
-		// for any offset `o`, the value `FIXP*o` must not overflow.
-		printf("Invalid size %ld (too big)!\n", size);
-		size = (int64_t)1<<46; // This is bafflingly large
+void validateDimens(offset dimens) {
+	range(i, 3) {
+		int64_t &size = dimens[i];
+		if (size <= 0) {
+			printf("Invalid size %ld!\n", size);
+			size = 1'000;
+		}
+		// Todo: I'd have to make sure this limit still makes sense,
+		//       but I think it does. Really we need `size*FIXP` to not
+		//       overflow, but I think it would also be nice if that
+		//       holds for mag(dimens) as well.
+		if (size >= (int64_t)1<<47) {
+			printf("Invalid size %ld (too big)!\n", size);
+			size = (int64_t)1<<46; // This is bafflingly large
+		}
 	}
 }
 
@@ -107,21 +106,19 @@ void validateTex(int32_t *_tex) {
 }
 
 void solidValidate(solid *s) {
-	validateSize(&s->r);
+	validateDimens(s->dimens);
 	validateTex(&s->tex);
 }
 
-// cube diagonal is sqrt(3), or approx 1.75 (=7/4)
-// slab diagonal is sqrt(2), even with a bit of thickenss it's comfortably within 1.5 (=3/2)
-// pole diagonal is like really close to 1 once you do the math
-double const shapeDiagonalMultipliers[NUM_SHAPES] = {7.0f/4, 3.0f/2, 33.0f/32};
-
+// TODO Add a version that accepts `r` so we don't have to recompute each time.
+//      For many solids, we will have just removed their old box, so we already
+//      know what `r` should be.
 void solidPutVb(solid *s, box *guess, int duration) {
 	box *tmp = velbox_alloc();
 	s->m.b = tmp;
 	memcpy(tmp->pos, s->m.oldPos, sizeof(tmp->pos));
 	range(i, 3) tmp->vel[i] = s->m.pos[i] - s->m.oldPos[i];
-	tmp->r = s->r*shapeDiagonalMultipliers[s->m.type & SHAPE_MASK];
+	tmp->r = magUpper(s->dimens);
 	tmp->end = tmp->start + duration;
 	tmp->data = &s->m;
 	velbox_insert(guess, tmp);
@@ -154,11 +151,11 @@ void cpSolid(solid *t, solid *s) {
 	t->m.b->data = &t->m;
 }
 
-solid* dumbSolid(gamestate *gs, box *b, int64_t r, int32_t shape, int32_t tex) {
+solid* dumbSolid(gamestate *gs, box *b, offset dimens, int32_t tex) {
 	solid *s = new solid();
 	gs->dumbSolids.add(s);
-	s->m.type = shape % NUM_SHAPES;
-	s->r = r;
+	s->m.type = 0;
+	memcpy(s->dimens, dimens, sizeof(offset));
 	s->tex = tex;
 
 	solidValidate(s);
@@ -274,9 +271,9 @@ void addConstelInst(gamestate *gs, constelInst *ci) {
 	rangeconst(i, c->points.num) {
 		constelPt &pt = c->points[i];
 		solid &s = ci->solids[i];
-		s.r = pt.r;
+		memcpy(s.dimens, pt.dimens, sizeof(offset));
 		s.tex = pt.tex;
-		s.m.type = pt.type;
+		s.m.type = 0;
 		// Other stuff is initialized in `constelMoveSolids`, below.
 	}
 	constelMoveSolids(ci);
@@ -561,15 +558,7 @@ void coreSetup(gamestate *gs) {
 // Seriz / Deser stuff
 void transMover(mover *m, int32_t typeFlags) {
 	if (seriz_reading) {
-		m->type = typeFlags + (SHAPE_MASK & read8()) % NUM_SHAPES;
-	} else {
-		u8 shape = SHAPE_MASK & m->type;
-#ifndef NODEBUG
-		if (m->type != typeFlags + shape) {
-			printf("Claims to have type 0x%X but is 0x%X\n", typeFlags+shape, m->type);
-		}
-#endif
-		write8(shape);
+		m->type = typeFlags;
 	}
 	transBlock(m->pos, sizeof(m->pos));
 	transBlock(m->rot, sizeof(m->rot));
@@ -590,7 +579,7 @@ void transMover(mover *m, int32_t typeFlags) {
 void transSolid(solid *s, int32_t typeFlags) {
 	transStrongRef(s, &solidSerizPtrs);
 	transMover(&s->m, typeFlags);
-	trans64(&s->r);
+	transOffset(s->dimens);
 	trans32(&s->tex);
 	if (seriz_reading) {
 		// Sanity / malicious data check.

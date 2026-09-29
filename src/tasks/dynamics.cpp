@@ -297,7 +297,7 @@ void tskDynamics_create(gamestate *gs, buildCtx *c, offset const vel, iquat cons
 	memcpy(data->s.m.pos, c->transf.pos, sizeof(offset));
 	memcpy(data->s.m.rot, c->transf.rot, sizeof(iquat));
 	data->s.m.type = 0; // Means "cube" I guess
-	data->s.r = RADIUS_I_GUESS;
+	data->s.dimens[0] = data->s.dimens[1] = data->s.dimens[2] = RADIUS_I_GUESS;
 	data->s.tex = 8;
 
 	memcpy(data->vel, vel, sizeof(offset));

@@ -664,7 +664,7 @@ void tint(float r, float g, float b, float a) {
 	glUniform4f(u_main_tint, _r, _g, _b, _a);
 }
 
-void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
+void drawCube(mover *m, offset const dimens, int tex, int mode, float alpha) {
 	if (mode & 32) {
 		mode &= ~32;
 	} else {
@@ -684,12 +684,6 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 	range(i, 9) rot_data[i] += gfx_interpRatio*(rot_data2[i] - rot_data[i]);
 	glUniformMatrix3fv(u_main_rot, 1, GL_FALSE, rot_data);
 
-	// Todo: This will be different once we get `dimens` on the solids themselves
-	float dimens[3] = {(float)scale, (float)scale, (float)scale};
-	if (mode == 1 || mode == 2) {
-		dimens[2] = scale/8;
-		if (mode == 2) dimens[0] = scale/8;
-	}
 	// Add in scaling / translation...
 	range(i, 9) rot_data[i] *= dimens[i/3];
 	float matWorld[16];
@@ -711,14 +705,14 @@ void drawCube(mover *m, int64_t scale, int tex, int mode, float alpha) {
 	glBindTexture(GL_TEXTURE_2D, tex); // Is this okay to be doing so often? Hope so!
 	glUniform1f(u_main_transparency, alpha);
 
-	if (mode >= 0 && mode <= 2) {
+	if (!mode) {
 		glUniform3f(u_main_object_scale, dimens[0]/2'000.0, dimens[1]/2'000.0, dimens[2]/2'000.0);
 	} else {
 		glUniform3f(u_main_object_scale, 1, 1, 1);
 	}
 
 	int32_t vertexIndex;
-	if (mode >= 0 && mode <= 2) {
+	if (!mode) {
 		vertexIndex = vtxIdx_cubeOneFace;
 	} else {
 		vertexIndex = vtxIdx_cubeSixFace;

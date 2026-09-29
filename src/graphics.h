@@ -31,7 +31,7 @@ extern void gfx_destroy();
 extern void reset3dTexScale();
 extern void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg);
 extern void tint(float r, float g, float b, float a);
-extern void drawCube(mover *m, int64_t scale, int tex, int mesh, float alpha);
+extern void drawCube(mover *m, offset const dimens, int tex, int mode, float alpha);
 
 extern void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int64_t r);
 extern void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp);
