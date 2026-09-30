@@ -59,7 +59,14 @@ struct timing {
 	long nextMin, nextMax;
 	int counter;
 };
-static timing logicTiming = {0}, renderTiming = {0}, renderTotalTiming = {0};
+static timing logicTiming = {0};
+#ifdef MAXFPS
+static int lastFps = 0, thisFps = 0;
+static int64_t lastFpsTime = 0;
+static void updateFps();
+#else
+static timing renderTiming = {0}, renderTotalTiming = {0};
+#endif
 static void updateTiming(timing *t, long nanos);
 static int getTeamShirt(char team);
 
@@ -1341,8 +1348,12 @@ static void drawSolid(solid *s) {
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
 void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) {
+#ifdef MAXFPS
+	updateFps();
+#else
 	updateTiming(&renderTotalTiming, totalNanos);
 	updateTiming(&renderTiming, drawingNanos);
+#endif
 	gfx_interpRatio = interpRatio;
 	int32_t now = gs->clock;
 
@@ -1506,14 +1517,20 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 	}
 
 	if (renderStats) {
+#ifndef MAXFPS
 		long renderDenom = renderTotalTiming.minNanos;
 		if (!renderDenom) renderDenom = 1;
+#endif
 		snprintf(
 			msg, 20, "%3ld%%%3ld%%%3ld%%%3ld%%",
 			100*logicTiming.minNanos/FASTER_NANOS,
 			100*logicTiming.maxNanos/FASTER_NANOS,
+#ifdef MAXFPS
+			(long int)lastFps, (long int)0
+#else
 			100*renderTiming.minNanos/renderDenom,
 			100*renderTiming.maxNanos/renderDenom
+#endif
 		);
 		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
@@ -1533,3 +1550,16 @@ static void updateTiming(timing *t, long nanos) {
 	}
 	t->counter--;
 }
+
+#ifdef MAXFPS
+static void updateFps() {
+	timespec now;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+	if (now.tv_sec > lastFpsTime) {
+		lastFpsTime = now.tv_sec;
+		lastFps = thisFps;
+		thisFps = 0;
+	}
+	thisFps++;
+}
+#endif

@@ -714,7 +714,11 @@ static void* renderThreadFunc(void *_arg) {
 	glfwMakeContextCurrent(display);
 	// Explicitly request v-sync;
 	// otherwise GLFW leaves it up to the driver default
+#ifdef MAXFPS
+	glfwSwapInterval(0);
+#else
 	glfwSwapInterval(1);
+#endif
 	renderThreadSwitchOn();
 	long drawingNanos = 0;
 	long totalNanos = 0;
@@ -732,9 +736,11 @@ static void* renderThreadFunc(void *_arg) {
 		long time1 = nowNanos();
 
 		glfwSwapBuffers(display);
+#ifndef MAXFPS
 		if (manualGlFinish) {
 			glFinish();
 		}
+#endif
 		long time2 = nowNanos();
 
 		drawingNanos = time1-time0;
