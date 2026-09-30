@@ -1520,18 +1520,16 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 #ifndef MAXFPS
 		long renderDenom = renderTotalTiming.minNanos;
 		if (!renderDenom) renderDenom = 1;
-#endif
 		snprintf(
 			msg, 20, "%3ld%%%3ld%%%3ld%%%3ld%%",
 			100*logicTiming.minNanos/FASTER_NANOS,
 			100*logicTiming.maxNanos/FASTER_NANOS,
-#ifdef MAXFPS
-			(long int)lastFps, (long int)0
-#else
 			100*renderTiming.minNanos/renderDenom,
 			100*renderTiming.maxNanos/renderDenom
-#endif
 		);
+#else
+		snprintf(msg, 20, "%d", lastFps);
+#endif
 		drawText(msg, 1, displayAreaBounds[1]*2-8);
 	}
 
