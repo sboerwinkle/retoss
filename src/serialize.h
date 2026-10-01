@@ -52,7 +52,7 @@ template <typename T>
 void transItemCount(list<T> *l) {
 	trans32(&l->num);
 	if (seriz_reading) {
-		if (l->num > 10'000) {
+		if (l->num > 100'000) {
 			if (seriz_error()) {
 				printf("I don't trust that list size, got %d (0x%X)\n", l->num, l->num);
 				l->num = 1;
