@@ -86,9 +86,10 @@ static GLuint vaos[2];
 
 static GLint u_main_modelview;
 static GLint u_main_rot;
-static GLint u_main_object_scale;
-static GLint u_main_tex_scale;
+static GLint u_main_skin_size;
 static GLint u_main_tex_offset;
+static GLint u_main_mottle_scale;
+static GLint u_main_one;
 static GLint u_main_tint;
 static GLint u_main_transparency;
 static GLint u_main_fog;
@@ -382,9 +383,10 @@ void initGraphics() {
 	// Uniforms
 	u_main_modelview    = glGetUniformLocation(main_prog, "u_modelview");
 	u_main_rot          = glGetUniformLocation(main_prog, "u_rot");
-	u_main_object_scale = glGetUniformLocation(main_prog, "u_object_scale");
-	u_main_tex_scale    = glGetUniformLocation(main_prog, "u_tex_scale");
+	u_main_skin_size    = glGetUniformLocation(main_prog, "u_skin_size");
 	u_main_tex_offset   = glGetUniformLocation(main_prog, "u_tex_offset");
+	u_main_mottle_scale = glGetUniformLocation(main_prog, "u_mottle_scale");
+	u_main_one          = glGetUniformLocation(main_prog, "u_one");
 	u_main_tint         = glGetUniformLocation(main_prog, "u_tint");
 	u_main_transparency = glGetUniformLocation(main_prog, "u_transparency");
 	u_main_fog          = glGetUniformLocation(main_prog, "u_fog");
@@ -585,9 +587,8 @@ static float calcCamDist(float *matWorldToCam, offset const p1, offset const p2,
 	return (float)best.numer*FIXP/best.denom;
 }
 
-void reset3dTexScale() {
+void resetAfterBillboards() {
 	glUniform2f(u_main_tex_offset, 0, 0);
-	glUniform2f(u_main_tex_scale, 1, 1);
 }
 
 void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg) {
@@ -597,9 +598,10 @@ void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg) {
 	glDepthMask(1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	tint(0, 0, 0, 0);
-	reset3dTexScale();
+	resetAfterBillboards();
 	glUniform3f(u_main_fog, 0.5, 0.5, 0.5);
 	glUniform1f(u_main_fog_mult, -1.0 / gs->fogDist);
+	glUniform1f(u_main_one, 1);
 
 	// GL stuff that we change over the course of drawing a frame
 	glEnable(GL_DEPTH_TEST);
@@ -706,9 +708,13 @@ void drawCube(mover *m, offset const dimens, int tex, int mode, float alpha) {
 	glUniform1f(u_main_transparency, alpha);
 
 	if (!mode) {
-		glUniform3f(u_main_object_scale, dimens[0]/2'000.0, dimens[1]/2'000.0, dimens[2]/2'000.0);
+		glUniform3f(u_main_skin_size, dimens[0]/2'000.0, dimens[1]/2'000.0, dimens[2]/2'000.0);
+		glUniform1f(u_main_mottle_scale, 1);
 	} else {
-		glUniform3f(u_main_object_scale, 1, 1, 1);
+		glUniform3f(u_main_skin_size, 1, 1, 1);
+		// The six-faced cube skin gets 42 pixels (out of 128) per side,
+		// so we have to account for that when figureing the mottle scale.
+		glUniform1f(u_main_mottle_scale, dimens[0]/2'000.0 * (128.0/42));
 	}
 
 	int32_t vertexIndex;
@@ -728,9 +734,9 @@ void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int
 	y += 1.0f / (1<<8);
 	w -= 1.0f / (1<<7);
 	glBindTexture(GL_TEXTURE_2D, textures[tex]);
-	glUniform3f(u_main_object_scale, 1, 1, 1);
 	glUniform2f(u_main_tex_offset, x, y);
-	glUniform2f(u_main_tex_scale, w, w);
+	glUniform3f(u_main_skin_size, w, w, 0);
+	glUniform1f(u_main_mottle_scale, r/2'000.0/w);
 	glUniform1f(u_main_transparency, 1.0);
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.
@@ -756,8 +762,8 @@ void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int
 void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
 	glDepthMask(0);
 	glBindTexture(GL_TEXTURE_2D, textures[TEX_TRAIL]);
-	glUniform3f(u_main_object_scale, 1, 1, 1);
-	glUniform2f(u_main_tex_scale, 1, 0);
+	glUniform3f(u_main_skin_size, 1, 0, 0);
+	glUniform1f(u_main_mottle_scale, 0.5);
 	glUniform1f(u_main_transparency, 1.0-age_interp);
 	// We skip `u_main_rot` - it's just for lighting,
 	// and the "pane" mesh's normals are all 0 anyway.

@@ -194,7 +194,7 @@ void tskBlast_draw(void *data, int32_t now) {
 		//      maybe make texture selection its own call??
 		drawBillboard(p1, p2, 1, item.spr_x, item.spr_y, item.spr_w, 600);
 	}
-	reset3dTexScale();
+	resetAfterBillboards();
 }
 
 void defineTask_blast(taskDefn *d) {

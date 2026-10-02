@@ -6,10 +6,10 @@ uniform float u_transparency;
 uniform vec3 u_fog;
 uniform float u_fog_mult;
 
-layout(location=0) in vec3 v_color;
-layout(location=1) in vec2 v_uv;
-layout(location=2) in vec2 v_mottle_1;
-layout(location=3) in vec2 v_mottle_2;
+in vec3 v_color;
+in vec2 v_uv;
+in vec2 v_mottle_1;
+in vec2 v_mottle_2;
 in vec3 v_pos;
 
 layout(location = 0) out vec4 out_color;

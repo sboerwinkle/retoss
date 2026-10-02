@@ -257,7 +257,7 @@ void taskRocket_draw(void *_data) {
 	int64_t r = RADIUS;
 	drawBillboard(data->m.oldPos, data->m.pos, 1, 42.0/64, 0, 6.0/64, r);
 
-	reset3dTexScale();
+	resetAfterBillboards();
 }
 
 void taskRocket_create(gamestate *gs, offset p1, offset vel, unitvec dir, box *parent, u16 soundId) {

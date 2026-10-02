@@ -302,7 +302,7 @@ void taskGrenades_draw(void *_data, int32_t now) {
 		drawBillboard(nade->oldPos, nade->pos, 1, 49.0/64, 0, 5.0/64, r);
 	}
 
-	reset3dTexScale();
+	resetAfterBillboards();
 	tint(0, 0, 0, 0);
 }
 

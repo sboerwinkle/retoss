@@ -1404,7 +1404,6 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		trail &tr = gs->trails[i];
 		drawTrail(tr.origin, tr.dir, tr.len, 1.0f - ((float)(tr.expiry-now)-interpRatio)/TRAIL_LIFETIME);
 	}
-	reset3dTexScale();
 
 
 	// This used to go to 0 right as the camera hits the player's edge,
