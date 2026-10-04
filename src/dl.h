@@ -5,6 +5,7 @@ enum {
 	VAR_T_UNSET,
 	VAR_T_INT,
 	VAR_T_POS,
+	VAR_T_SIZ,
 	VAR_T_ROT,
 };
 struct dl_var {
@@ -21,6 +22,10 @@ struct dl_var {
 			char pinned;
 			quat rot;
 		} position;
+		struct {
+			offset dimens;
+			quat rot;
+		} size;
 		struct {
 			int32_t rotParams[3];
 			int angles[3];

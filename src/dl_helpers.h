@@ -8,6 +8,8 @@ extern int64_t var(char const *name);
 extern int64_t var(char const *name, int64_t val);
 extern int64_t const * pvar(char const *name);
 extern int64_t const * pvar(char const *name, offset const val);
+extern int64_t const * svar(char const *name);
+extern int64_t const * svar(char const *name, offset const val);
 extern int32_t const * rvar(char const *name);
 extern int32_t const * rvar(char const *name, int32_t const val[3]);
 extern void pinNext();

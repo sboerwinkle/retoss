@@ -44,6 +44,7 @@ struct buildCtx {
 	void resel();
 	void populate(solid *s);
 	void add(int32_t shape, int32_t tex, int64_t size);
+	void add(offset dimens, int32_t tex);
 	constelInst* add(constel *c, int32_t duration);
 	void addPt(constel *c, int32_t shape, int32_t tex, int64_t size);
 	void addPt(tskRailsInstructions *instr, int32_t time);

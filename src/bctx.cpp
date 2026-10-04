@@ -181,6 +181,10 @@ void buildCtx::add(int32_t shape, int32_t tex, int64_t size) {
 		if (shape > 1) dimens[0] /= 8;
 	}
 
+	add(dimens, tex);
+}
+
+void buildCtx::add(offset dimens, int32_t tex) {
 	solid *s = dumbSolid(gs, prevBox, dimens, tex);
 	populate(s);
 	prevBox = staticPosition(gs, s, prevBox);

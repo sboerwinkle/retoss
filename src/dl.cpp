@@ -433,6 +433,36 @@ int64_t const * pvar(char const *name, offset const val) {
 	return v->value.position.vec;
 }
 
+int64_t const * svar(char const *name) {
+	return svar(name, (int64_t const[]){1000,1000,1000});
+}
+
+int64_t const * svar(char const *name, offset const val) {
+	dl_var *v = findVarByName(name);
+
+	if (!v) return val;
+
+	if (!v->seen) {
+		v->seen = 1;
+		// Store the reverse of the current buildContext's rotation,
+		// which we use for translating edit gestures into this coordinate system.
+		// This one is a floating-point quaternion, since it's only used for edit input
+		// (so we don't require reproducible math)
+		v->value.position.rot[0] = (double)bctx.transf.rot[0] / FIXP;
+		v->value.position.rot[1] = (double)-bctx.transf.rot[1] / FIXP;
+		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
+		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
+
+		if (v->type == VAR_T_UNSET) { // New var
+			v->type = VAR_T_SIZ;
+			v->incr = 100;
+			memcpy(v->value.size.dimens, val, sizeof(offset));
+		}
+	}
+
+	return v->value.size.dimens;
+}
+
 int32_t const * rvar(char const *name) {
 	return rvar(name, (int32_t const[]){0,0,0});
 }

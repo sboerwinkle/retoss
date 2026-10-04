@@ -1,4 +1,4 @@
-- Benchmark separate `u_rot` uniform, vs transform and normalize normals
+. Benchmark separate `u_rot` uniform, vs transform and normalize normals
 . Gaps in player model corners
 . Colored grenades?
 	Not as originally intended, but it is done!

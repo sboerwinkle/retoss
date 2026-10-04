@@ -70,11 +70,13 @@ static timing renderTiming = {0}, renderTotalTiming = {0};
 static void updateTiming(timing *t, long nanos);
 static int getTeamShirt(char team);
 
+static list<strbuf> inputThreadCmds;
 static char mouseGrabbed = 0;
 static char mouseDragMode = 0;
 static int mouseDragSize = 60, mouseDragSteps = 0;
 static double mouseX = 0, mouseY = 0;
-static char ctrlPressed = 0, shiftPressed = 0;
+static double dragBaseX = 0, dragBaseY = 0;
+static char ctrlPressed = 0, shiftPressed = 0, altPressed = 0;
 enum { AIM_NONE, AIM_LOW, AIM_HIGH };
 static lookConfig look1, look2;
 static lookConfig* look = &look1;
@@ -90,9 +92,6 @@ static char renderStats = 0;
 
 char editMenuState = -1;
 static int editMouseAmt = 0, editMouseShiftAmt = 0;
-// TODO Really clumsy to have these `char`s that translate to commands;
-//      should just have a queue of commands we can move over while `mtx`-locked.
-static char doLookGp = 0, doDlCp = 0;
 // For now this is just for editing, will need to update it some if it becomes for other stuff too
 static int numberPressed = 0;
 
@@ -234,6 +233,7 @@ static void initConfigs() {
 
 void game_init() {
 	crosshairCandidates.init();
+	inputThreadCmds.init();
 
 	initGraphics();
 	task_init();
@@ -270,7 +270,7 @@ gamestate* game_init2() {
 		// which can result in weirdness if we wind up hanging waiting for a connection
 		// (as we won't serve the HTTP request).
 		// This way we just queue it to be processed once the game is "running".
-		strcpy(outboundTextQueue.add().items, "/ui");
+		strcpy(outboundCmds.add().items, "/ui");
 	}
 
 	return gs;
@@ -300,6 +300,7 @@ void game_destroy() {
 	task_destroy();
 	gfx_destroy();
 
+	inputThreadCmds.destroy();
 	crosshairCandidates.destroy();
 }
 
@@ -369,18 +370,23 @@ void handleKey(int key, int action) {
 			}
 		}
 	} else if (key == GLFW_KEY_C) {
-		if (ctrlPressed && action) doDlCp = 1;
-		else activeInputs.state.Z = action;
+		if (ctrlPressed && action) {
+			strcpy(inputThreadCmds.add().items, "/dl_cp");
+		} else {
+			activeInputs.state.Z = action;
+		}
 	} else if (key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) {
 		ctrlPressed = action;
 	} else if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) {
 		shiftPressed = action;
+	} else if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) {
+		altPressed = action;
 	} else if (action) {
 		if (key == GLFW_KEY_F3) {
 			renderStats ^= 1;
 		} else if (key == GLFW_KEY_F) {
 			if (ctrlPressed) {
-				doLookGp = 1;
+				strcpy(inputThreadCmds.add().items, "/lookAtGp");
 			}
 		} else if (key == GLFW_KEY_ESCAPE) {
 			mouseGrab(0);
@@ -433,16 +439,27 @@ static void handleLook(double dx, double dy) {
 static void handleDrag(double x, double y) {
 	if (mouseDragMode == 1) {
 		// Still need to pick a direction
-		if (fabs(x-mouseX) >= mouseDragSize) {
+		if (fabs(x-dragBaseX) >= mouseDragSize) {
 			mouseDragMode = 2;
-		} else if (fabs(y-mouseY) >= mouseDragSize) {
+		} else if (fabs(y-dragBaseY) >= mouseDragSize) {
 			mouseDragMode = 3;
 		} else {
 			return;
 		}
 	}
+	if (mouseDragMode & 4) {
+		if (!(mouseDragMode & 1) && fabs(x-dragBaseX) >= mouseDragSize) {
+			mouseDragMode |= 1;
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 0 %d", x > dragBaseX ? 1 : -1);
+		}
+		if (!(mouseDragMode & 2) && fabs(y-dragBaseY) >= mouseDragSize) {
+			mouseDragMode |= 2;
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 2 %d", y > dragBaseY ? -1 : 1);
+		}
+		return;
+	}
 	// We know which direction we're looking at (X or Y)
-	double *a = mouseDragMode == 2 ? &mouseX : &mouseY;
+	double *a = mouseDragMode == 2 ? &dragBaseX : &dragBaseY;
 	double b = mouseDragMode == 2 ? x : y;
 	int steps = (b-*a)/mouseDragSize;
 	*a += mouseDragSize * steps;
@@ -458,13 +475,30 @@ void cursor_position_callback(GLFWwindow *window, double x, double y) {
 			mouseDragMode = 0;
 		} else {
 			handleDrag(x, y);
-			return;
 		}
 	}
 	mouseX = x;
 	mouseY = y;
 }
 
+static char editClick(int button) {
+	if (button == 0) {
+		if (ctrlPressed) mouseDragMode = 1;
+		else if (altPressed) mouseDragMode = 4;
+		else return 0;
+		dragBaseX = mouseX;
+		dragBaseY = mouseY;
+	} else if (button == 1 && ctrlPressed) {
+		if (editMenuState) {
+			editMenuState = 0;
+		} else {
+			strcpy(outboundCmds.add().items, "/gp ");
+		}
+	} else {
+		return 0;
+	}
+	return 1;
+}
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
 	if (!mouseGrabbed && action == GLFW_PRESS) {
 		mouseGrab(1);
@@ -478,23 +512,11 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 			// Go into the deeper level.
 			editMenuState = 1;
 		}
-		// Stop dragging the mouse.
-		// -1 is a short-lived state that prevents the view jumping.
-		mouseDragMode = -1;
+		mouseDragMode = 0;
 		return;
 	}
-	if (ctrlPressed && editMenuState >= 0) {
-		if (!action) return;
-		if (button == 0) {
-			mouseDragMode = 1;
-		} else if (button == 1) {
-			if (editMenuState) {
-				editMenuState = 0;
-			} else {
-				strcpy(outboundTextQueue.add().items, "/gp ");
-			}
-		}
-		return;
+	if (editMenuState >= 0 && action) {
+		if (editClick(button)) return;
 	}
 
 	if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -505,6 +527,13 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 	}
 }
 void scroll_callback(GLFWwindow *window, double x, double y) {
+	if (altPressed && editMenuState >= 0) {
+		int amt = (int) y;
+		if (amt) {
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 1 %d", amt > 0 ? 1 : -1);
+		}
+		return;
+	}
 	if (ctrlPressed) {
 		if (shiftPressed) editMouseShiftAmt += y;
 		else editMouseAmt += y;
@@ -537,30 +566,26 @@ void copyInputs() {
 	copyEvent(&sharedInputs.event.shoot, &activeInputs.event.shoot);
 	copyEvent(&sharedInputs.event.interact, &activeInputs.event.interact);
 
+	outboundCmds.addAll(&inputThreadCmds);
+	inputThreadCmds.num = 0;
+
 	if (editMenuState >= 0) {
 		char const *cmd;
 		if (editMouseAmt) {
 			if (editMenuState == 0) cmd = "/dlVarSel";
 			else cmd = "/v@+ 1";
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
 		}
 		if (editMouseShiftAmt) {
 			cmd = "/dlVarInc";
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
 		}
 		if (numberPressed) {
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
-		}
-		if (doLookGp) {
-			strcpy(loopbackCommandBuffer, "/lookAtGp");
-		}
-		if (doDlCp) {
-			strcpy(outboundTextQueue.add().items, "/dl_cp");
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
 		}
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
 	numberPressed = 0;
-	doLookGp = doDlCp = 0;
 
 	if (mouseDragSteps) {
 		if (mouseDragMode > 1) {
@@ -571,7 +596,7 @@ void copyInputs() {
 				axis = 2;
 				mouseDragSteps *= -1;
 			}
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/v@+ %d %d", axis, mouseDragSteps);
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/v@+ %d %d", axis, mouseDragSteps);
 		}
 		mouseDragSteps = 0;
 	}
@@ -583,14 +608,14 @@ static void serializeEvent(char *event, char state, char *sentState, char const 
 	if (*event) {
 		*event = 0;
 		// Todo We know this is getting serialized out,
-		//      whereas `outboundTextQueue` is checked
+		//      whereas `outboundCmds` is checked
 		//      to see if it's a local command first.
 		//      Slight inefficiency.
-		strcpy(outboundTextQueue.add().items, cmdUp);
+		strcpy(outboundCmds.add().items, cmdUp);
 		*sentState = 1;
 	}
 	if (*sentState && !state) {
-		strcpy(outboundTextQueue.add().items, cmdDown);
+		strcpy(outboundCmds.add().items, cmdDown);
 		*sentState = 0;
 	}
 }
@@ -663,10 +688,10 @@ void serializeInputs(char * dest) {
 	if ((x = poll_game_flag.load(std::memory_order::acquire))) {
 		if (x == 1) {
 			// Candidate for DL loading
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/dl %s", poll_game_data);
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/dl %s", poll_game_data);
 		} else if (x == 2) {
 			// Command from HTTP server
-			snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "%s", poll_game_data);
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "%s", poll_game_data);
 		}
 		poll_game_flag.store(0, std::memory_order::release);
 	}
@@ -756,7 +781,7 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		http_spawnClient();
 		return 1;
 	}
-	if (isCmd(buf, "/dl") || isCmd(buf, "/selall")) {
+	if (isCmd(buf, "/dl") || isCmd(buf, "/selall") || isCmd(buf, "/lookAtGp")) {
 		strcpy(loopbackCommandBuffer, buf);
 		return 1;
 	}
@@ -1142,7 +1167,7 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 
 void prefsToCmds() {
 	if (cfg_name.present) {
-		snprintf(outboundTextQueue.add().items, TEXT_BUF_LEN, "/name %s", cfg_name.get());
+		snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/name %s", cfg_name.get());
 	}
 }
 

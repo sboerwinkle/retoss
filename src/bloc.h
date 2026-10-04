@@ -4,23 +4,12 @@
 #include <string.h>
 #include <stdio.h>
 
-/**
- * Just a thin wrapper around a pointer. Serves as an adapter for things that
- * expect to be able to `init`/`destroy` items (e.g. `queue`s).
- */
+// Originally this was built to accomodate `queue`, which expects to be able to
+// init/destroy things.
+// But then we no longer needed that, so it got reworked to just be an array (basically).
+// I think this is actually necessary (see `offset_t` in matrix.h),
+// but the full truth is I'm too lazy to figure out if it's necessary.
 template <typename T, size_t S> class bloc {
 public:
-	T *items;
-	void init();
-	void destroy();
+	T items[S];
 };
-
-template <typename T, size_t S>
-void bloc<T, S>::init() {
-	items = (T*)malloc(S);
-}
-
-template <typename T, size_t S>
-void bloc<T, S>::destroy() {
-	free(items);
-}

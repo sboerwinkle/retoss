@@ -83,7 +83,7 @@ empty_gp_re = re.compile(r'//#gp\b( [^ \n]*)?')
 # This matches calls to the `var`/`pvar`/`rvar` functions,
 # assuming you don't nest `()` more than one layer deep inside.
 # If you need more, I'll have to start basically parsing C source for real lol
-var_re = re.compile(r'\b([pr]?var\("([^"]*)")([^()]|\([^()]*\))*\)')
+var_re = re.compile(r'\b([psr]?var\("([^"]*)")([^()]|\([^()]*\))*\)')
 
 def get_gp(line):
     m = gp_re.search(line)

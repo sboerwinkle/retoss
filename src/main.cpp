@@ -42,7 +42,7 @@ int myPlayer;
 // engine. Probably all games need it.
 int main_typingLen = -1;
 char main_textBuffer[TEXT_BUF_LEN];
-queue<strbuf> outboundTextQueue;
+list<strbuf> outboundCmds;
 char loopbackCommandBuffer[TEXT_BUF_LEN];
 static char textSendInd = 0;
 
@@ -161,8 +161,8 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 		syncData.num = 0;
 		numCmds++;
 	}
-	while (outboundTextQueue.size()) {
-		char *const text = outboundTextQueue.pop().items;
+	range(outCmdIx, outboundCmds.num) {
+		char *const text = outboundCmds[outCmdIx].items;
 
 		// Could also modify this to accept `&out` and
 		// have an add'l valid return code, in case it
@@ -221,6 +221,7 @@ static void serializeControls(int32_t frame, list<char> *_out) {
 			numCmds++;
 		}
 	}
+	outboundCmds.num = 0;
 
 	out[firstBlock - 1] = numCmds;
 }
@@ -260,7 +261,7 @@ void shareInputs() {
 	copyInputs();
 	if (textSendInd) {
 		textSendInd = 0;
-		strcpy(outboundTextQueue.add().items, main_textBuffer);
+		strcpy(outboundCmds.add().items, main_textBuffer);
 	}
 
 	mtx_unlock(sharedInputsMutex);
@@ -876,7 +877,7 @@ int main(int argc, char **argv) {
 	glfwMakeContextCurrent(NULL); // Give up control so other thread can take it
 	printf(QUIET_LINE("GL + custom setup complete."));
 
-	outboundTextQueue.init();
+	outboundCmds.init();
 	outboundData.init();
 	syncData.init();
 	file_init();
@@ -959,7 +960,7 @@ int main(int argc, char **argv) {
 	// Setup text buffers.
 	// We make it so the player automatically sends the "syncme" command on their first frame
 	main_textBuffer[TEXT_BUF_LEN-1] = '\0';
-	strcpy(outboundTextQueue.add().items, "/syncme");
+	strcpy(outboundCmds.add().items, "/syncme");
 	if (isLoader) ensurePrefsSent();
 
 	chatBuffer[0] = chatBuffer[TEXT_BUF_LEN-1] = '\0';
@@ -1039,7 +1040,7 @@ int main(int argc, char **argv) {
 	file_destroy();
 	syncData.destroy();
 	outboundData.destroy();
-	outboundTextQueue.destroy();
+	outboundCmds.destroy();
 	game_destroy(); // Mirror to game_init
 	// TODO: Double-check no leaks
 	msgs_exchange->destroy();

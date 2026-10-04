@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "bloc.h"
-#include "queue.h"
+#include "list.h"
 
 // This should be 666.. repeating,
 // but we want to step a little slower.
@@ -20,7 +20,7 @@ typedef bloc<char, TEXT_BUF_LEN> strbuf;
 
 extern int main_typingLen;
 extern char main_textBuffer[TEXT_BUF_LEN];
-extern queue<strbuf> outboundTextQueue;
+extern list<strbuf> outboundCmds;
 extern char loopbackCommandBuffer[TEXT_BUF_LEN];
 
 // We don't define this, but we claim that it exists!
