@@ -708,8 +708,8 @@ void drawCube(mover *m, offset const dimens, int tex, int mode, float alpha) {
 	glUniform1f(u_main_transparency, alpha);
 
 	if (!mode) {
-		glUniform3f(u_main_skin_size, dimens[0]/2'000.0, dimens[1]/2'000.0, dimens[2]/2'000.0);
-		glUniform1f(u_main_mottle_scale, 1);
+		glUniform3f(u_main_skin_size, 1, (float)dimens[1]/dimens[0], (float)dimens[2]/dimens[0]);
+		glUniform1f(u_main_mottle_scale, dimens[0]/2'000.0);
 	} else {
 		glUniform3f(u_main_skin_size, 1, 1, 1);
 		// The six-faced cube skin gets 42 pixels (out of 128) per side,
