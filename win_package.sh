@@ -7,6 +7,6 @@ cd "$(dirname "$0")"
 
 rm retoss_windows.zip
 cd ..
-zip -r retoss/retoss_windows.zip retoss/assets retoss/shaders retoss/game.exe -x '*.xcf' '*.aup3' 'assets/old/' '*_orig.mp3'
+zip -r retoss/retoss_windows.zip retoss/assets retoss/shaders retoss/game.exe retoss/README.md retoss/server -x '*.xcf' '*.aup3' 'assets/old/' '*_orig.mp3'
 cd retoss/win_bins/
 zip -r ../retoss_windows.zip retoss/

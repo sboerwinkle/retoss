@@ -1,5 +1,7 @@
 A terrible crash course in making a Team Deathmatch level
 
+I cannot overstate that this is a work in progress - you should consider it frustrating, incomplete, unpolished, and possibly inaccurate. Basically, you don't get to complain when it's bad. Also, these instructions assume Linux.
+
 
 Chapter 1: Load up the example level
 ------------------------------------
