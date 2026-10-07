@@ -20,6 +20,8 @@ typedef int32_t imat[9];
 typedef int64_t offset[3];
 // Sometimes you need a non-array type
 struct offset_t { offset o; };
+// This is currently only used once, but whatever.
+struct floatvec_t { float items[3]; };
 
 struct fraction {
 	int64_t numer;

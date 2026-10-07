@@ -161,7 +161,7 @@ extern void solidValidate(solid *s);
 
 extern void solidPutVb(solid *s, box *guess, int duration);
 extern void cpSolid(solid *t, solid *s);
-extern solid* dumbSolid(gamestate *gs, box *b, offset dimens, int32_t tex);
+extern solid* dumbSolid(gamestate *gs, box *b, offset const dimens, int32_t tex);
 extern box* staticPosition(gamestate *gs, solid *s, box *b);
 extern void rmSolid(gamestate *gs, solid *s);
 

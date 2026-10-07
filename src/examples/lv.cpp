@@ -28,7 +28,7 @@ extern "C" void lv_example(gamestate *gs) {
 	gp("0");
 	bctx.pos(pvar("pos", (offset const){0, 0, -2000}));
 	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
-	bctx.add(var("shape", 0), var("tex", 4), var("scale", 1000));
+	bctx.add(svar("size", (offset const){2000, 2000, 2000}), var("tex", 4));
 	bctx.peek();
 
 	//#add_here
@@ -36,8 +36,8 @@ extern "C" void lv_example(gamestate *gs) {
 	/*#1
 	//#gp
 	bctx.pos(pvar("pos", look(3000)));
-	bctx.rot(rvar("rot"));
-	bctx.add(var("shape"), var("tex", 4), var("scale", 1000));
+	bctx.rot(rvar("rot", (int32_t const[]){0, 0, 0}));
+	bctx.add(svar("size"), var("tex", 4));
 	bctx.peek();
 
 	*/

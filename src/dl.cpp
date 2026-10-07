@@ -448,19 +448,20 @@ int64_t const * svar(char const *name, offset const val) {
 		// which we use for translating edit gestures into this coordinate system.
 		// This one is a floating-point quaternion, since it's only used for edit input
 		// (so we don't require reproducible math)
-		v->value.position.rot[0] = (double)bctx.transf.rot[0] / FIXP;
-		v->value.position.rot[1] = (double)-bctx.transf.rot[1] / FIXP;
-		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
-		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
+		v->value.size.rot[0] = (double)bctx.transf.rot[0] / FIXP;
+		v->value.size.rot[1] = (double)-bctx.transf.rot[1] / FIXP;
+		v->value.size.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
+		v->value.size.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
 
 		if (v->type == VAR_T_UNSET) { // New var
 			v->type = VAR_T_SIZ;
 			v->incr = 100;
-			memcpy(v->value.size.dimens, val, sizeof(offset));
+			memcpy(v->value.size.size, val, sizeof(offset));
+			range(i, 3) v->value.size.corner[i] = 0;
 		}
 	}
 
-	return v->value.size.dimens;
+	return v->value.size.size;
 }
 
 int32_t const * rvar(char const *name) {
@@ -561,6 +562,14 @@ void dl_bake() {
 					v.value.position.vec[0],
 					v.value.position.vec[1],
 					v.value.position.vec[2]
+				);
+			} else if (v.type == VAR_T_SIZ) {
+				fprintf(
+					editEventsFifo, "%s (offset const){%ld, %ld, %ld}\n",
+					v.name,
+					v.value.size.size[0],
+					v.value.size.size[1],
+					v.value.size.size[2]
 				);
 			} else if (v.type == VAR_T_ROT) {
 				fprintf(

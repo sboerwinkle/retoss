@@ -151,7 +151,7 @@ void cpSolid(solid *t, solid *s) {
 	t->m.b->data = &t->m;
 }
 
-solid* dumbSolid(gamestate *gs, box *b, offset dimens, int32_t tex) {
+solid* dumbSolid(gamestate *gs, box *b, offset const dimens, int32_t tex) {
 	solid *s = new solid();
 	gs->dumbSolids.add(s);
 	s->m.type = 0;

@@ -23,7 +23,8 @@ struct dl_var {
 			quat rot;
 		} position;
 		struct {
-			offset dimens;
+			offset size;
+			char corner[3];
 			quat rot;
 		} size;
 		struct {

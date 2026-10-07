@@ -74,6 +74,7 @@ static list<strbuf> inputThreadCmds;
 static char mouseGrabbed = 0;
 static char mouseDragMode = 0;
 static int mouseDragSize = 60, mouseDragSteps = 0;
+static int altDragStepsX = 0, altDragStepsY = 0;
 static double mouseX = 0, mouseY = 0;
 static double dragBaseX = 0, dragBaseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0, altPressed = 0;
@@ -436,6 +437,12 @@ static void handleLook(double dx, double dy) {
 	memcpy(quatCamRotation, o, sizeof(quat));
 }
 
+static void doDragAxis(double *base, double current, int *steps) {
+	int delta = (current-*base)/mouseDragSize;
+	*base += mouseDragSize * delta;
+	*steps += delta;
+}
+
 static void handleDrag(double x, double y) {
 	if (mouseDragMode == 1) {
 		// Still need to pick a direction
@@ -447,23 +454,14 @@ static void handleDrag(double x, double y) {
 			return;
 		}
 	}
-	if (mouseDragMode & 4) {
-		if (!(mouseDragMode & 1) && fabs(x-dragBaseX) >= mouseDragSize) {
-			mouseDragMode |= 1;
-			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 0 %d", x > dragBaseX ? 1 : -1);
-		}
-		if (!(mouseDragMode & 2) && fabs(y-dragBaseY) >= mouseDragSize) {
-			mouseDragMode |= 2;
-			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 2 %d", y > dragBaseY ? -1 : 1);
-		}
-		return;
+	if (mouseDragMode == 2) {
+		doDragAxis(&dragBaseX, x, &mouseDragSteps);
+	} else if (mouseDragMode == 3) {
+		doDragAxis(&dragBaseY, y, &mouseDragSteps);
+	} else if (mouseDragMode == 4) {
+		doDragAxis(&dragBaseX, x, &altDragStepsX);
+		doDragAxis(&dragBaseY, y, &altDragStepsY);
 	}
-	// We know which direction we're looking at (X or Y)
-	double *a = mouseDragMode == 2 ? &dragBaseX : &dragBaseY;
-	double b = mouseDragMode == 2 ? x : y;
-	int steps = (b-*a)/mouseDragSize;
-	*a += mouseDragSize * steps;
-	mouseDragSteps += steps;
 }
 
 void cursor_position_callback(GLFWwindow *window, double x, double y) {
@@ -530,7 +528,7 @@ void scroll_callback(GLFWwindow *window, double x, double y) {
 	if (altPressed && editMenuState >= 0) {
 		int amt = (int) y;
 		if (amt) {
-			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 1 %d", amt > 0 ? 1 : -1);
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 1 %d", amt);
 		}
 		return;
 	}
@@ -583,6 +581,15 @@ void copyInputs() {
 		if (numberPressed) {
 			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
 		}
+
+		if (altDragStepsX) {
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 0 %d", altDragStepsX);
+		}
+		if (altDragStepsY) {
+			snprintf(inputThreadCmds.add().items, TEXT_BUF_LEN, "/alt 2 %d", -altDragStepsY);
+		}
+		// Todo: Need to standardize if I clear these out inside vs outside the block.
+		altDragStepsX = altDragStepsY = 0;
 	}
 	editMouseAmt = editMouseShiftAmt = 0;
 	numberPressed = 0;
@@ -745,9 +752,33 @@ static void redoSkin(player *p) {
 	skin->decr();
 }
 
-static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
+static char getAxisAndAmt(char const *pos, int *axis, int *amt) {
+	if (!getNum(&pos, axis) || !getNum(&pos, amt)) {
+		puts("/v@+ requires 2 (numeric) args!");
+		return 1;
+	}
+	if (!(*axis >= 0 && *axis < 3)) {
+		puts("/v@+ invalid axis");
+		return 1;
+	}
+	return 0;
+}
+
+static void camToVar(int axis, dl_var *v, int *out_axis, int *out_sign) {
+	float *varQuat;
+	if (v->type == VAR_T_POS) {
+		varQuat = v->value.position.rot;
+	} else if (v->type == VAR_T_SIZ) {
+		varQuat = v->value.size.rot;
+	} else {
+		printf("Bad variable type %d for `camToVar`", v->type);
+		*out_axis = 0;
+		*out_sign = 1;
+		return;
+	}
+
 	quat composedRotation;
-	quat_mult(composedRotation, quatCamRotation, v->value.position.rot);
+	quat_mult(composedRotation, quatCamRotation, varQuat);
 	float cameraSpace[3] = {0,0,0};
 	cameraSpace[axis] = 1;
 	float variableSpace[3];
@@ -767,6 +798,7 @@ static void camToPvar(int axis, dl_var *v, int *out_axis, int *out_sign) {
 	*out_sign = bestSign;
 }
 
+// TODO get rid of pinning, I think
 static int64_t* pvarUpdatePtr(dl_var *v) {
 	if (v->value.position.pinned) {
 		return v->value.position.transfDest;
@@ -796,16 +828,9 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		return 1;
 	}
 	if (isCmd(buf, "/v@+")) {
-		char const *pos = buf + 4;
 		int axis, amt;
-		if (!getNum(&pos, &axis) || !getNum(&pos, &amt)) {
-			puts("/v@+ requires 2 (numeric) args!");
-			return 1;
-		}
-		if (!(axis >= 0 && axis < 3)) {
-			puts("/v@+ invalid axis");
-			return 1;
-		}
+		if (getAxisAndAmt(buf+4, &axis, &amt)) return 1;
+
 		dl_selectedGroup->touched = 1;
 		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
 		v.touched = 1;
@@ -813,8 +838,34 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 			v.value.integer += amt * v.incr;
 		} else if (v.type == VAR_T_POS) {
 			int bestAxis, bestSign;
-			camToPvar(axis, &v, &bestAxis, &bestSign);
+			camToVar(axis, &v, &bestAxis, &bestSign);
 			pvarUpdatePtr(&v)[bestAxis] += bestSign * v.incr * amt;
+		} else if (v.type == VAR_T_SIZ) {
+			int bestAxis, bestSign;
+			camToVar(axis, &v, &bestAxis, &bestSign);
+			char corn = v.value.size.corner[bestAxis];
+			if (!corn) bestSign = 1;
+			else if (corn == -1) bestSign *= -1;
+			amt *= bestSign * v.incr;
+			v.value.size.size[bestAxis] += amt;
+			if (corn) {
+				for (int pvarIx = dl_selectedVar-1; pvarIx >= 0; pvarIx--) {
+					dl_var &posVar = dl_selectedGroup->vars[pvarIx];
+					if (posVar.type == VAR_T_POS) {
+						posVar.touched = 1;
+						float output[3], input[3] = {0,0,0};
+						input[bestAxis] = corn*amt/2;
+						quat q1, q2;
+						range(i, 4) q1[i] = v.value.size.rot[i];
+						range(i, 3) q1[i+1] *= -1;
+						quat_mult(q2, q1, posVar.value.position.rot);
+						quat_apply(output, q2, input);
+						int64_t *p = pvarUpdatePtr(&posVar);
+						range(i, 3) p[i] += lroundf(output[i]);
+						break;
+					}
+				}
+			}
 		} else if (v.type == VAR_T_ROT) {
 			// Input system maps up-down as Z (axis 2) and scroll as Y (axis 1),
 			// but we want these two flipped for rotation inputs
@@ -832,6 +883,25 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 		strcpy(loopbackCommandBuffer, "/dlUpd");
 		return 1;
 	}
+	if (isCmd(buf, "/alt")) {
+		int axis, amt;
+		if (getAxisAndAmt(buf+4, &axis, &amt)) return 1;
+
+		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
+		if (v.type == VAR_T_SIZ) {
+			int bestAxis, bestSign;
+			camToVar(axis, &v, &bestAxis, &bestSign);
+			char &x = v.value.size.corner[bestAxis];
+			x += bestSign * amt;
+			if (x < -1) x = -1;
+			else if (x > 1) x = 1;
+		}
+		// No need for a dlUpd in this case.
+		// Actually, I could move the selected corner
+		// to be global state (not tied to a var),
+		// but we'll leave that for later
+		return 1;
+	}
 	if (isCmd(buf, "/rd")) {
 		dl_selectedGroup->touched = 1;
 		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
@@ -840,9 +910,14 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 			v.value.integer = v.value.integer / v.incr * v.incr;
 		} else if (v.type == VAR_T_POS) {
 			int bestAxis, dummy;
-			camToPvar(1, &v, &bestAxis, &dummy);
+			camToVar(1, &v, &bestAxis, &dummy);
 			int64_t &x = pvarUpdatePtr(&v)[bestAxis];
 			x = x/v.incr*v.incr;
+		} else if (v.type == VAR_T_SIZ) {
+			puts("/rd not implemented for sizes yet");
+			// Basically the same as `VAR_T_POS`,
+			// but we'd want to adjust the center based on the
+			// change the rounding produced and that's a headache.
 		} else if (v.type == VAR_T_ROT) {
 			range(i, 3) {
 				int32_t &x = v.value.rotation.angles[i];
@@ -868,6 +943,12 @@ char handleLocalCommand(char * buf, list<char> * outData) {
 					if (x == -1 && v.incr > 15) v.incr = 15;
 					else v.incr = 1;
 				}
+			} else if (v.type == VAR_T_SIZ) {
+				if (v.incr == 2) v.incr = 1;
+				range(i, x) v.incr *= 10;
+				range(i, -x) v.incr /= 10;
+				if (!v.incr) v.incr = 2;
+				v.incr += (v.incr & 1);
 			} else {
 				while (x > 0) {
 					x--;
@@ -1369,6 +1450,10 @@ static void drawSolid(solid *s) {
 	drawCube(&s->m, s->dimens, s->tex & 31, 0, 1.0f);
 }
 
+static char orientLe(floatvec_t const &a, floatvec_t const &b) {
+	return a.items[1] >= b.items[1];
+}
+
 // The supplied gamestate is not being changed by anyone else (owned by the graphics thread),
 // but the game thread *can* be cloning it (`dup`) if there's no newer server data yet.
 // Graphics thread must bear this in mind if it wants to do any writes to data in `gs`.
@@ -1493,6 +1578,14 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 						v.value.position.vec[1],
 						v.value.position.vec[2]
 					);
+				} else if (v.type == VAR_T_SIZ) {
+					snprintf(
+						msg, 20, "%s: %ld, %ld, %ld",
+						v.name,
+						v.value.size.size[0],
+						v.value.size.size[1],
+						v.value.size.size[2]
+					);
 				} else if (v.type == VAR_T_ROT) {
 					snprintf(
 						msg, 20, "%s: %d, %d, %d",
@@ -1520,6 +1613,14 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 					);
 					drawText(msg, 7, 36 + 7*i);
 				}
+			} else if (v.type == VAR_T_SIZ) {
+				range(i, 3) {
+					snprintf(
+						msg, 20, "%ld",
+						v.value.size.size[i]
+					);
+					drawText(msg, 7, 36 + 7*i);
+				}
 			} else if (v.type == VAR_T_ROT) {
 				range(i, 3) {
 					snprintf(
@@ -1535,6 +1636,32 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 			char const *gpName = dl_selectedGroup->name;
 			int len = strlen(gpName);
 			drawText(gpName, displayAreaBounds[0]*2-5*len, 1);
+		}
+
+		// Draw orientation indicator
+		dl_var &v = dl_selectedGroup->vars[dl_selectedVar];
+		if (v.type == VAR_T_SIZ) {
+			quat objToCam;
+			quat_mult(objToCam, quatCamRotation, v.value.size.rot);
+			range(i, 3) objToCam[i+1] *= -1;
+			floatvec_t items[4];
+			list<floatvec_t> l = {.items=items,.num=1,.max=4};
+			range(i, 3) l[0].items[i] = 0;
+			range(corn, 3) {
+				if (v.value.size.corner[corn]) {
+					float input[3] = {0,0,0};
+					input[corn] = v.value.size.corner[corn];
+					quat_apply(l.add().items, objToCam, input);
+				}
+			}
+			l.qsort(&orientLe);
+			rangeconst(i, l.num) {
+				float *vec = l[i].items;
+				sprite2d(6, 7, 7, 7,
+					displayAreaBounds[0]-14+7*vec[0],
+					displayAreaBounds[1]-14-7*vec[2]
+				);
+			}
 		}
 
 		mtx_unlock(dl_varMtx);
