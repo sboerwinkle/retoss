@@ -35,6 +35,10 @@ void taskKillPlane_create(gamestate *gs, int64_t altitude) {
 	*data = altitude;
 }
 
+int64_t taskKillPlane_height(taskInstance *ti) {
+	return *(int64_t*)ti->data;
+}
+
 void defineTask_killPlane(taskDefn *d) {
 	d->step = &step;
 	d->trans = &trans;

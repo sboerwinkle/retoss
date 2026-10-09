@@ -346,6 +346,20 @@ void** singletonTaskEnd(gamestate *gs, int taskId) {
 	return &p->data;
 }
 
+taskInstance* findTaskStart(gamestate *gs, int taskId) {
+	for (taskInstance *p = gs->tasks.next; ; p = p->next) {
+		if (p == &gs->tasks || p->defn->id > taskId) return NULL;
+		if (p->defn->id == taskId) return p;
+	}
+}
+
+taskInstance* findTaskEnd(gamestate *gs, int taskId) {
+	for (taskInstance *p = gs->tasks.prev; ; p = p->prev) {
+		if (p == &gs->tasks || p->defn->id < taskId) return NULL;
+		if (p->defn->id == taskId) return p;
+	}
+}
+
 void runTick(gamestate *gs) {
 
 	gs->clock++;

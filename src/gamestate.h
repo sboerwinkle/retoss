@@ -172,6 +172,8 @@ extern void deleteConstelInst(constelInst *ci);
 extern void addTaskStart(gamestate *gs, int taskId, void *data);
 extern void addTaskEnd(gamestate *gs, int taskId, void *data);
 extern void** singletonTaskEnd(gamestate *gs, int taskId);
+extern taskInstance* findTaskStart(gamestate *gs, int taskId);
+extern taskInstance* findTaskEnd(gamestate *gs, int taskId);
 
 extern void runTick(gamestate *gs);
 

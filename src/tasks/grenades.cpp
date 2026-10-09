@@ -12,6 +12,7 @@
 #include "../task.h"
 
 #include "blast.h"
+#include "killPlane.h"
 
 #include "grenades.h"
 
@@ -77,6 +78,22 @@ static char step(gamestate *gs, void *_data) {
 	list<taskGrenadeExplosion> booms;
 	booms.init();
 
+	taskInstance *killPlaneTask = findTaskStart(gs, TSK_KILL_PLANE);
+	if (killPlaneTask) {
+		int64_t z = taskKillPlane_height(killPlaneTask);
+		range(i, l.num) {
+			if (l[i].pos[2] - z < 0) {
+				velbox_reclaimDead(l[i].b);
+				l.quickRmAt(i);
+				if (i < l.num) {
+					// Grenade moved memory locations
+					l[i].b->data = &l[i];
+				}
+				i--;
+			}
+		}
+	}
+
 	list<mover*> toCheck;
 	toCheck.init();
 	range(i, l.num) {
@@ -126,8 +143,6 @@ static char physLe(mover* const &a, mover* const &b) {
 
 static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCheck) {
 	list<mover*> &toCheck = *_toCheck;
-	// TODO: Need smoke like rockets have at explosion.
-	//       Ideally I'd like to avoid them hanging on for an extra frame, though, if possible.
 
 	memcpy(nade->oldPos, nade->pos, sizeof(offset));
 	nade->vel[2] -= gs_gravity;
