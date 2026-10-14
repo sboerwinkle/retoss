@@ -92,7 +92,7 @@ static list<mover*> crosshairCandidates;
 static char renderStats = 0;
 
 char editMenuState = -1;
-static int editMouseAmt = 0, editMouseShiftAmt = 0;
+static int scrollAmt = 0, ctrlScrollAmt = 0, ctrlShiftScrollAmt = 0;
 // For now this is just for editing, will need to update it some if it becomes for other stuff too
 static int numberPressed = 0;
 
@@ -533,8 +533,10 @@ void scroll_callback(GLFWwindow *window, double x, double y) {
 		return;
 	}
 	if (ctrlPressed) {
-		if (shiftPressed) editMouseShiftAmt += y;
-		else editMouseAmt += y;
+		if (shiftPressed) ctrlShiftScrollAmt += y;
+		else ctrlScrollAmt += y;
+	} else {
+		scrollAmt += y;
 	}
 }
 void window_focus_callback(GLFWwindow *window, int focused) {
@@ -568,15 +570,14 @@ void copyInputs() {
 	inputThreadCmds.num = 0;
 
 	if (editMenuState >= 0) {
-		char const *cmd;
-		if (editMouseAmt) {
-			if (editMenuState == 0) cmd = "/dlVarSel";
-			else cmd = "/v@+ 1";
-			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseAmt);
+		if (scrollAmt) {
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/dlVarSel %d", scrollAmt);
 		}
-		if (editMouseShiftAmt) {
-			cmd = "/dlVarInc";
-			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "%s %d", cmd, editMouseShiftAmt);
+		if (ctrlScrollAmt) {
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/v@+ 1 %d", ctrlScrollAmt);
+		}
+		if (ctrlShiftScrollAmt) {
+			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/dlVarInc %d", ctrlShiftScrollAmt);
 		}
 		if (numberPressed) {
 			snprintf(outboundCmds.add().items, TEXT_BUF_LEN, "/hotbar %d", numberPressed);
@@ -591,7 +592,7 @@ void copyInputs() {
 		// Todo: Need to standardize if I clear these out inside vs outside the block.
 		altDragStepsX = altDragStepsY = 0;
 	}
-	editMouseAmt = editMouseShiftAmt = 0;
+	scrollAmt = ctrlScrollAmt = ctrlShiftScrollAmt = 0;
 	numberPressed = 0;
 
 	if (mouseDragSteps) {
@@ -1231,6 +1232,10 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 	} else if (isCmd(str, "/lv_peaks")) {
 		if (isReal) {
 			lv_peaks(gs);
+		}
+	} else if (isCmd(str, "/lv_bldgs")) {
+		if (isReal) {
+			lv_bldgs(gs);
 		}
 	} else if (isCmd(str, "/die")) {
 		killPlayer(p);

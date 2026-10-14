@@ -408,6 +408,7 @@ void runTick(gamestate *gs) {
 }
 
 void prepareGamestateForLoad(gamestate *gs, char strictness) {
+	uint32_t seed = gs->seed;
 	// Shallow copy of player data.
 	// We don't need all of it, but it's okay to be slow here.
 	list<player> tmp;
@@ -436,6 +437,7 @@ void prepareGamestateForLoad(gamestate *gs, char strictness) {
 			if (strictness < 0) {
 				memcpy(gs->players[i].m.pos, tmp[i].m.pos, sizeof(offset));
 				memcpy(gs->players[i].vel, tmp[i].vel, sizeof(offset));
+				gs->players[i].alive = tmp[i].alive;
 			}
 		}
 	}
@@ -443,6 +445,7 @@ void prepareGamestateForLoad(gamestate *gs, char strictness) {
 		if (tmp[i].skin) tmp[i].skin->decr();
 	}
 	tmp.destroy();
+	gs->seed = seed;
 }
 
 static void playerDupCleanup(player *p) {

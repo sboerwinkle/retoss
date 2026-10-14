@@ -206,21 +206,22 @@ constelInst* buildCtx::add(constel *c, int32_t duration) {
 	memcpy(ci->m.oldRot, transf.rot, sizeof(iquat));
 	memcpy(ci->m.rot, transf.rot, sizeof(iquat));
 	addConstelInst(gs, ci);
+
+	if (solidCallback) {
+		rangeconst(i, ci->solids.num) {
+			(*solidCallback)(&ci->solids[i]);
+		}
+	}
 	return ci;
 }
 
-void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
+void buildCtx::addPt(constel *c, offset const size, int32_t tex) {
 	finalizeTranslate();
 	constelPt &pt = c->points.add();
 	memcpy(pt.o, transf.pos, sizeof(offset));
 	memcpy(pt.rot, transf.rot, sizeof(iquat));
 
-	size = size*transf.scale/1000;
-	pt.dimens[0] = pt.dimens[1] = pt.dimens[2] = size;
-	if (shape > 0) {
-		pt.dimens[2] /= 8;
-		if (shape > 1) pt.dimens[0] /= 8;
-	}
+	range(i, 3) pt.dimens[i] = size[i]/2;
 	pt.tex = tex;
 
 	// Usually validation is in whatever method adds the thing to the gamestate,
@@ -228,8 +229,31 @@ void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
 	validate(&pt);
 }
 
+void buildCtx::addPt(constel *c, int32_t shape, int32_t tex, int64_t size) {
+	size = size*transf.scale/1000 * 2;
+	offset sizes;
+	sizes[0] = sizes[1] = sizes[2] = size;
+	if (shape > 0) {
+		sizes[2] /= 8;
+		if (shape > 1) sizes[0] /= 8;
+	}
+
+	addPt(c, sizes, tex);
+}
+
+void buildCtx::addPt(tskRailsData *data, int32_t time) {
+	addPt(data->instr, time);
+}
+
 void buildCtx::addPt(tskRailsInstructions *instr, int32_t time) {
 	finalizeTranslate();
+	if (time < 0) {
+		// Task is pretty flexible, but I'm not sure it handles negatives lol
+		// TODO: Make sure it's safe enough, since malicious `/load`s could have
+		// negatives.
+		puts("Time must be non-negative");
+		time = 0;
+	}
 	tskRailsPt &pt = instr->pts.add();
 	memcpy(pt.pos, transf.pos, sizeof(offset));
 	memcpy(pt.rot, transf.rot, sizeof(iquat));

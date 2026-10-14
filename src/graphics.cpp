@@ -39,7 +39,7 @@ static list<dyntex_texture> dyntexs;
 char const * const texSrcFiles[NUM_TEXS] = {
 	NULL,
 	"font.png",
-	NULL,
+	"black.png",
 	"guy.3.png",
 	"stop.png",
 	"wall.png",

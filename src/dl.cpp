@@ -49,6 +49,7 @@ static offset lookAtGp_origin;
 static unitvec lookAtGp_dir;
 
 static char _pinNext = 0;
+static char _pinOn = 0;
 static int varIgnore = 0;
 
 // Most of the functions here will be called only from the game thread,
@@ -105,6 +106,7 @@ static void processUpd(gamestate *gs, int myPlayer, char isFirstLoad) {
 	int selectedGroupIndex = dl_selectedGroup - varGroups.items;
 	int origNumGroups = varGroups.num;
 	_pinNext = 0;
+	_pinOn = 0;
 	if (varIgnore) {
 		printf("WARN: varIgnore should be 0, is %d\n", varIgnore);
 		varIgnore = 0;
@@ -312,6 +314,13 @@ void pinNext() {
 	if (varIgnore) puts("WARN: Why is pinNext called inside pushVarIgnore/popVarIgnore scope?");
 	_pinNext = 1;
 }
+void pinOn() {
+	if (varIgnore) puts("WARN: Why is pinOn called inside pushVarIgnore/popVarIgnore scope?");
+	_pinOn = 1;
+}
+void pinOff() {
+	_pinOn = 0;
+}
 
 void pushVarIgnore() { varIgnore++; }
 void popVarIgnore() {
@@ -401,7 +410,7 @@ int64_t const * pvar(char const *name, offset const val) {
 		v->value.position.rot[2] = (double)-bctx.transf.rot[2] / FIXP;
 		v->value.position.rot[3] = (double)-bctx.transf.rot[3] / FIXP;
 
-		v->value.position.pinned = _pinNext;
+		v->value.position.pinned = _pinNext || _pinOn;
 
 		if (v->type == VAR_T_UNSET) { // New var
 			v->type = VAR_T_POS;
@@ -595,6 +604,7 @@ void dl_hotbar(char const *name) {
 
 void dl_edit_save(char const *path) {
 	if (!editEventsFifo) return;
+	printf("/edit_save: %s\n", path);
 	fprintf(editEventsFifo, "/edit_save %s\n", path);
 	fflush(editEventsFifo);
 }

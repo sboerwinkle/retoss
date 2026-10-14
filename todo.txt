@@ -1,3 +1,12 @@
+. /edit_save confirmation log
+. Variable selection shouldn't conflict with Y-axis input
+- Editor rotation improvments
+	- trackball rotation input mode
+	- Rotation indicators (which way is fwd?)
+		Can fix this with showing axis flower for rotation vars as well
+	- Improve axis flower
+		https://github.com/fstl-app/fstl/blob/master/src/axis.cpp
+- Audit safety of negative durations in Rails task
 - UI-based server joining, server passwords
 . Benchmark separate `u_rot` uniform, vs transform and normalize normals
 . Gaps in player model corners

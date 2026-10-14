@@ -5,6 +5,7 @@
 // buildCtx can add points to these,
 // so the type at least needs to be declared here.
 struct tskRailsInstructions;
+struct tskRailsData;
 
 typedef void (*solidConsumer)(solid*);
 
@@ -47,7 +48,11 @@ struct buildCtx {
 	void add(offset const dimens, int32_t tex);
 	void _add(offset const dimens, int32_t tex);
 	constelInst* add(constel *c, int32_t duration);
+	void addPt(constel *c, offset const size, int32_t tex);
 	void addPt(constel *c, int32_t shape, int32_t tex, int64_t size);
+	void addPt(tskRailsData *data, int32_t time);
+	// TODO: Clean up usages in lv_peaks of the `instr` overload
+	//       (and struct declaration, earlier in this file)
 	void addPt(tskRailsInstructions *instr, int32_t time);
 };
 

@@ -13,5 +13,7 @@ extern int64_t const * svar(char const *name, offset const val);
 extern int32_t const * rvar(char const *name);
 extern int32_t const * rvar(char const *name, int32_t const val[3]);
 extern void pinNext();
+extern void pinOn();
+extern void pinOff();
 extern void pushVarIgnore();
 extern void popVarIgnore();
