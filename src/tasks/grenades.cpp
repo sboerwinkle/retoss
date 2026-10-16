@@ -222,19 +222,22 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 	// and we don't want to have detection be based on dumb luck
 	// (the query can report false positives).
 	// The old position doesn't bounce around though.
+	// (Update: Also it makes the "moving away" check easier!)
 	rangeconst(iter, toCheck.num) {
 		mover *other = toCheck[iter];
 		int32_t type = other->type & T_MASK;
 		if (type != T_PLAYER) continue;
+		if (playerFromMover(other)->team == nade->team) continue;
 		offset delta;
 		range(i, 3) delta[i] = nade->oldPos[i] - other->oldPos[i];
 		int64_t mg = mag(delta);
 		if (mg <= TRIGGER_R) {
-			return nade->armed;
+			range(i, 3) delta[i] = nade->pos[i] - other->pos[i];
+			int64_t mg2 = mag(delta);
+			if (mg2 > mg) return 1;
 		}
 	}
 
-	nade->armed = 1;
 	return 0;
 }
 
@@ -250,7 +253,7 @@ static char trans(gamestate *gs, void **ptr) {
 		transMover(nade, T_PROJ);
 		transOffset(nade->vel);
 		trans8(&nade->bounces);
-		trans8(&nade->armed);
+		trans8(&nade->team);
 		trans16(&nade->soundId);
 	}
 
@@ -305,14 +308,11 @@ void taskGrenades_draw(void *_data, int32_t now) {
 	int64_t r = RADIUS;
 	range(i, data->l.num) {
 		taskGrenade *nade = &data->l[i];
-		if (nade->armed) {
-			if ((63 & (now - nade->soundId)) < 5) {
-				tint(1, 1, 1, 0.25);
-			} else {
-				tint(0, 0, 0, 0);
-			}
+		// todo: Could make flashing based on team? This is fine though.
+		if ((63 & (now - nade->soundId)) < 5) {
+			tint(1, 1, 1, 0.25);
 		} else {
-			tint(0, 0, 0, 0.5);
+			tint(0, 0, 0, 0);
 		}
 		drawBillboard(nade->oldPos, nade->pos, 1, 49.0/64, 0, 5.0/64, r);
 	}
@@ -321,7 +321,7 @@ void taskGrenades_draw(void *_data, int32_t now) {
 	tint(0, 0, 0, 0);
 }
 
-void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 soundId) {
+void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 soundId, char team) {
 	void **tmp = singletonTaskEnd(gs, TSK_GRENADES);
 	taskGrenadesData *tsk;
 	if (*tmp == NULL) {
@@ -351,7 +351,7 @@ void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 sou
 
 	nade->type = T_PROJ;
 	nade->bounces = 2;
-	nade->armed = 0;
+	nade->team = team;
 	nade->soundId = soundId;
 
 	// a dead box with the right parent

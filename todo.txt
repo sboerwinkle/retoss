@@ -5,7 +5,7 @@
 . Snappier movement
 . Manual network delay option
 - Teammate ping
-- Grenades too weak, balance up
+. Grenades too weak, balance up
 - I'm accumulating too many commands, want a more efficient lookup
 	Maybe I just need a faster path for the really common ones, like jump/shoot
 . /edit_save confirmation log
