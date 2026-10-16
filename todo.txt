@@ -2,7 +2,7 @@
 	Easier way would be disabling v-sync, but this lets us do blind testing with a little effort...
 - Octopus rifles
 - jump predictor arrow
-- Snappier movement
+. Snappier movement
 . Manual network delay option
 - Teammate ping
 - Grenades too weak, balance up

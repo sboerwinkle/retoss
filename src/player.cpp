@@ -11,10 +11,11 @@
 
 #include "player.h"
 
-static int32_t pl_traction = 3; // This is 3x. If I want some fancy fraction, add a denominator, idk.
-static int32_t pl_speed = 350;
-static int64_t pl_walkForce = 60;
-// `pl_jump > pl_speed` means that for some slopes it's faster to bunny-hop. This is fine.
+// Traction is a multiplier
+static int32_t pl_traction = 4;
+static int64_t pl_walkForce = 120; // Cap on traction. Note that gravity is 30
+static int32_t pl_speed = 400;
+// pl_jump is total speed, not just horizontal.
 static int64_t pl_jump = 400;
 static int64_t pl_gummy = 80;
 
