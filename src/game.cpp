@@ -1678,8 +1678,8 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		if (!renderDenom) renderDenom = 1;
 		snprintf(
 			msg, 20, "%3ld%%%3ld%%%3ld%%%3ld%%",
-			100*logicTiming.minNanos/FASTER_NANOS,
-			100*logicTiming.maxNanos/FASTER_NANOS,
+			100*logicTiming.minNanos/ADJUST_NANOS,
+			100*logicTiming.maxNanos/ADJUST_NANOS,
 			100*renderTiming.minNanos/renderDenom,
 			100*renderTiming.maxNanos/renderDenom
 		);

@@ -12,8 +12,9 @@
 // it comes to watching for and responding to
 // lag spikes. I'm not sure about these values,
 // but hopefully they're about right?
-#define STEP_NANOS   67666666
-#define FASTER_NANOS 66000000
+#define STEP_NANOS    67666666
+#define ADJUST_NANOS  66000000
+#define CATCHUP_NANOS 40000000
 #define PENALTY_FRAMES 90
 
 typedef bloc<char, TEXT_BUF_LEN> strbuf;
