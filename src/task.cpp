@@ -48,6 +48,7 @@ void task_init() {
 	add(TSK_KILL_PLANE, &defineTask_killPlane);
 	add(TSK_RAILS, &defineTask_rails);
 	add(TSK_RIFLE_SHOT, &taskRifleShot_define);
+	add(TSK_RIFLE_SHOT_OCT, &taskRifleShot_defineOct);
 	add(TSK_ROCKET, &taskRocket_define);
 	add(TSK_SIGN, &taskSign_define);
 	add(TSK_TDM, &defineTask_tdmScore);

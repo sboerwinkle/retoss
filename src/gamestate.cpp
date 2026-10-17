@@ -36,7 +36,7 @@ void resetPlayer(gamestate *gs, int ix) {
 	p.prox = gs->vb_root;
 	p.skin = NULL;
 	// Dummy tool so state is valid
-	toolRifle_create(&p.tool);
+	toolRifle_create(&p.tool, 0);
 
 	softResetPlayer(&p);
 }
@@ -61,10 +61,12 @@ void rekitPlayer(player *_p) {
 	tool_destroy(p.tool);
 	if (p.loadout == 2) {
 		toolBadger_create(&p.tool);
-	} else if (p.loadout) {
+	} else if (p.loadout == 1) {
 		toolRl_create(&p.tool);
+	} else if (p.loadout == 4) {
+		toolRifle_create(&p.tool, 1);
 	} else {
-		toolRifle_create(&p.tool);
+		toolRifle_create(&p.tool, 0);
 	}
 }
 

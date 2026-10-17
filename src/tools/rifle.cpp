@@ -35,7 +35,7 @@ static void use(gamestate *gs, player *p, char input, toolInst *_data) {
 	if (data.cooldown) data.cooldown--;
 	if (input && !data.cooldown) {
 		data.cooldown = 10;
-		addTaskEnd(gs, TSK_RIFLE_SHOT, p);
+		addTaskEnd(gs, data.octopus ? TSK_RIFLE_SHOT_OCT : TSK_RIFLE_SHOT, p);
 	}
 }
 
@@ -45,6 +45,7 @@ static char trans(toolInst **_data) {
 	}
 	toolRifle &data = *(toolRifle*)*_data;
 	trans32(&data.cooldown);
+	trans8(&data.octopus);
 	return 0;
 }
 
@@ -53,17 +54,19 @@ static void copy(toolInst **_to, toolInst *_from) {
 	toolRifle &to = *(toolRifle*)*_to;
 	toolRifle &from = *(toolRifle*)_from;
 	to.cooldown = from.cooldown;
+	to.octopus = from.octopus;
 }
 
 static void destroy(toolInst *data) {
 	free(data);
 }
 
-void toolRifle_create(toolInst **_data) {
+void toolRifle_create(toolInst **_data, char octopus) {
 	*_data = (toolRifle*)malloc(sizeof(toolRifle));
 	toolRifle &data = *(toolRifle*)*_data;
 	data.defn = toolLookup(TOOL_RIFLE);
 	data.cooldown = 0;
+	data.octopus = octopus;
 }
 
 void toolRifle_define(toolDefn *defn) {

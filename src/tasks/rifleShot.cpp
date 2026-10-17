@@ -19,8 +19,33 @@
 // but that's not a problem unless we
 // blast more than people.
 static const int BLAST_RADIUS = 2000;
+static fraction const limit = {.numer = RIFLE_RANGE, .denom = FIXP};
 
-static void shoot(gamestate *gs, player *p) {
+static mover *checkShot(box *queryArea, unitvec const look, int64_t *shotOrigin, mover *srcMover, fraction *time) {
+	bcast_start(queryArea, look, shotOrigin);
+	mover *result;
+	do {
+		result = bcast(time, look, shotOrigin);
+		// For now, grenades and rockets can't be told apart and have different structures,
+		// so we can't really shoot them even if we wanted to.
+	} while (result == srcMover || (result && (result->type & T_PROJ)));
+	if (!result) {
+		*time = limit;
+	} else if (limit.lt(*time)) {
+		*time = limit;
+		result = NULL;
+	}
+	return result;
+}
+
+static char priorityHit(player *p, mover *hit) {
+	return (
+		T_PLAYER == (hit->type & T_MASK)
+		&& playerFromMover(hit)->team != p->team
+	);
+}
+
+static void shoot(gamestate *gs, player *p, char octopus) {
 	int shotRule;
 	if (gs == rootState) shotRule = 2;
 	else shotRule = shotPredictionRules[p != &gs->players[myPlayer]];
@@ -30,24 +55,52 @@ static void shoot(gamestate *gs, player *p) {
 	unitvec look;
 	iquat_apply(look, p->m.rot, ((unitvec const){0, FIXP, 0}));
 
-	fraction const limit = {.numer = RIFLE_RANGE, .denom = FIXP};
 	// Todo: I think this may be a bit sloppy at the moment, since a box that's a suitable
 	//       parent for something that large will necessarily be bigger than we need.
 	//       Might be able to improve this with a small velbox tweak involving `minParentR`.
-	box *queryArea = velbox_findParent(p->prox, p->m.oldPos, p->vel, limit.numer);
-	bcast_start(queryArea, look, p->m.oldPos);
+	// Add player radius for octopus arms
+	box *queryArea = velbox_findParent(p->prox, p->m.oldPos, p->vel, RIFLE_RANGE + PLAYER_SHAPE_RADIUS);
+
+	int64_t *shotOrigin = p->m.oldPos;
 	fraction time;
-	mover *result;
-	do {
-		result = bcast(&time, look, p->m.oldPos);
-		// For now, grenades and rockets can't be told apart and have different structures,
-		// so we can't really shoot them even if we wanted to.
-	} while (result == &p->m || (result && (result->type & T_PROJ)));
-	if (!result) {
-		time = limit;
-	} else if (limit.lt(time)) {
-		time = limit;
-		result = NULL;
+	mover *result = checkShot(queryArea, look, shotOrigin, &p->m, &time);
+
+	// TODO: Clean up this mess
+	offset armOrigin; // This one has to stay in scope
+	if (octopus && !priorityHit(p, result)) {
+		unitvec lookX, lookZ;
+		iquat_apply(lookX, p->m.rot, ((unitvec const){FIXP, 0, 0}));
+		iquat_apply(lookZ, p->m.rot, ((unitvec const){0, 0, FIXP}));
+
+		mover *armResult;
+		fraction armTime;
+		// Check each arm to see if they're better.
+		range(i, 3) armOrigin[i] = shotOrigin[i] + lookX[i] * PLAYER_SHAPE_RADIUS / FIXP;
+		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
+		if (priorityHit(p, armResult)) {
+			goto armGood;
+		}
+		range(i, 3) armOrigin[i] = shotOrigin[i] - lookX[i] * PLAYER_SHAPE_RADIUS / FIXP;
+		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
+		if (priorityHit(p, armResult)) {
+			goto armGood;
+		}
+		range(i, 3) armOrigin[i] = shotOrigin[i] + lookZ[i] * PLAYER_SHAPE_RADIUS / FIXP;
+		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
+		if (priorityHit(p, armResult)) {
+			goto armGood;
+		}
+		range(i, 3) armOrigin[i] = shotOrigin[i] - lookZ[i] * PLAYER_SHAPE_RADIUS / FIXP;
+		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
+		if (priorityHit(p, armResult)) {
+			goto armGood;
+		}
+		goto armBad;
+armGood:;
+		result = armResult;
+		time = armTime;
+		shotOrigin = armOrigin;
+armBad:;
 	}
 
 	if (result && shotRule != 1) {
@@ -60,7 +113,7 @@ static void shoot(gamestate *gs, player *p) {
 				0xFF00'FF01
 				+ (p - gs->players.items) * 0x1'0000;
 			offset impact;
-			range(i, 3) impact[i] = p->m.oldPos[i] + look[i] * time.numer / time.denom;
+			range(i, 3) impact[i] = shotOrigin[i] + look[i] * time.numer / time.denom;
 			offset v;
 			// Todo: Doesn't account for if impact surface is rotating
 			range(i, 3) v[i] = result->pos[i] - result->oldPos[i];
@@ -95,14 +148,19 @@ static void shoot(gamestate *gs, player *p) {
 	addPlayerSound(gs->clock, who, soundId, SND_POP);
 
 	trail &tr = gs->trails.add();
-	memcpy(tr.origin, p->m.oldPos, sizeof(offset));
+	memcpy(tr.origin, shotOrigin, sizeof(offset));
 	memcpy(tr.dir, look, sizeof(unitvec));
 	tr.len = time.numer*FIXP/time.denom;
 	tr.expiry = gs->clock + TRAIL_LIFETIME;
 }
 
 static char step(gamestate *gs, void *data) {
-	shoot(gs, (player*)data);
+	shoot(gs, (player*)data, 0);
+	return 1;
+}
+
+static char stepOct(gamestate *gs, void *data) {
+	shoot(gs, (player*)data, 1);
 	return 1;
 }
 
@@ -124,6 +182,13 @@ static void destroy(void *data) {
 
 void taskRifleShot_define(taskDefn *d) {
 	d->step = &step;
+	d->trans = &trans;
+	d->copy = &copy;
+	d->destroy = &destroy;
+}
+
+void taskRifleShot_defineOct(taskDefn *d) {
+	d->step = &stepOct;
 	d->trans = &trans;
 	d->copy = &copy;
 	d->destroy = &destroy;
