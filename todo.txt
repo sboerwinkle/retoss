@@ -1,6 +1,7 @@
 - Option to cook frames?
 	Easier way would be disabling v-sync, but this lets us do blind testing with a little effort...
 - Octopus rifles
+	Exist, but implementation is terrible. Clean up.
 - jump predictor arrow
 . Snappier movement
 . Manual network delay option
