@@ -178,7 +178,7 @@ char readData(void *dst_arg, int len) {
 }
 
 // Todo: Nearly duplicated in http.cpp
-char sendData(char *src, int len) {
+char sendData(char const *src, int len) {
 	while (len) {
 #ifdef _WIN32
 		int ret = send(net_fd, src, len, 0);

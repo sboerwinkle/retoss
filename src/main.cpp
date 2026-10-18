@@ -931,15 +931,20 @@ int main(int argc, char **argv) {
 	printf(QUIET_LINE("Using host '%s' (%s) and port '%s' (%s)"), host, hostSrc, port, portSrc);
 	// initSocket has its own progress logging
 	if (initSocket(host, port)) return 1;
+	char firstByte = (char)MAGIC_FIRST_BYTE;
+	if (sendData(&firstByte, 1)) {
+		puts("Couldn't write version byte to server, IDK what that means...");
+		return 1;
+	}
 	printf(QUIET_LINE("Awaiting setup info..."));
 	char initNetData[7];
 	if (readData(initNetData, 7)) {
-		puts("Error, aborting!");
+		puts("Couldn't read setup info. Server version or password incorrect?");
 		return 1;
 	}
 	if (initNetData[0] != (char)MAGIC_FIRST_BYTE) {
 		printf(
-			"Server initial byte was 0x%hhX, expected 0x%hhX. Is the server on an incompatible version?\n",
+			"Server initial byte was 0x%hhX, expected 0x%hhX. Is this some other kind of server?\n",
 			initNetData[0],
 			MAGIC_FIRST_BYTE
 		);

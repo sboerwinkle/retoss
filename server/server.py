@@ -10,6 +10,9 @@ import asyncio
 
 MAGIC_FIRST_BYTE = 0x9A
 FRAME_ID_MAX = 1<<29
+# Note this isn't really "secure", e.g. it's trivially easy to learn the length of the password.
+# This is just to keep out the riffraff (port scanners).
+password = bytes( (MAGIC_FIRST_BYTE,) )
 
 # This should match the client's MAX_AHEAD.
 MAX_AHEAD = 15
@@ -79,6 +82,7 @@ class Host:
 
 class ClientNetHandler(asyncio.Protocol):
     def __init__(self):
+        self.ix = None
         self.live = True
         self.recvd = b''
         self.inited = False
@@ -97,37 +101,38 @@ class ClientNetHandler(asyncio.Protocol):
         self.cmds = []
         self.cmds_remaining = 0
 
-        self.reqd_bytes = 5
-        self.next_phase = self.phase_frame
+        self.reqd_bytes = len(password)
+        self.next_phase = self.phase_password
 
     def connection_made(self, transport):
         self.transport = transport
         if not check_clientpool():
-            print("Rejecting client because host's clientpool is exhausted")
+            print(f"Rejecting {self.name()}: clientpool is exhausted")
+            self.live = False
             self.transport.close()
-            # Should there be a `return` here? Not sure
+            return
 
-        self.host = get_host()
-        clients = self.host.clients
-        for ix in range(len(clients)):
-            if clients[ix] is None:
-                break
-        else:
-            ix = len(clients)
-            clients.append(None)
-        if ix >= MAX_CLIENTS:
-            print("Rejecting client because MAX_CLIENTS reached")
+        print(f"{self.name()} connected")
+        asyncio.create_task(self.password_timeout())
+
+    async def password_timeout(self):
+        await asyncio.sleep(INCR*MAX_MISSED_FRAMES)
+        if self.ix is None and self.live:
+            print(f"{self.name()} timed out waiting for password, closed.")
+            self.live = False
             self.transport.close()
-        self.ix = ix
-        clients[ix] = self
-        print(f"Connected client at position {ix} from {transport.get_extra_info('peername')}")
+
+    def name(self):
+        if self.ix is None:
+            return self.transport.get_extra_info('peername')
+        return '#' + str(self.ix)
 
     def check_usage(self, amt):
         self.usagepool -= amt
         if self.usagepool < 0:
-            print(f"Closed client {ix} for using too much data")
-            self.transport.close()
+            print(f"Closed client {self.name()} for using too much data")
             self.live = False
+            self.transport.close()
             return True
         return False
 
@@ -139,7 +144,7 @@ class ClientNetHandler(asyncio.Protocol):
             self.usagepool += USAGE_POOL_RECOVERY_PER_SEC*(ti-self.usagesince)
             if self.usagepool > USAGE_POOL:
                 self.usagepool = USAGE_POOL
-            #print(f"Client {self.ix} data usage pool remaining is {round(self.usagepool/1024, 1)} kb)")
+            #print(f"Client {self.name()} data usage pool remaining is {round(self.usagepool/1024, 1)} kb)")
             self.usagesince = ti
         if self.check_usage(len(data)+HEADER_ADJ):
             return
@@ -151,7 +156,41 @@ class ClientNetHandler(asyncio.Protocol):
         except Exception as exc:
             print("Exception while handling client data, killing client")
             traceback.print_exc()
+            self.live = False
             self.transport.close()
+
+    def phase_password(self):
+        lp = len(password)
+        x = self.recvd[:lp]
+        if x != password:
+            print(f"{self.name()} gave wrong password, closed.")
+            self.live = False
+            self.transport.close()
+            return
+
+        # This wakes the game thread, so from here on we're responsible for
+        # shutting it down if we're the last one to leave.
+        self.host = get_host()
+
+        clients = self.host.clients
+        for ix in range(len(clients)):
+            if clients[ix] is None:
+                break
+        else:
+            ix = len(clients)
+            clients.append(None)
+        if ix >= MAX_CLIENTS:
+            print("Rejecting client because MAX_CLIENTS reached")
+            self.live = False
+            self.transport.close()
+        self.ix = ix
+        clients[ix] = self
+        print(f"{self.transport.get_extra_info('peername')} assigned to {self.name()}")
+
+        self.recvd = self.recvd[lp:]
+
+        self.reqd_bytes = 5
+        self.next_phase = self.phase_frame
 
     def phase_frame(self):
         if self.check_usage(PROC_ADJ):
@@ -206,13 +245,13 @@ class ClientNetHandler(asyncio.Protocol):
         delt = (frame - self.host.frame + FRAME_ID_MAX//2) % FRAME_ID_MAX - FRAME_ID_MAX//2
 
         if delt < 0:
-            print(f"client {self.ix} delivered packet {-delt} frames late")
+            print(f"client {self.name()} delivered packet {-delt} frames late")
             # If they're late, write it in for the upcoming frame instead.
             # This will be later than they intended, but at least it's not lost.
             frame = self.host.frame
             delt = 0
         elif delt > MAX_AHEAD:
-            print(f"client {self.ix} delivered packet {delt} frames early, when the max allowed is {MAX_AHEAD}")
+            print(f"client {self.name()} delivered packet {delt} frames early, when the max allowed is {MAX_AHEAD}")
             # Existence of this limit takes the guesswork out of how long it takes a new client to sync,
             # and keeps clients from having to hang on to arbitrarily many frames of data
             frame = (self.host.frame + MAX_AHEAD) % FRAME_ID_MAX
@@ -240,7 +279,7 @@ class ClientNetHandler(asyncio.Protocol):
         # where the destination `frame` is already completed and also sent.
 
         if len(latest_message) + len(self.cmds) > MAX_CMD_COUNT+1:
-            print(f"Closed client {self.ix} for trying to queue too many commands")
+            print(f"Closed client {self.name()} for trying to queue too many commands")
             self.live = False
             self.transport.close()
             return
@@ -249,10 +288,14 @@ class ClientNetHandler(asyncio.Protocol):
 
     def connection_lost(self, exc):
         global active_host
-        print(f"Connection to client {self.ix} lost")
+        self.live = False
+        print(f"{self.name()} lost connection")
         if exc is not None:
             # Apparently in Python 3.11 this is less clumsy
             traceback.print_exception(type(exc), exc, exc.__traceback__)
+
+        if self.ix is None:
+            return
         clients = self.host.clients
         clients[self.ix] = None
         for c in clients:
@@ -329,8 +372,9 @@ async def loop(host):
             else:
                 c.missed_frames += 1
                 if c.missed_frames >= MAX_MISSED_FRAMES:
+                    c.live = False
                     c.transport.close()
-                    print(f"Closed client {c.ix} for not completing any messages for too long")
+                    print(f"{c.name()} closed for not completing any messages for too long")
             # This frame has gone out, so whether or not the client sent anything here
             # it's time to recycle that entry in `offsets_used` (a circular buffer) so
             # that it represents a new frame (that is, the one MAX_AHEAD frames ahead)
