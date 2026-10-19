@@ -254,7 +254,17 @@ static void handleSharedInputs(int outboundFrame) {
 
 	mtx_unlock(sharedInputsMutex);
 
-	sendData(out->items, out->num);
+	if (sendData(out->items, out->num)) {
+		// I could maybe use `globalRunning` here instead?
+		// I think this is good enough for now,
+		// we just need to signal the input thread to exit
+		// since that's the thread that normally kicks off
+		// the shutdown sequence.
+		if (!glfwWindowShouldClose(display)) {
+			puts("I guess the server is gone. Closing the game...");
+			glfwSetWindowShouldClose(display, 1);
+		}
+	}
 }
 
 static void ensurePrefsSent() {
