@@ -129,8 +129,7 @@ void iquat_apply(unitvec dest, iquat q, unitvec const src) {
 }
 
 // Exactly the same as `iquat_apply`, but works on bigger types.
-// The "Sm" suffix is because it won't work if the offsets are too big lol
-void iquat_applySm(offset dest, iquat q, offset const src) {
+void iquat_apply64(offset dest, iquat q, offset const src) {
 	int64_t xsqj = src[0] * q[2] / FIXP;
 	int64_t xsqk = src[0] * q[3] / FIXP;
 	int64_t ysqk = src[1] * q[3] / FIXP;

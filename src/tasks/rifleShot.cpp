@@ -40,7 +40,8 @@ static mover *checkShot(box *queryArea, unitvec const look, int64_t *shotOrigin,
 
 static char priorityHit(player *p, mover *hit) {
 	return (
-		T_PLAYER == (hit->type & T_MASK)
+		hit
+		&& T_PLAYER == (hit->type & T_MASK)
 		&& playerFromMover(hit)->team != p->team
 	);
 }
@@ -65,42 +66,29 @@ static void shoot(gamestate *gs, player *p, char octopus) {
 	fraction time;
 	mover *result = checkShot(queryArea, look, shotOrigin, &p->m, &time);
 
-	// TODO: Clean up this mess
-	offset armOrigin; // This one has to stay in scope
+	offset armOrigin;
 	if (octopus && !priorityHit(p, result)) {
-		unitvec lookX, lookZ;
-		iquat_apply(lookX, p->m.rot, ((unitvec const){FIXP, 0, 0}));
-		iquat_apply(lookZ, p->m.rot, ((unitvec const){0, 0, FIXP}));
+		offset armPositions[4];
+		iquat_apply64(armPositions[0], p->m.rot, ((offset const){PLAYER_SHAPE_RADIUS, 0, 0}));
+		iquat_apply64(armPositions[1], p->m.rot, ((offset const){0, 0, PLAYER_SHAPE_RADIUS}));
+		range(i, 3) {
+			armPositions[2][i] = -armPositions[0][i];
+			armPositions[3][i] = -armPositions[1][i];
+		}
 
 		mover *armResult;
 		fraction armTime;
 		// Check each arm to see if they're better.
-		range(i, 3) armOrigin[i] = shotOrigin[i] + lookX[i] * PLAYER_SHAPE_RADIUS / FIXP;
-		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
-		if (priorityHit(p, armResult)) {
-			goto armGood;
+		range(arm, 4) {
+			range(i, 3) armOrigin[i] = shotOrigin[i] + armPositions[arm][i];
+			armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
+			if (priorityHit(p, armResult)) {
+				result = armResult;
+				time = armTime;
+				shotOrigin = armOrigin;
+				break;
+			}
 		}
-		range(i, 3) armOrigin[i] = shotOrigin[i] - lookX[i] * PLAYER_SHAPE_RADIUS / FIXP;
-		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
-		if (priorityHit(p, armResult)) {
-			goto armGood;
-		}
-		range(i, 3) armOrigin[i] = shotOrigin[i] + lookZ[i] * PLAYER_SHAPE_RADIUS / FIXP;
-		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
-		if (priorityHit(p, armResult)) {
-			goto armGood;
-		}
-		range(i, 3) armOrigin[i] = shotOrigin[i] - lookZ[i] * PLAYER_SHAPE_RADIUS / FIXP;
-		armResult = checkShot(queryArea, look, armOrigin, &p->m, &armTime);
-		if (priorityHit(p, armResult)) {
-			goto armGood;
-		}
-		goto armBad;
-armGood:;
-		result = armResult;
-		time = armTime;
-		shotOrigin = armOrigin;
-armBad:;
 	}
 
 	if (result && shotRule != 1) {

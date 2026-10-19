@@ -1,7 +1,6 @@
 - Option to cook frames?
 	Easier way would be disabling v-sync, but this lets us do blind testing with a little effort...
-- Octopus rifles
-	Exist, but implementation is terrible. Clean up.
+. Octopus rifles
 - jump predictor arrow
 . Snappier movement
 . Manual network delay option
@@ -26,7 +25,7 @@
 . "no team" should match default vs web
 - Server killed should be more graceful
 	write() to socket failed, errno is 9
-- any-shape boxes
+. any-shape boxes
 - multiselect in editor?
 . Crosshair can pull from outside tex in edge cases
 . Rockets shouldn't be shootable
@@ -39,8 +38,10 @@
 	! grenades can die (e.g. edge, lvl reset)
 		Did this for lvl reset, but not the abyss
 . Grenades over the edge should die
-- /deactivate for absent/port-scan players
+! /deactivate for absent/port-scan players
 	/syncme is done by new clients, so that can also re-activate
+	Mostly replaced by a rudimentary password system.
+	Doesn't handle absent players though.
 . More obvious "game over" text
 . 4hp default
 - Vehicles
