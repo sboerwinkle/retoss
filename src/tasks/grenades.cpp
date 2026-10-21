@@ -145,7 +145,7 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 	list<mover*> &toCheck = *_toCheck;
 
 	memcpy(nade->oldPos, nade->pos, sizeof(offset));
-	nade->vel[2] -= gs_gravity;
+	nade->vel[2] -= GRAVITY;
 	range(i, 3) {
 		nade->pos[i] += nade->vel[i];
 	}

@@ -13,7 +13,6 @@
 #include "tools/rifle.h"
 #include "tools/rl.h"
 
-int32_t gs_gravity = 30;
 list<solid*> solidSerizPtrs;
 
 void resetPlayer(gamestate *gs, int ix) {

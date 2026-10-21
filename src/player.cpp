@@ -15,8 +15,6 @@
 static int32_t pl_traction = 4;
 static int64_t pl_walkForce = 120; // Cap on traction. Note that gravity is 30
 static int32_t pl_speed = 400;
-// pl_jump is total speed, not just horizontal.
-static int64_t pl_jump = 400;
 static int64_t pl_gummy = 80;
 
 static list<mover*> queryResults;
@@ -45,7 +43,7 @@ void playerUpdate(gamestate *gs, player *p) {
 		return;
 	}
 
-	p->vel[2] -= gs_gravity; // gravity
+	p->vel[2] -= GRAVITY;
 
 	offset dest;
 	range(i, 3) dest[i] = p->m.pos[i] + p->vel[i];
@@ -236,7 +234,7 @@ void pl_phys_standard(gamestate *gs, unitvec const forceDir, offset const contac
 					+ p->jump;
 				addSound(gs->clock+1, dest, v, soundId, SND_JUMP);
 			}
-			range(i, 3) p->vel[i] += jumpDir[i]*pl_jump/FIXP - contactVel[i];
+			range(i, 3) p->vel[i] += jumpDir[i]*PL_JUMP_SPD/FIXP - contactVel[i];
 			// `dest` has already been updated to push us out of the collision plane,
 			// and unlike the walking case we don't want to update `dest` with the velocity change.
 			// (mostly this is to make chained wall jumps feel more impactful,

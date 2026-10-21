@@ -49,7 +49,7 @@ static char step(gamestate *gs, void *_data) {
 	iquat_mult(data->s.m.rot, data->s.m.oldRot, data->rvel);
 	iquat_norm(data->s.m.rot);
 
-	data->vel[2] -= gs_gravity;
+	data->vel[2] -= GRAVITY;
 	range(i, 3) data->s.m.pos[i] += data->vel[i];
 
 	box *p = data->s.m.b->parent;

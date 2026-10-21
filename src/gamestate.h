@@ -10,6 +10,7 @@ struct mover; // "box" and "gamestate" reference each other's types
 #include "task.h"
 #include "tool.h"
 
+#define GRAVITY 30
 #define PLAYER_SHAPE_RADIUS 800
 #define TRAIL_LIFETIME 45
 #define NUM_TEXS 13
@@ -145,7 +146,6 @@ struct gamestate {
 };
 
 
-extern int32_t gs_gravity;
 extern list<solid*> solidSerizPtrs;
 
 

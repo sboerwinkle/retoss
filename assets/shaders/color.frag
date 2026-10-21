@@ -24,9 +24,8 @@ void main() {
 
 
 	float brightness = 1.0 - 0.2 * texture(u_mottle_tex, v_mottle_1).r * texture(u_mottle_tex, v_mottle_2).r;
-	brightness = brightness * u_tint.a;
 
-	vec3 color = texColor.rgb*brightness + u_tint.rgb + v_color;
+	vec3 color = brightness*(texColor.rgb*u_tint.a + u_tint.rgb) + v_color;
 	float fogFactor = max(0, exp(length(v_pos)*u_fog_mult) * (1 + 1.0/16) - 1.0/16);
 	color = mix(u_fog, color, fogFactor);
 

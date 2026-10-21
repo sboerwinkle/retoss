@@ -1474,6 +1474,11 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 
 	checkGgc();
 	player *p = &gs->players[myPlayer];
+	// Above a couple % on the performance meter,
+	// you can see flickering in the direction of the jump guide
+	// if you're turning fast. Simplest fix is capture the yaw
+	// at around the same time as the view direction is set.
+	double yaw = domeYaw;
 	setupFrame(p, gs, look);
 
 	// Draw normal solids
@@ -1514,6 +1519,10 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		drawPlayer(p2, 1.0f);
 	}
 	tint(0, 0, 0, 0); // Clear tint.
+
+	if (ctrlPressed && p->alive) {
+		drawJumpGuide(p->m.oldPos, yaw);
+	}
 
 	rangeconst(i, gs->trails.num) {
 		trail &tr = gs->trails[i];

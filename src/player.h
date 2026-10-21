@@ -1,4 +1,6 @@
 #define PLAYER_INTERACT_RANGE (PLAYER_SHAPE_RADIUS*5/2)
+// PL_JUMP_SPD is total speed, not just horizontal.
+#define PL_JUMP_SPD 400
 
 extern void playerUpdate(gamestate *gs, player *p);
 extern void playerAddBox(gamestate *gs, player *p);

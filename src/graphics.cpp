@@ -25,6 +25,8 @@
 #include "graphics.h"
 #include "graphics_callbacks.h"
 
+#define JUMP_GUIDE_LEN 30
+
 struct dyntex_texture {
 	GLuint tex;
 	dyntex_description descr;
@@ -35,6 +37,7 @@ static list<dyntex_texture> dyntexs;
 
 #define TEX_MOTTLE 0
 #define TEX_FONT 1
+#define TEX_BLACK 2
 #define TEX_TRAIL 6
 char const * const texSrcFiles[NUM_TEXS] = {
 	NULL,
@@ -58,6 +61,7 @@ static void setupTextDrawingInner();
 static void populatePaneVertexData(list<GLfloat> *data);
 static void populateCubeVertexData(list<GLfloat> *data);
 static void populateCubeVertexData2(list<GLfloat> *data);
+static void populateJumpGuideData(list<GLfloat> *data);
 static void populateSpriteVertexData();
 
 float gfx_camDist;
@@ -108,6 +112,7 @@ static GLint u_spr_color_add;
 static int vtxIdx_cubeOneFace = -1;
 static int vtxIdx_cubeSixFace = -1;
 static int vtxIdx_pane = -1;
+static int vtxIdx_jumpGuide = -1;
 
 static float matWorldToScreen[16];
 static float camHoverDir[3];
@@ -425,6 +430,8 @@ void initGraphics() {
 	populateCubeVertexData2(&vtxData);
 	vtxIdx_pane = vtxData.num / STRIDE;
 	populatePaneVertexData(&vtxData);
+	vtxIdx_jumpGuide = vtxData.num / STRIDE;
+	populateJumpGuideData(&vtxData);
 
 	// vaos[0]
 	glBindVertexArray(vaos[0]);
@@ -757,6 +764,43 @@ void drawBillboard(offset p1, offset p2, int tex, float x, float y, float w, int
 	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
 
 	glDrawArrays(GL_TRIANGLES, vtxIdx_pane, 6);
+}
+
+void drawJumpGuide(offset p1, double yaw) {
+	// Hm. For now I'll leave glDepthMask on, I feel like
+	// trails drawing over the guide from behind it might look weird.
+	// (I mean, short of depth-sorting these there will be weirdness regardless...)
+	// (Unless I do stippling again, but consider: I don't wanna)
+	glBindTexture(GL_TEXTURE_2D, textures[TEX_BLACK]);
+	glUniform1f(u_main_transparency, 0.7);
+	// Over-saturating the green makes the mottling look a little funny,
+	// but it does make the guide noticably more visible. Worth it.
+	tint(0.7, 1.1, 1.0, 1);
+	glUniform3f(u_main_skin_size, 1, 0, 0);
+	glUniform1f(u_main_mottle_scale, 0.5);
+
+	float matWorld[16] = {0};
+	double c = cos(yaw);
+	double s = sin(yaw);
+	matWorld[0] = matWorld[5] = c;
+	matWorld[1] = s;
+	matWorld[4] = -s;
+	matWorld[10] = matWorld[15] = 1;
+	range(i, 3) matWorld[12+i] = p1[i] - gfx_camPos1[i];
+
+	float matScreen[16];
+	mat4Multf(matScreen, matWorldToScreen, matWorld);
+	glUniformMatrix4fv(u_main_modelview, 1, GL_FALSE, matScreen);
+
+	// I could maybe do this by drawing both sides of triangles and rendering it in one pass
+	// from far to near? But this works too, and I don't have to look up how self-occlusion
+	// within one render call is handled.
+	glFrontFace(GL_CW);
+	glDrawArrays(GL_TRIANGLE_STRIP, vtxIdx_jumpGuide, JUMP_GUIDE_LEN * 2 + 1);
+	glFrontFace(GL_CCW);
+	glDrawArrays(GL_TRIANGLE_STRIP, vtxIdx_jumpGuide, JUMP_GUIDE_LEN * 2 + 1);
+
+	tint(0, 0, 0, 0);
 }
 
 void drawTrail(offset const start, unitvec const dir, int64_t len, float age_interp) {
@@ -1093,6 +1137,26 @@ static void populateCubeVertexData2(list<GLfloat> *data) {
 	vtx(R, B, D, 0, 0, D, p3, p1, 0,0,0,0);
 	vtx(R, F, D, 0, 0, D, p3, p2, 0,0,0,0);
 	vtx(L, B, D, 0, 0, D, p2, p1, 0,0,0,0);
+}
+
+static void populateJumpGuideData(list<GLfloat> *data) {
+	float sqrt2 = sqrtf(2.0);
+	float y = PLAYER_SHAPE_RADIUS / sqrt2;
+	float z = -PLAYER_SHAPE_RADIUS / sqrt2;
+	float vy = PL_JUMP_SPD / sqrt2;
+	float vz = PL_JUMP_SPD / sqrt2;
+	float mot_x = PLAYER_SHAPE_RADIUS / 2'000.0;
+	float mot_y = 0;
+	range(i, JUMP_GUIDE_LEN) {
+		vtx(-PLAYER_SHAPE_RADIUS, y, z, 0,0,0,     0,mot_y, 0,0,0,0);
+		vtx( PLAYER_SHAPE_RADIUS, y, z, 0,0,0, mot_x,mot_y, 0,0,0,0);
+		vz -= GRAVITY;
+		y += vy;
+		z += vz;
+		mot_y += sqrt(vy*vy+vz*vz)/2/2'000.0;
+	}
+	// Point at the end of the path
+	vtx(0, y, z, 0,0,0, mot_x/2,mot_y, 0,0,0,0);
 }
 
 #undef vtx2
