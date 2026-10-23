@@ -306,6 +306,15 @@ int64_t* look(int64_t dist) {
 		iquat invRot;
 		iquat_inv(invRot, bctx.transf.rot);
 		iquat_applySm(result, invRot, intermediate);
+
+		// Round off to 1000s.
+		// Goofy math here is intended so that each output value has exactly 1000 possible inputs for it
+		// (less weirdness around zero)
+		range(i, 3) {
+			int64_t x = result[i] + 500;
+			int64_t sign = x>>63;
+			result[i] = 1000 * ((x-sign)/1000 + sign);
+		}
 	}
 	return result;
 }
