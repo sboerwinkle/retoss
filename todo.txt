@@ -1,7 +1,12 @@
+- `examples/` template for just adding solids to an active level
+- Chaingun
+- Skybridge
+- Tunnel
 - Option to cook frames?
 	Easier way would be disabling v-sync, but this lets us do blind testing with a little effort...
 . Octopus rifles
-- jump predictor arrow
+. jump predictor arrow
+	. Longer jump guide
 . Snappier movement
 . Manual network delay option
 - Teammate ping

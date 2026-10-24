@@ -25,7 +25,7 @@
 #include "graphics.h"
 #include "graphics_callbacks.h"
 
-#define JUMP_GUIDE_LEN 30
+#define JUMP_GUIDE_LEN 100
 
 struct dyntex_texture {
 	GLuint tex;
