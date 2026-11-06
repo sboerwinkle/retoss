@@ -23,4 +23,11 @@ extern tskTdmData* taskTdm_create(gamestate *gs, int maxScore);
 extern void taskTdm_addSpawn(tskTdmData *data, offset const s);
 extern void taskTdm_spawnAll(gamestate *gs, void *_data);
 
+// Every `taskDefn` must have a `destroy` for memory handling, notably during gamestate destruction.
+// However, whether a task can be destroyed while a game is running might vary from task to task
+// (e.g., does anything else try to read its data?).
+// Any writes to a task's data should be defined in the task's file, to serve as a sort of defined interface.
+// "taskTdm" can be destroyed mid-game (e.g. by the creation of "taskStock").
+extern void taskTdm_destroy(gamestate *gs, taskInstance *ti);
+
 extern void defineTask_tdmScore(taskDefn *d);

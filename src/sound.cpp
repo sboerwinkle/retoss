@@ -9,7 +9,7 @@
 #include "list.h"
 
 #include "game.h"
-#include "game_gamestate.h"
+#include "soundIds.h"
 
 #include "sound.h"
 

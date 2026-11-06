@@ -242,7 +242,7 @@ static void handleChompAnim(tskTdmData *data) {
 	data->animDest = 45;
 }
 
-static int32_t rand(uint32_t input) {
+static uint32_t rand(uint32_t input) {
 	return splitmix32(&input);
 }
 
@@ -403,6 +403,13 @@ void taskTdm_spawnAll(gamestate *gs, void *_data) {
 	rangeconst(i, gs->players.num) {
 		if (gs->players[i].alive) spawn(gs, i, data, spawnPts);
 	}
+}
+
+void taskTdm_destroy(gamestate *gs, taskInstance *ti) {
+	destroy(ti->data);
+	ti->prev->next = ti->next;
+	ti->next->prev = ti->prev;
+	delete ti;
 }
 
 void defineTask_tdmScore(taskDefn *d) {

@@ -20,6 +20,7 @@ struct taskInstance {
 // This one may get moved to some list of "data" tasks, where we can skip per-frame checks.
 #define TSK_SIGN 2
 #define TSK_TDM 100
+#define TSK_STOCK 101
 #define TSK_KILL_PLANE 120
 #define TSK_RAILS 140
 #define TSK_DYNAMICS 200

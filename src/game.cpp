@@ -45,6 +45,7 @@
 #include "tasks/blast.h"
 #include "tasks/grenades.h"
 #include "tasks/rocket.h"
+#include "tasks/stock.h"
 #include "tasks/tdmScore.h"
 
 #include "game.h"
@@ -78,6 +79,7 @@ static int altDragStepsX = 0, altDragStepsY = 0;
 static double mouseX = 0, mouseY = 0;
 static double dragBaseX = 0, dragBaseY = 0;
 static char ctrlPressed = 0, shiftPressed = 0, altPressed = 0;
+static char tabPressed = 0;
 enum { AIM_NONE, AIM_LOW, AIM_HIGH };
 static lookConfig look1, look2;
 static lookConfig* look = &look1;
@@ -341,6 +343,29 @@ void addPlayerSound(int32_t time, int who, uint32_t id, int sound) {
 	x.data.snd.posType = SND_POS_PLAYER;
 }
 
+static void clearSkin(player *p) {
+	if (p->skin) {
+		p->skin->decr();
+		p->skin = NULL;
+	}
+}
+
+static void setSkin(player *p, char const *name) {
+	dyntex_holder *dh = new dyntex_holder();
+	p->skin = dh;
+	dh->refs = 1;
+	dh->descr.baseTex = getTeamShirt(p->team);
+	snprintf(dh->descr.str, DYNTEX_BUF_LEN, "%s", name);
+	addGgcMsg(GGC_DYNTEX_NEW, dh);
+}
+
+void redoSkin(player *p) {
+	dyntex_holder *skin = p->skin;
+	if (!skin) return;
+	setSkin(p, skin->descr.str);
+	skin->decr();
+}
+
 //// Input callbacks + related stuff ////
 
 void timekeeping(long inputs_nanos, long update_nanos, long follow_nanos) {
@@ -382,6 +407,8 @@ void handleKey(int key, int action) {
 		shiftPressed = action;
 	} else if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) {
 		altPressed = action;
+	} else if (key == GLFW_KEY_TAB) {
+		tabPressed = action;
 	} else if (action) {
 		if (key == GLFW_KEY_F3) {
 			renderStats ^= 1;
@@ -729,29 +756,6 @@ void playerInputs(player *p, char const *data, int size) {
 }
 
 //// Text command stuff ////
-
-static void clearSkin(player *p) {
-	if (p->skin) {
-		p->skin->decr();
-		p->skin = NULL;
-	}
-}
-
-static void setSkin(player *p, char const *name) {
-	dyntex_holder *dh = new dyntex_holder();
-	p->skin = dh;
-	dh->refs = 1;
-	dh->descr.baseTex = getTeamShirt(p->team);
-	snprintf(dh->descr.str, DYNTEX_BUF_LEN, "%s", name);
-	addGgcMsg(GGC_DYNTEX_NEW, dh);
-}
-
-static void redoSkin(player *p) {
-	dyntex_holder *skin = p->skin;
-	if (!skin) return;
-	setSkin(p, skin->descr.str);
-	skin->decr();
-}
 
 static char getAxisAndAmt(char const *pos, int *axis, int *amt) {
 	if (!getNum(&pos, axis) || !getNum(&pos, amt)) {
@@ -1183,26 +1187,39 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		}
 	} else if (isCmd(str, "/maxscore")) {
 		char const *pos = str + 9;
-		int num;
-		tskTdmData *data = NULL;
+		u8 *maxScore = NULL;
+		int divisor;
 		for (taskInstance *t = gs->tasks.next; t != &gs->tasks; t = t->next) {
 			if (t->defn->id == TSK_TDM) {
-				data = (tskTdmData*)t->data;
+				maxScore = &((tskTdmData*)t->data)->scoreLimit;
+				// tdm is funny and stores 1/10ths of score
+				divisor = 10;
+				break;
+			}
+			if (t->defn->id == TSK_STOCK) {
+				maxScore = &((taskStockData*)t->data)->maxScore;
+				divisor = 1;
 				break;
 			}
 		}
-		if (data) {
+		if (maxScore) {
+			int num;
 			if (getNum(&pos, &num)) {
-				data->scoreLimit = 10*num;
+				*maxScore = divisor*num;
 				if (isReal) {
-					printf("/maxscore set to %.1f\n", data->scoreLimit/10.0);
+					printf("/maxscore set to %.1f\n", (double)*maxScore/divisor);
 				}
 			} else if (isMe && isReal) {
-				printf("/maxscore: %.1f\n", data->scoreLimit/10.0);
+				printf("/maxscore: %.1f\n", (double)*maxScore/divisor);
 			}
 		} else if (isMe && isReal) {
-			puts("/maxscore: No TDM active");
+			puts("/maxscore: No task with scoring is active");
 		}
+	} else if (isCmd(str, "/stock")) {
+		char const *pos = str+6;
+		int num = 5;
+		getNum(&pos, &num);
+		taskStock_create(gs, num);
 	} else if (isCmd(str, "/shuffle")) {
 		uint32_t count = gs->players.num;
 		uint32_t blueCount = count/2;
@@ -1560,6 +1577,12 @@ void draw(gamestate *gs, float interpRatio, long drawingNanos, long totalNanos) 
 		if (t->defn->id == TSK_TDM) {
 			taskTdm_draw(t->data, interpRatio);
 			setup2dTextDrawing();
+		} else if (t->defn->id == TSK_STOCK) {
+			if (tabPressed) {
+				taskStock_draw(gs, t->data);
+				// It's just text, so I don't bother to
+				// `setup2dTextDrawing()` here.
+			}
 		}
 	}
 
