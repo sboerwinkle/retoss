@@ -707,14 +707,18 @@ static void transTasks(gamestate *gs) {
 				delete t;
 				return;
 			}
-			if ((*t->defn->trans)(gs, &t->data)) {
-				delete t;
-				return;
-			}
 			t->next = gs->tasks.next;
 			t->next->prev = t;
 			t->prev = &gs->tasks;
 			gs->tasks.next = t;
+			if ((*t->defn->trans)(gs, &t->data)) {
+				// We do the linkage first because `trans` might want to read it,
+				// but if `trans` fails we have to undo the linkage.
+				gs->tasks.next = t->next;
+				t->next->prev = &gs->tasks;
+				delete t;
+				return;
+			}
 		}
 	} else {
 		for (taskInstance *t = gs->tasks.prev; t != &gs->tasks; t = t->prev) {

@@ -44,6 +44,7 @@
 
 #include "tasks/blast.h"
 #include "tasks/grenades.h"
+#include "tasks/gunGame.h"
 #include "tasks/rocket.h"
 #include "tasks/stock.h"
 #include "tasks/tdmScore.h"
@@ -1220,6 +1221,11 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		int num = 5;
 		getNum(&pos, &num);
 		taskStock_create(gs, num);
+	} else if (isCmd(str, "/gungame")) {
+		char const *pos = str+8;
+		int num = 5;
+		getNum(&pos, &num);
+		taskGunGame_create(gs, num);
 	} else if (isCmd(str, "/shuffle")) {
 		uint32_t count = gs->players.num;
 		uint32_t blueCount = count/2;

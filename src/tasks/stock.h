@@ -1,4 +1,6 @@
 
+// TSK_GUNGAME also reads to this task's data, and relies on it not being removed.
+
 struct taskStockPlayer {
 	char deaths;
 	u8 timer;

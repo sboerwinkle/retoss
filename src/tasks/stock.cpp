@@ -168,6 +168,8 @@ void taskStock_create(gamestate *gs, u8 maxScore) {
 	}
 }
 
+// Any impl of taskStock_destroy should be conscious of TSK_GUNGAME
+
 void taskStock_define(taskDefn *d) {
 	d->step = &step;
 	d->trans = &trans;
