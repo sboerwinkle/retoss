@@ -1220,12 +1220,16 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		char const *pos = str+6;
 		int num = 5;
 		getNum(&pos, &num);
-		taskStock_create(gs, num);
+		int step = 0;
+		getNum(&pos, &step);
+		taskStock_create(gs, num, step);
 	} else if (isCmd(str, "/gungame")) {
 		char const *pos = str+8;
 		int num = 5;
 		getNum(&pos, &num);
-		taskGunGame_create(gs, num);
+		int step = 0;
+		getNum(&pos, &step);
+		taskGunGame_create(gs, num, step);
 	} else if (isCmd(str, "/shuffle")) {
 		uint32_t count = gs->players.num;
 		uint32_t blueCount = count/2;

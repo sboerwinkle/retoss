@@ -14,7 +14,8 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 	// We double the resolution b/c we have to draw halves in some cases,
 	// and need to split a pixel for that.
 	selectTex2d(1, 128, 128);
-	centeredGrid2d(256);
+	// Draw the crosshair a little bigger for octopus rifle :)
+	centeredGrid2d(data.octopus ? 192 : 256);
 	y *= displayAreaBounds[1];
 	if (data.cooldown) {
 		// Split crosshair

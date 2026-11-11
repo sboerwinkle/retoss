@@ -15,9 +15,22 @@
 
 #define RESPAWN_DELAY 45
 
+static int getMinDeaths(taskStockData *data) {
+	int result = 255;
+	rangeconst(i, data->players.num) {
+		if (data->players[i].deaths < result) {
+			result = data->players[i].deaths;
+		}
+	}
+	return result;
+}
+
 void taskStock_draw(gamestate *gs, void *_data) {
 	taskStockData &data = *(taskStockData*)_data;
-	char text[4];
+	// Max message is:
+	// / # (##/##)
+	// 123456789012
+	char text[12];
 	range(i, gs->players.num) {
 		taskStockPlayer *pl = &data.players[i];
 		player *p = &gs->players[i];
@@ -25,11 +38,38 @@ void taskStock_draw(gamestate *gs, void *_data) {
 		if (p->skin && p->skin->descr.str[0]) {
 			signifier = p->skin->descr.str[0];
 		}
-		snprintf(text, 4, "%c%2d", signifier, pl->deaths);
+		snprintf(text, 12, "%c%2d", signifier, pl->deaths);
 		drawText(text, 0, i*7);
 	}
-	snprintf(text, 4, "/%2d", data.maxScore);
-	drawText(text, 0, gs->players.num*7 + 3);
+
+	u8 start, end;
+	if (!data.step) {
+		start = end = data.maxScore;
+	} else if (data.step > 1) {
+		start = data.maxScore + 1 - (data.nextLife / data.step);
+		end = start + (start-1)/(data.step-1);
+	} else {
+		start = data.maxScore + 1 - data.nextLife;
+		end = data.maxScore + 1;
+	}
+
+	for (int i = start; i <= end; i++) {
+		if (i == data.maxScore) {
+			defaultTextColor();
+			snprintf(text, 12, "/%2d", i);
+		} else {
+			// TODO: default text brightness should be a constant so I can reference it here
+			spriteColorMult(0.4, 0.4, 0.4, 1);
+			if (i == data.maxScore + 1) {
+				snprintf(text, 12, " %2d (%d/%d)", i, getMinDeaths(&data), data.nextLife);
+			} else {
+				snprintf(text, 12, " %2d", i);
+			}
+		}
+		drawText(text, 0, (gs->players.num + i - start)*7 + 3);
+	}
+
+	defaultTextColor();
 }
 
 static uint32_t rand(uint32_t input) {
@@ -66,11 +106,19 @@ static void handleNewPlayers(gamestate *gs, taskStockData *data) {
 	}
 }
 
+static char checkAddLife(taskStockData *data) {
+	rangeconst(i, data->players.num) {
+		if (data->players[i].deaths < data->nextLife) return 0;
+	}
+	return 1;
+}
+
 static char step(gamestate *gs, void *_data) {
 	taskStockData *data = (taskStockData*)_data;
 	if (!data->spawns.num) return 0;
 
 	handleNewPlayers(gs, data);
+	char addLife = 0;
 
 	rangeconst(i, gs->players.num) {
 		taskStockPlayer *pl = &data->players[i];
@@ -78,7 +126,12 @@ static char step(gamestate *gs, void *_data) {
 
 		if (!p->alive) {
 			if (pl->timer <= RESPAWN_DELAY) {
-				if (!pl->timer) pl->deaths++;
+				if (!pl->timer) {
+					pl->deaths++;
+					if (pl->deaths == data->nextLife) {
+						addLife = checkAddLife(data);
+					}
+				}
 				pl->timer++;
 			}
 			if (pl->timer > RESPAWN_DELAY && pl->deaths < data->maxScore) {
@@ -86,6 +139,11 @@ static char step(gamestate *gs, void *_data) {
 				respawn(gs, data, i);
 			}
 		}
+	}
+
+	if (addLife) {
+		data->maxScore++;
+		data->nextLife += data->step;
 	}
 
 	return 0;
@@ -99,6 +157,8 @@ static char trans(gamestate *gs, void **ptr) {
 		data->spawns.init();
 	}
 	trans8(&data->maxScore);
+	trans8(&data->nextLife);
+	trans8(&data->step);
 
 	transItemCount(&data->players);
 	range(i, data->players.num) {
@@ -123,6 +183,8 @@ static void copy(void **to, void *from) {
 	taskStockData *src = (taskStockData*)from;
 
 	dest->maxScore = src->maxScore;
+	dest->nextLife = src->nextLife;
+	dest->step = src->step;
 	dest->players.init(src->players);
 	dest->spawns.init(src->spawns);
 }
@@ -134,7 +196,7 @@ static void destroy(void *_data) {
 	delete data;
 }
 
-void taskStock_create(gamestate *gs, u8 maxScore) {
+void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
 	taskStockData *data;
 	taskInstance *existingInst;
 
@@ -153,6 +215,7 @@ void taskStock_create(gamestate *gs, u8 maxScore) {
 	}
 
 	data->maxScore = maxScore;
+	data->nextLife = data->step = step;
 	data->players.init();
 
 

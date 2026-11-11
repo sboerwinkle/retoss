@@ -23,6 +23,8 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 	// and need to split a pixel for that.
 	selectTex2d(1, 128, 128);
 	centeredGrid2d(256);
+	// dark green tint
+	spriteColorMult(0.3, 0.8, 0.3, 1);
 	y *= displayAreaBounds[1];
 	if (data.cooldown) {
 		// Split crosshair
@@ -36,6 +38,7 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 		// pixel nonsense.
 		sprite2d(0, 10, 10, 10, -5, y-5);
 	}
+	spriteColorMult(1, 1, 1, 1);
 }
 
 static void use(gamestate *gs, player *p, char input, toolInst *_data) {

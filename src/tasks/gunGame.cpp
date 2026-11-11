@@ -75,8 +75,8 @@ static void destroy(void *data) {
 	// no op, `data` belongs to someone else
 }
 
-void taskGunGame_create(gamestate *gs, u8 maxScore) {
-	taskStock_create(gs, maxScore);
+void taskGunGame_create(gamestate *gs, u8 maxScore, u8 step) {
+	taskStock_create(gs, maxScore, step);
 
 	taskInstance *existingInst = findTaskStart(gs, TSK_STOCK);
 	if (existingInst == NULL) {

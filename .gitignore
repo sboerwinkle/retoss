@@ -3,6 +3,7 @@
 
 vgcore*
 game
+game.exe
 
 data/
 !data/.placeholder
