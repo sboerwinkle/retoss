@@ -302,6 +302,14 @@ void taskGrenades_clear(void *_data) {
 	}
 	l.num = 0;
 }
+void taskGrenades_clear2(void *_data) {
+	taskGrenadesData *data = (taskGrenadesData*)_data;
+	list<taskGrenade> &l = data->l;
+	range(i, l.num) {
+		velbox_remove(l[i].b);
+	}
+	l.num = 0;
+}
 
 void taskGrenades_draw(void *_data, int32_t now) {
 	taskGrenadesData *data = (taskGrenadesData*)_data;

@@ -632,19 +632,19 @@ void setupFrame(player const *p, gamestate *gs, lookConfig *lookCfg) {
 
 	memcpy(gfx_camPos1, p->m.oldPos, sizeof(offset));
 	memcpy(gfx_camPos2, p->m.pos, sizeof(offset));
-	if (lookCfg->hovDist && p->alive) {
-		gfx_camDist = calcCamDist(matWorldToCam, p->m.oldPos, p->m.pos, gs, lookCfg->fovInv, lookCfg->hovDist);
-		// Previously I'd use `p1` and `p2` directly and just set
-		// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
-		// but meant our calculations for how to draw trails were
-		// all messed up.
-		range(i, 3) {
-			int64_t shift = camHoverDir[i]*gfx_camDist;
-			gfx_camPos1[i] += shift;
-			gfx_camPos2[i] += shift;
-		}
-	} else {
-		gfx_camDist = 0;
+	int64_t hovDist = p->alive ? lookCfg->hovDist : 0;
+
+	// This also populates `gfx_nearMovers`, so we call it even when we're dead.
+	// Could skip most of it in that case, but why bother.
+	gfx_camDist = calcCamDist(matWorldToCam, p->m.oldPos, p->m.pos, gs, lookCfg->fovInv, hovDist);
+	// Previously I'd use `p1` and `p2` directly and just set
+	// `gfx_camDist` into `matWorldToCam[13]`. This was neat,
+	// but meant our calculations for how to draw trails were
+	// all messed up.
+	range(i, 3) {
+		int64_t shift = camHoverDir[i]*gfx_camDist;
+		gfx_camPos1[i] += shift;
+		gfx_camPos2[i] += shift;
 	}
 
 	// Todo I'm sure I'm wasting some multiplications here.

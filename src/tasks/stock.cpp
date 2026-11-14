@@ -226,7 +226,7 @@ void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
 
 	for (taskInstance *tsk = gs->tasks.next; tsk != &gs->tasks; tsk = tsk->next) {
 		if (tsk->defn->id == TSK_GRENADES) {
-			taskGrenades_clear(tsk->data);
+			taskGrenades_clear2(tsk->data);
 		}
 	}
 }

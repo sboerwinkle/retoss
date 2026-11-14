@@ -16,6 +16,7 @@ struct taskGrenadesData {
 };
 
 extern void taskGrenades_clear(void *_data);
+extern void taskGrenades_clear2(void *_data);
 extern void taskGrenades_draw(void *_data, int32_t now);
 
 extern void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 soundId, char team);
