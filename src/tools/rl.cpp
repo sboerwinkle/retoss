@@ -20,8 +20,8 @@ static void draw(gamestate *gs, player *p, float y, toolInst *_data) {
 	// and need to split a pixel for that.
 	selectTex2d(1, 128, 128);
 	centeredGrid2d(256);
-	// Yellow tint
-	spriteColorMult(1, 1, 0.5, 1);
+	// Orange tint
+	spriteColorMult(1, 0.7, 0.2, 1);
 	y *= displayAreaBounds[1];
 	if (data.cool1 && data.cool1 <= 45-12+1) {
 		// Split crosshair
