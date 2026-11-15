@@ -17,6 +17,10 @@ data/
 *.aup3
 *_orig.mp3
 
+# Weird folder where I keep wip editor stuff locally
+# maybe improve this
+src/wip
+
 # Old stuff I don't want to throw away lol
 /assets/old
 /notes

@@ -5,12 +5,6 @@ struct taskGrenade : disc {
 	u16 soundId;
 	// Todo Do we need some way for these to expire or be killed?
 };
-struct taskGrenadeExplosion {
-	box *parent;
-	offset p1;
-	offset p2;
-	u16 soundId;
-};
 struct taskGrenadesData {
 	list<taskGrenade> l;
 };

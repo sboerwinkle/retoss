@@ -14,6 +14,7 @@
 #include "../task.h"
 
 #include "blast.h"
+#include "explosion.h"
 
 #include "rocket.h"
 
@@ -32,30 +33,6 @@ static void putVb(taskRocket *data, box *guess) {
 	tmp->end = tmp->start + 1;
 	tmp->data = &data->m;
 	velbox_insert(guess, tmp);
-}
-
-static void blowUp(gamestate *gs, taskRocket *data, box *p) {
-
-	offset queryV;
-	range(i, 3) queryV[i] = data->m.pos[i] - data->m.oldPos[i];
-
-	list<mover*> blastMovers;
-	blastMovers.init();
-	velbox_query(p, data->m.oldPos, queryV, BLAST_R, &blastMovers);
-	rangeconst(iter, blastMovers.num) {
-		mover *m = blastMovers[iter];
-		if (!(m->type & T_PLAYER)) continue;
-		player *blastee = playerFromMover(m);
-		offset d;
-		range(i, 3) d[i] = blastee->m.pos[i] - data->m.pos[i];
-		// This should almost always be small enough to safely square,
-		// but for relativistic players maybe not.
-		int64_t mg = mag(d);
-		if (mg > BLAST_R || !mg) continue;
-		range(i, 3) blastee->vel[i] += d[i]*800/mg;
-		player_hit(gs, gs->clock+1, blastee, 2);
-	}
-	blastMovers.destroy();
 }
 
 static char step(gamestate *gs, void *_data) {
@@ -104,7 +81,7 @@ static char step(gamestate *gs, void *_data) {
 	mover *best = NULL;
 	int32_t bestTime = FIXP+1;
 	// `bestVec` will mean different things depending on what we hit,
-	// but it's always related to figuring out the rocket's explosion positoin.
+	// but it's always related to figuring out the rocket's explosion position.
 	offset bestVec;
 
 	parent = velbox_query(parent, data->m.oldPos, data->vel, RADIUS, &toCheck);
@@ -190,7 +167,7 @@ static char step(gamestate *gs, void *_data) {
 	if (!data->ttl) data->live = 0;
 
 	if (!data->live) {
-		blowUp(gs, data, parent);
+		taskExplosion_add(gs, data->m.oldPos, data->m.pos, BLAST_R, 800, 2, parent);
 		// The low byte is for shot count, but it wraps at 64.
 		// This means the high 2 bits are free, and we use one here for this
 		// rocket's "explode" sound (as distinct from the "whoosh" sounds it

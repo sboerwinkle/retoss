@@ -237,6 +237,7 @@ void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
 
 	data->maxScore = maxScore;
 	data->nextLife = data->step = step;
+	data->spawnIx = 0;
 	data->players.init();
 
 

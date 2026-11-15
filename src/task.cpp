@@ -8,6 +8,7 @@
 #include "tasks/blast.h"
 #include "tasks/doPlayers.h"
 #include "tasks/dynamics.h"
+#include "tasks/explosion.h"
 #include "tasks/grenades.h"
 #include "tasks/gunGame.h"
 #include "tasks/killPlane.h"
@@ -46,6 +47,7 @@ void task_init() {
 	add(TSK_BLAST, &defineTask_blast);
 	add(TSK_DO_PLAYERS, &taskDoPlayers_define);
 	add(TSK_DYNAMICS, &defineTask_dynamics);
+	add(TSK_EXPLOSION, &taskExplosion_define);
 	add(TSK_GRENADES, &taskGrenades_define);
 	add(TSK_GUNGAME, &taskGunGame_define);
 	add(TSK_KILL_PLANE, &defineTask_killPlane);

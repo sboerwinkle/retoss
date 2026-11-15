@@ -12,6 +12,7 @@
 #include "../task.h"
 
 #include "blast.h"
+#include "explosion.h"
 #include "killPlane.h"
 
 #include "grenades.h"
@@ -31,42 +32,16 @@ static void putVb(taskGrenade *nade, box *guess) {
 	velbox_insert(guess, tmp);
 }
 
-// TODO This is coming out to be VERY similar to the rocket stuff,
-//      should maybe make this shared.
-// Todo Do grenades need to be launched?
-static void blowUp(gamestate *gs, taskGrenadeExplosion *boom) {
+static void blowUp(gamestate *gs, taskGrenade *nade) {
+	offset vel;
+	range(i, 3) vel[i] = nade->pos[i] - nade->oldPos[i];
 
-	offset queryV;
-	range(i, 3) queryV[i] = boom->p2[i] - boom->p1[i];
+	uint32_t soundId = SND_ID_GRENADE + nade->soundId;
+	addSound(gs->clock+1, nade->pos, vel, soundId, SND_POP);
 
-	uint32_t soundId = SND_ID_GRENADE + boom->soundId;
-	addSound(gs->clock+1, boom->p2, queryV, soundId, SND_POP);
+	taskExplosion_add(gs, nade->oldPos, nade->pos, BLAST_R, 600, 1, nade->b);
 
-	list<mover*> blastMovers;
-	blastMovers.init();
-	velbox_query(boom->parent, boom->p1, queryV, BLAST_R, &blastMovers);
-	rangeconst(iter, blastMovers.num) {
-		mover *m = blastMovers[iter];
-		if (!(m->type & T_PLAYER)) continue;
-		player *blastee = playerFromMover(m);
-		offset d;
-		range(i, 3) d[i] = blastee->m.pos[i] - boom->p2[i];
-		// This should almost always be small enough to safely square,
-		// but for relativistic players maybe not.
-		int64_t mg = mag(d);
-		if (mg > BLAST_R || !mg) continue;
-		range(i, 3) blastee->vel[i] += d[i]*600/mg;
-		player_hit(gs, gs->clock+1, blastee, 1);
-	}
-	blastMovers.destroy();
-}
-
-static void addSmoke(gamestate *gs, taskGrenadeExplosion *boom) {
-	// todo: recalculated vs blowUp
-	offset v;
-	range(i, 3) v[i] = boom->p2[i] - boom->p1[i];
-
-	tskBlastData *blast = tskBlast_create(gs, boom->p2, v, BLAST_R, 40, 80);
+	tskBlastData *blast = tskBlast_create(gs, nade->pos, vel, BLAST_R, 40, 80);
 	tskBlast_later(blast);
 }
 
@@ -75,8 +50,6 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 static char step(gamestate *gs, void *_data) {
 	taskGrenadesData *data = (taskGrenadesData*)_data;
 	list<taskGrenade> &l = data->l;
-	list<taskGrenadeExplosion> booms;
-	booms.init();
 
 	taskInstance *killPlaneTask = findTaskStart(gs, TSK_KILL_PLANE);
 	if (killPlaneTask) {
@@ -99,11 +72,7 @@ static char step(gamestate *gs, void *_data) {
 	range(i, l.num) {
 		taskGrenade *nade = &l[i];
 		if (grenadePhysics(gs, nade, &toCheck)) {
-			taskGrenadeExplosion &boom = booms.add();
-			boom.parent = nade->b;
-			boom.soundId = nade->soundId;
-			memcpy(boom.p1, nade->oldPos, sizeof(offset));
-			memcpy(boom.p2, nade->pos, sizeof(offset));
+			blowUp(gs, nade);
 
 			l.quickRmAt(i);
 			if (i < l.num) {
@@ -120,15 +89,6 @@ static char step(gamestate *gs, void *_data) {
 		// A prospective parent got stored in `nade->b` during `grenadePhysics`.
 		putVb(nade, nade->b);
 	}
-
-	// Eventually we might want grenade blasts to knock around other grenades,
-	// so we do the explosions last.
-	range(i, booms.num) {
-		taskGrenadeExplosion &boom = booms[i];
-		blowUp(gs, &boom);
-		addSmoke(gs, &boom);
-	}
-	booms.destroy();
 
 	return !l.num;
 }
