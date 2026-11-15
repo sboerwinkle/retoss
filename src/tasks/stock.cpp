@@ -3,6 +3,7 @@
 #include "../gamestate.h"
 
 #include "../game_gamestate.h"
+#include "../main.h"
 #include "../task.h"
 #include "../random.h"
 #include "../graphics.h"
@@ -14,6 +15,8 @@
 #include "stock.h"
 
 #define RESPAWN_DELAY 45
+
+#define TIMER_ALIVE 255
 
 static int getMinDeaths(taskStockData *data) {
 	int result = 255;
@@ -72,19 +75,32 @@ void taskStock_draw(gamestate *gs, void *_data) {
 	defaultTextColor();
 }
 
-static uint32_t rand(uint32_t input) {
-	return splitmix32(&input);
+static void shuffleSpawns(gamestate *gs, taskStockData *data, char force) {
+	uint32_t seed = splitmix32(&gs->seed);
+	// We can skip the shuffling in some cases since it won't be needed
+	// immediately, but this is kind of silly since it's so quick to do
+	// anyway. It was fun for me to think about, though, so here it is.
+	if (!force && gs != rootState) return;
+
+	for (int32_t i = data->spawns.num; i > 1; i--) {
+		int32_t dest = splitmix32(&seed) % i;
+		offset_t tmp = data->spawns[i-1];
+		data->spawns[i-1] = data->spawns[dest];
+		data->spawns[dest] = tmp;
+	}
 }
 
 // During setup, this can be called before `data->players` has anything,
 // so don't rely on that list!
 static void respawn(gamestate *gs, taskStockData *data, int i) {
 	player *p = &gs->players[i];
-
 	softResetPlayer(p);
 
-	int spawnIx = rand(gs->clock * gs->players.num + i) % data->spawns.num;
-	int64_t *spawnPos = data->spawns[spawnIx].o;
+	// Doing the increment (and modulus) first prevents all kinds of OoB headaches
+	// (malicious serialization payload, unexpected interaction with editor...)
+	data->spawnIx = (data->spawnIx+1) % data->spawns.num;
+	int64_t *spawnPos = data->spawns[data->spawnIx].o;
+
 	memcpy(p->m.pos, spawnPos, sizeof(offset));
 	// IDK if we technically need this as well, seems reasonable
 	memcpy(p->m.oldPos, spawnPos, sizeof(offset));
@@ -99,18 +115,11 @@ static void handleNewPlayers(gamestate *gs, taskStockData *data) {
 		// First respawn is free if they're already
 		// dead when we see them the first time.
 		pl->deaths = 0;
-		pl->timer = p->alive ? 0 : 1;
+		pl->timer = p->alive ? TIMER_ALIVE : 0;
 
 		p->team = 10+i;
 		redoSkin(p);
 	}
-}
-
-static char checkAddLife(taskStockData *data) {
-	rangeconst(i, data->players.num) {
-		if (data->players[i].deaths < data->nextLife) return 0;
-	}
-	return 1;
 }
 
 static char step(gamestate *gs, void *_data) {
@@ -118,32 +127,41 @@ static char step(gamestate *gs, void *_data) {
 	if (!data->spawns.num) return 0;
 
 	handleNewPlayers(gs, data);
-	char addLife = 0;
+	char addLife = !!data->nextLife;
+	char respawnWorking = 0;
+	char respawnFinished = 0;
 
 	rangeconst(i, gs->players.num) {
 		taskStockPlayer *pl = &data->players[i];
 		player *p = &gs->players[i];
 
 		if (!p->alive) {
-			if (pl->timer <= RESPAWN_DELAY) {
-				if (!pl->timer) {
-					pl->deaths++;
-					if (pl->deaths == data->nextLife) {
-						addLife = checkAddLife(data);
-					}
-				}
-				pl->timer++;
-			}
-			if (pl->timer > RESPAWN_DELAY && pl->deaths < data->maxScore) {
+			if (pl->timer == TIMER_ALIVE) {
 				pl->timer = 0;
-				respawn(gs, data, i);
+				pl->deaths++;
+			}
+			if (pl->deaths < data->maxScore) {
+				if (pl->timer >= RESPAWN_DELAY) {
+					respawnFinished = 1;
+					pl->timer = TIMER_ALIVE;
+					respawn(gs, data, i);
+				} else {
+					respawnWorking = 1;
+					pl->timer++;
+				}
 			}
 		}
+
+		if (pl->deaths < data->nextLife) addLife = 0;
 	}
 
 	if (addLife) {
 		data->maxScore++;
 		data->nextLife += data->step;
+	}
+
+	if (respawnFinished && !respawnWorking) {
+		shuffleSpawns(gs, data, 0);
 	}
 
 	return 0;
@@ -159,6 +177,7 @@ static char trans(gamestate *gs, void **ptr) {
 	trans8(&data->maxScore);
 	trans8(&data->nextLife);
 	trans8(&data->step);
+	trans8(&data->spawnIx);
 
 	transItemCount(&data->players);
 	range(i, data->players.num) {
@@ -170,6 +189,7 @@ static char trans(gamestate *gs, void **ptr) {
 	range(i, data->spawns.num) {
 		transOffset(data->spawns[i].o);
 	}
+
 	return 0;
 }
 
@@ -185,6 +205,7 @@ static void copy(void **to, void *from) {
 	dest->maxScore = src->maxScore;
 	dest->nextLife = src->nextLife;
 	dest->step = src->step;
+	dest->spawnIx = src->spawnIx;
 	dest->players.init(src->players);
 	dest->spawns.init(src->spawns);
 }
@@ -222,7 +243,9 @@ void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
 	// Reset players and grenades, game starts immediately.
 	// No fancy "get ready" text like for TDM.
 
+	shuffleSpawns(gs, data, 1);
 	range(i, gs->players.num) respawn(gs, data, i);
+	shuffleSpawns(gs, data, 0);
 
 	for (taskInstance *tsk = gs->tasks.next; tsk != &gs->tasks; tsk = tsk->next) {
 		if (tsk->defn->id == TSK_GRENADES) {

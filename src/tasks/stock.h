@@ -12,6 +12,7 @@ struct taskStockData {
 	u8 maxScore;
 	u8 nextLife;
 	u8 step;
+	u8 spawnIx;
 	list<taskStockPlayer> players;
 	list<offset_t> spawns;
 };

@@ -1,4 +1,7 @@
+- Tweak to vertical jumps
 - `examples/` template for just adding solids to an active level
+. Fix /gungame repeat causing failure :(
+- Nerf 'infinite grenades' strat - slightly.
 - Chaingun
 - Skybridge
 - Tunnel
