@@ -23,17 +23,27 @@ static char step(gamestate *gs, void *_data) {
 	velbox_query(data->parent, data->p1, queryV, data->radius, &blastMovers);
 	rangeconst(iter, blastMovers.num) {
 		mover *m = blastMovers[iter];
-		if (!(m->type & T_PLAYER)) continue;
-		player *blastee = playerFromMover(m);
-		offset d;
-		range(i, 3) d[i] = blastee->m.pos[i] - data->p2[i];
+		if ((m->type & T_MASK) == T_PLAYER) {
+			player *blastee = playerFromMover(m);
+			offset d;
+			range(i, 3) d[i] = blastee->m.pos[i] - data->p2[i];
 
-		// This should almost always be small enough to safely square,
-		// but for relativistic players maybe not.
-		int64_t mg = mag(d);
-		if (mg > data->radius || !mg) continue;
-		range(i, 3) blastee->vel[i] += d[i]*data->launch/mg;
-		player_hit(gs, gs->clock+1, blastee, data->dmg);
+			// This should almost always be small enough to safely square,
+			// but for relativistic players maybe not.
+			int64_t mg = mag(d);
+			if (mg > data->radius || !mg) continue;
+			range(i, 3) blastee->vel[i] += d[i]*data->launch/mg;
+			player_hit(gs, gs->clock+1, blastee, data->dmg);
+		} else if ((m->type & (T_MASK+FLAG_NADE)) == T_PROJ+FLAG_NADE) {
+			taskGrenade *nade = (taskGrenade*)m;
+			nade->dying |= 128;
+			// Some very similar logic here about launching things...
+			offset d;
+			range(i, 3) d[i] = nade->pos[i] - data->p2[i];
+			int64_t mg = mag(d);
+			if (mg > data->radius || !mg) continue;
+			range(i, 3) nade->vel[i] += d[i]*data->launch/mg;
+		}
 	}
 
 	blastMovers.destroy();

@@ -177,6 +177,11 @@ static char grenadePhysics(gamestate *gs, taskGrenade *nade, list<mover*> *_toCh
 
 	memcpy(nade->pos, dest, sizeof(dest));
 
+	if (nade->dying) {
+		nade->dying++;
+		if (nade->dying >= 128+7) return 1;
+	}
+
 	// We do our detonation check based on old positions
 	// simply because `dest` could be bounced all over by geometry,
 	// and we don't want to have detection be based on dumb luck
@@ -210,10 +215,11 @@ static char trans(gamestate *gs, void **ptr) {
 
 	rangeconst(i, data->l.num) {
 		taskGrenade *nade = &data->l[i];
-		transMover(nade, T_PROJ);
+		transMover(nade, T_PROJ+FLAG_NADE);
 		transOffset(nade->vel);
 		trans8(&nade->bounces);
 		trans8(&nade->team);
+		trans8(&nade->dying);
 		trans16(&nade->soundId);
 	}
 
@@ -317,9 +323,10 @@ void taskGrenades_add(gamestate *gs, offset p1, offset vel, box *parent, u16 sou
 	// Not really ever used, but prevents warnings from valgrind about `write()`ing uninitialized data
 	memset(nade->rot, 0, sizeof(iquat));
 
-	nade->type = T_PROJ;
+	nade->type = T_PROJ+FLAG_NADE;
 	nade->bounces = 2;
 	nade->team = team;
+	nade->dying = 0;
 	nade->soundId = soundId;
 
 	// a dead box with the right parent

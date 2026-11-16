@@ -22,6 +22,9 @@ struct mover; // "box" and "gamestate" reference each other's types
 #define T_PROJ 64
 #define T_MASK (15*16)
 #define FLAG_INTERACT (1<<8)
+// Probably there will be more things that behave "like grenades"
+// in some sense eventually, but for now give them their own flag.
+#define FLAG_NADE (1<<9)
 
 struct mover { // This is kind of just a grouping of fields; we use it for e.g. rendering
 	int64_t pos[3];

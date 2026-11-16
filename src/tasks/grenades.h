@@ -2,6 +2,7 @@ struct taskGrenade : disc {
 	offset vel;
 	u8 bounces;
 	char team;
+	u8 dying;
 	u16 soundId;
 	// Todo Do we need some way for these to expire or be killed?
 };
