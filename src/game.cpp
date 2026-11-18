@@ -1218,18 +1218,22 @@ char processTxtCmd(gamestate *gs, player *p, char *str, char isMe, char isReal) 
 		}
 	} else if (isCmd(str, "/stock")) {
 		char const *pos = str+6;
-		int num = 5;
+		int32_t num = 5;
 		getNum(&pos, &num);
-		int step = 0;
+		int32_t step = 0;
 		getNum(&pos, &step);
-		taskStock_create(gs, num, step);
+		int32_t start = step;
+		getNum(&pos, &start);
+		taskStock_create(gs, num, step, start);
 	} else if (isCmd(str, "/gungame")) {
 		char const *pos = str+8;
-		int num = 5;
+		int32_t num = 5;
 		getNum(&pos, &num);
-		int step = 0;
+		int32_t step = 0;
 		getNum(&pos, &step);
-		taskGunGame_create(gs, num, step);
+		int32_t start = step;
+		getNum(&pos, &start);
+		taskGunGame_create(gs, num, step, start);
 	} else if (isCmd(str, "/shuffle")) {
 		uint32_t count = gs->players.num;
 		uint32_t blueCount = count/2;

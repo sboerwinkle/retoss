@@ -18,60 +18,60 @@
 
 #define TIMER_ALIVE 255
 
-static int getMinDeaths(taskStockData *data) {
-	int result = 255;
-	rangeconst(i, data->players.num) {
-		if (data->players[i].deaths < result) {
-			result = data->players[i].deaths;
-		}
-	}
-	return result;
-}
-
 void taskStock_draw(gamestate *gs, void *_data) {
-	taskStockData &data = *(taskStockData*)_data;
-	// Max message is:
-	// / # (##/##)
-	// 123456789012
-	char text[12];
+	taskStockData *data = (taskStockData*)_data;
+	// For now we draw everything character-by-character,
+	// because it's easier to think about and I'm very tired.
+	// Can always improve this later lol
+	char s[2];
+	s[1] = '\0';
+	range(j, data->maxScore+1) {
+		s[0] = '0' + (data->maxScore-j)%10;
+		if (j == data->nextLife) {
+			// TODO: default text brightness should be a constant so I can reference it here
+			spriteColorAdd(0, 0.25, 0, 0);
+			// Holds until the end of the row.
+		}
+		drawText(s, j*5, 0);
+	}
+	spriteColorAdd(0, 0, 0, 0);
+
 	range(i, gs->players.num) {
-		taskStockPlayer *pl = &data.players[i];
+		taskStockPlayer *pl = &data->players[i];
 		player *p = &gs->players[i];
 		char signifier = '?';
 		if (p->skin && p->skin->descr.str[0]) {
 			signifier = p->skin->descr.str[0];
 		}
-		snprintf(text, 12, "%c%2d", signifier, pl->deaths);
-		drawText(text, 0, i*7);
+
+		range(j, data->maxScore+1) {
+			s[0] = (j == pl->deaths) ? signifier : ' ';
+			if (j == data->nextLife) {
+				spriteColorAdd(0, 0.25, 0, 0);
+			}
+			drawText(s, j*5, (i+1)*7);
+		}
+		spriteColorAdd(0, 0, 0, 0);
 	}
 
-	u8 start, end;
-	if (!data.step) {
-		start = end = data.maxScore;
-	} else if (data.step > 1) {
-		start = data.maxScore + 1 - (data.nextLife / data.step);
-		end = start + (start-1)/(data.step-1);
-	} else {
-		start = data.maxScore + 1 - data.nextLife;
-		end = data.maxScore + 1;
-	}
+	if (!data->start) return;
 
-	for (int i = start; i <= end; i++) {
-		if (i == data.maxScore) {
-			defaultTextColor();
-			snprintf(text, 12, "/%2d", i);
-		} else {
-			// TODO: default text brightness should be a constant so I can reference it here
-			spriteColorMult(0.4, 0.4, 0.4, 1);
-			if (i == data.maxScore + 1) {
-				snprintf(text, 12, " %2d (%d/%d)", i, getMinDeaths(&data), data.nextLife);
+	u8 next = data->start;
+	range(j, data->maxScore+1) {
+		s[0] = ' ';
+		if (j == next) {
+			next += data->step;
+			s[0] = '<';
+			if (j == data->nextLife) {
+				spriteColorAdd(0, 0.25, 0, 0);
+				defaultTextColor();
 			} else {
-				snprintf(text, 12, " %2d", i);
+				spriteColorMult(0.3, 0.3, 0.3, 1);
 			}
 		}
-		drawText(text, 0, (gs->players.num + i - start)*7 + 3);
+		drawText(s, j*5, (gs->players.num+1)*7);
 	}
-
+	spriteColorAdd(0, 0, 0, 0);
 	defaultTextColor();
 }
 
@@ -127,7 +127,7 @@ static char step(gamestate *gs, void *_data) {
 	if (!data->spawns.num) return 0;
 
 	handleNewPlayers(gs, data);
-	char addLife = !!data->nextLife;
+	char addLife = 1;
 	char respawnWorking = 0;
 	char respawnFinished = 0;
 
@@ -156,7 +156,9 @@ static char step(gamestate *gs, void *_data) {
 	}
 
 	if (addLife) {
-		data->maxScore++;
+		rangeconst(i, gs->players.num) {
+			data->players[i].deaths--;
+		}
 		data->nextLife += data->step;
 	}
 
@@ -177,6 +179,7 @@ static char trans(gamestate *gs, void **ptr) {
 	trans8(&data->maxScore);
 	trans8(&data->nextLife);
 	trans8(&data->step);
+	trans8(&data->start);
 	trans8(&data->spawnIx);
 
 	transItemCount(&data->players);
@@ -205,6 +208,7 @@ static void copy(void **to, void *from) {
 	dest->maxScore = src->maxScore;
 	dest->nextLife = src->nextLife;
 	dest->step = src->step;
+	dest->start = src->start;
 	dest->spawnIx = src->spawnIx;
 	dest->players.init(src->players);
 	dest->spawns.init(src->spawns);
@@ -217,7 +221,7 @@ static void destroy(void *_data) {
 	delete data;
 }
 
-void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
+void taskStock_create(gamestate *gs, u8 maxScore, u8 step, u8 start) {
 	taskStockData *data;
 	taskInstance *existingInst;
 
@@ -236,7 +240,9 @@ void taskStock_create(gamestate *gs, u8 maxScore, u8 step) {
 	}
 
 	data->maxScore = maxScore;
-	data->nextLife = data->step = step;
+	data->step = step;
+	data->nextLife = data->start = start;
+	if (!start) data->nextLife = 255;
 	data->spawnIx = 0;
 	data->players.init();
 
