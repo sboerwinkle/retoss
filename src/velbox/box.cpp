@@ -55,6 +55,28 @@ static char intersects(box *o, box *n, TIME now) {
 static char intersects(box *o, box *n) {
 	return intersects(o, n, vb_now);
 }
+// A variant of `intersects` for the query method,
+// where we can make assumptions about `n->start` and `n->end` relative to `now`
+static char intersects_query(box *o, box *n) {
+	TIME t_o = vb_now - o->start;
+	INT r = o->r + n->r;
+	// TODO Do I force this loop to unroll?? Probably not, but why isn't the compiler choosing to?
+	range(d, DIMS) {
+		INT vel = o->vel[d] - n->vel[d];
+		// Removed a check here about very large relative velocities.
+		// I could probably add it back, but I don't want to for now.
+		// It would just assume it signified a collision on this axis and continue.
+
+		INT d1 = o->pos[d] + o->vel[d] * t_o - n->pos[d];
+		INT d2 = d1 + vel;
+
+		// Outside before, and outside after, and...
+		//   The measurement of "distance between" doesn't cross 0
+		//   (in which case it would be disrupted by a shift of INT_MIN)
+		if (abs(d1) >= r && abs(d2) >= r && (d2-d1 > 0) == (d2-MIN > d1-MIN)) return 0;
+	}
+	return 1;
+}
 
 // Assumes that `p` currently contains `b` ("currently" = vb_now),
 // and checks if it's still contained at the end of `b`.
@@ -531,7 +553,7 @@ static void insert(box *guess, box *n) {
 static void writeQueryResults(box *b, box *target, list<LEAF*> *results) {
 	// We could skip the `intersects` check for a more optimistic query,
 	// but I think I'll leave it in for now.
-	if (!intersects(b, target)) return;
+	if (!intersects_query(b, target)) return;
 
 	if (isLeaf(b)) {
 		results->add(b->data);

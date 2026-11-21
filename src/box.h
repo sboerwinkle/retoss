@@ -16,4 +16,9 @@
 // I wound up re-writing it for this project anyway,
 // so the "defaults" are all already what I want.
 #define LEAF mover
+
+// Just kinda fucking around with these. I want grenade parents to have multi-frame validity...
+#define VALID_WINDOW 4
+#define VALID_FLOOR 17
+
 #include "velbox/box.h"
